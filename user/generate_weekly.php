@@ -1,117 +1,110 @@
-    <?php
-    session_start();
-    require_once '../config.php';
+<?php
+session_start();
+require_once '../config.php';
 
-    if (!isset($_SESSION['user_id'])) {
-        exit;
-    }
+if (!isset($_SESSION['user_id'])) {
+    exit;
+}
 
-    $user_id = $_SESSION['user_id'];
+$user_id = $_SESSION['user_id'];
 
-    $days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-    $meal_types = ['breakfast','lunch','dinner','snack'];
+$days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+$meal_types = ['breakfast','lunch','dinner','snack'];
 
-    /* --------------------------------------------------
-    1. GET USER PROFILE (AI INPUT)
-    -------------------------------------------------- */
-    $userStmt = $conn->prepare("
-        SELECT goal, diet_type, allergies 
-        FROM users 
-        WHERE id = ?
-    ");
-    $userStmt->bind_param("i", $user_id);
-    $userStmt->execute();
-    $user = $userStmt->get_result()->fetch_assoc();
-    $userStmt->close();
+/* --------------------------------------------------
+1. GET USER PROFILE (AI INPUT)
+-------------------------------------------------- */
+$userStmt = $conn->prepare("
+    SELECT goal, diet_type, allergies 
+    FROM users 
+    WHERE id = ?
+");
+$userStmt->execute([$user_id]);
+$user = $userStmt->fetch();
 
-    if (!$user) die("User profile not found.");
+if (!$user) die("User profile not found.");
 
-    $goal = $user['goal'];
-    $diet_type = "%" . $user['diet_type'] . "%";
-    $allergies = array_map('trim', explode(',', strtolower($user['allergies'])));
+$goal = $user['goal'];
+$diet_type = "%" . $user['diet_type'] . "%";
+$allergies = array_map('trim', explode(',', strtolower($user['allergies'])));
 
-    /* --------------------------------------------------
-    2. CLEAR OLD WEEKLY PLAN
-    -------------------------------------------------- */
-    $clearStmt = $conn->prepare("DELETE FROM weekly_meal_plan WHERE user_id = ?");
-    $clearStmt->bind_param("i", $user_id);
-    $clearStmt->execute();
-    $clearStmt->close();
+/* --------------------------------------------------
+2. CLEAR OLD WEEKLY PLAN
+-------------------------------------------------- */
+$clearStmt = $conn->prepare("DELETE FROM weekly_meal_plan WHERE user_id = ?");
+$clearStmt->execute([$user_id]);
 
-    /* --------------------------------------------------
-    3. GENERATE AI-BASED WEEKLY PLAN WITH ALLERGY FILTER
-    -------------------------------------------------- */
-    $mealStmt = $conn->prepare("
-        SELECT id, ingredients 
-        FROM meals
-        WHERE category = ?
-        AND goal = ?
-        AND diet_type LIKE ?
-        ORDER BY RAND()
-        LIMIT 50
-    ");
+/* --------------------------------------------------
+3. GENERATE AI-BASED WEEKLY PLAN WITH ALLERGY FILTER
+-------------------------------------------------- */
+$mealStmt = $conn->prepare("
+    SELECT id, ingredients 
+    FROM meals
+    WHERE category = ?
+    AND goal = ?
+    AND diet_type LIKE ?
+    ORDER BY RANDOM()
+    LIMIT 50
+");
 
-    $insertStmt = $conn->prepare("
-        INSERT INTO weekly_meal_plan (user_id, day, meal_type, meal_id)
-        VALUES (?, ?, ?, ?)
-    ");
+// Idinagdag ang 'created_at' para hindi mag-not null violation error
+$insertStmt = $conn->prepare("
+    INSERT INTO weekly_meal_plan (id, user_id, day, meal_type, meal_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+");
 
-    foreach ($days as $day) {
-        foreach ($meal_types as $type) {
+foreach ($days as $day) {
+    foreach ($meal_types as $type) {
 
-            // Fetch multiple meals to filter allergens
-            $mealStmt->bind_param("sss", $type, $goal, $diet_type);
-            $mealStmt->execute();
-            $result = $mealStmt->get_result();
+        $mealStmt->execute([$type, $goal, $diet_type]);
 
-            $chosenMeal = null;
-            while ($meal = $result->fetch_assoc()) {
-                $ingredients = array_map('trim', explode(',', strtolower($meal['ingredients'])));
-                $hasAllergy = false;
-                foreach ($allergies as $allergy) {
-                    if ($allergy && in_array($allergy, $ingredients)) {
-                        $hasAllergy = true;
-                        break;
-                    }
-                }
-
-                if (!$hasAllergy) {
-                    $chosenMeal = $meal;
+        $chosenMeal = null;
+        while ($meal = $mealStmt->fetch()) {
+            $ingredients = array_map('trim', explode(',', strtolower($meal['ingredients'])));
+            $hasAllergy = false;
+            foreach ($allergies as $allergy) {
+                if ($allergy && in_array($allergy, $ingredients)) {
+                    $hasAllergy = true;
                     break;
                 }
             }
 
-            if ($chosenMeal) {
-                $insertStmt->bind_param("issi", $user_id, $day, $type, $chosenMeal['id']);
-                $insertStmt->execute();
+            if (!$hasAllergy) {
+                $chosenMeal = $meal;
+                break;
             }
         }
+
+        if ($chosenMeal) {
+            // Kinukuha ang manual next id at current timestamp
+            $idStmt = $conn->query("SELECT COALESCE(MAX(id), 0) + 1 FROM weekly_meal_plan");
+            $nextId = $idStmt->fetchColumn();
+            $current_time = date('Y-m-d H:i:s');
+
+            $insertStmt->execute([$nextId, $user_id, $day, $type, $chosenMeal['id'], $current_time]);
+        }
     }
+}
 
-    $mealStmt->close();
-    $insertStmt->close();
+/* --------------------------------------------------
+4. FETCH SNACKS FOR USER (OPTIONAL DISPLAY)
+-------------------------------------------------- */
+$snackStmt = $conn->prepare("
+    SELECT m.name, m.calories, m.protein, m.carbs, m.fats
+    FROM weekly_meal_plan w
+    JOIN meals m ON w.meal_id = m.id
+    WHERE w.user_id = ? AND w.meal_type = 'snack'
+");
+$snackStmt->execute([$user_id]);
 
-    /* --------------------------------------------------
-    4. FETCH SNACKS FOR USER (OPTIONAL DISPLAY)
-    -------------------------------------------------- */
-    $snackStmt = $conn->prepare("
-        SELECT m.name, m.calories, m.protein, m.carbs, m.fats
-        FROM weekly_meal_plan w
-        JOIN meals m ON w.meal_id = m.id
-        WHERE w.user_id = ? AND w.meal_type = 'snack'
-    ");
-    $snackStmt->bind_param("i", $user_id);
-    $snackStmt->execute();
-    $snackResult = $snackStmt->get_result();
+$snacks = [];
+while ($row = $snackStmt->fetch()) {
+    $snacks[] = $row;
+}
 
-    $snacks = [];
-    while ($row = $snackResult->fetch_assoc()) {
-        $snacks[] = $row;
-    }
-    $snackStmt->close();
-
-    /* --------------------------------------------------
-    5. REDIRECT TO VIEW WEEKLY PLAN
-    -------------------------------------------------- */
-    header("Location: view_weekly.php");
-    exit;
+/* --------------------------------------------------
+5. REDIRECT TO VIEW WEEKLY PLAN
+-------------------------------------------------- */
+header("Location: view_weekly.php");
+exit;
+?>

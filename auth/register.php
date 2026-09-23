@@ -1,280 +1,128 @@
-    <?php /* get-started.php */ ?>
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-    <meta charset="UTF-8">
-    <title>AI-Based Diet & Nutritional Planner</title>
-    
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?php
+// register.php
+session_start();
+require_once '../config.php';
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+$errors = [];
+$success = "";
 
-    <style>
-    * { box-sizing:border-box; margin:0; padding:0; }
-    body {
-        font-family:'Inter',sans-serif;
-        background:#f4f7ff;
-        color:#0f172a;
-    }
-    a { text-decoration:none; }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $fullname = trim($_POST['fullname']);
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'];
+    $phone = trim($_POST['phone']);
 
-    /* HEADER */
-    .header {
-        padding:25px 60px;
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-    }
-    .logo {
-        font-size:22px;
-        font-weight:800;
-        color:#2563eb;
-    }
-    .back {
-        font-size:16px;
-        color:#2563eb;
-    }
+    $age = intval($_POST['age']);
+    $gender = $_POST['gender'];
+    $height = floatval($_POST['height']);
+    $weight = floatval($_POST['weight']);
+    $goal = $_POST['goal'];
+    $activity = $_POST['activity'];
+    $diet_type = trim($_POST['diet_type']);
+    $allergies = trim($_POST['allergies']);
 
-    /* HERO */
-    .hero {
-        text-align:center;
-        padding:30px 20px 40px;
-    }
-    .hero h1 {
-        font-size:42px;
-        font-weight:800;
-        margin-bottom:10px;
-    }
-    .hero p {
-        font-size:18px;
-        color:#64748b;
+    if (empty($fullname)) $errors[] = "Full name is required.";
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required.";
+    if (empty($password) || strlen($password) < 6) $errors[] = "Password must be at least 6 characters.";
+    if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
+    if (!preg_match('/^[0-9]{11}$/', $phone)) $errors[] = "Phone number must be exactly 11 digits.";
+    if ($age <= 0) $errors[] = "Valid age is required.";
+    if ($height <= 0) $errors[] = "Valid height is required.";
+    if ($weight <= 0) $errors[] = "Valid weight is required.";
+
+    if (empty($errors)) {
+        // PDO Check existing email
+        $stmt = $conn->prepare("SELECT id FROM users WHERE email=? LIMIT 1");
+        $stmt->execute([$email]);
+        if ($stmt->rowCount() > 0) {
+            $errors[] = "Email already registered. Please sign in.";
+        }
     }
 
-    /* CARDS */
-    .cards {
-        display:grid;
-        grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
-        gap:30px;
-        padding:50px;
-        max-width:1200px;
-        margin:auto;
-    }
-    .card {
-        background:#fff;
-        padding:40px 30px;
-        border-radius:24px;
-        box-shadow:0 30px 60px rgba(0,0,0,.08);
-        transition:.3s;
-        text-align:center;
-    }
-    .card:hover {
-        transform:translateY(-8px);
-    }
-    .icon {
-        font-size:48px;
-        color:#2563eb;
-        margin-bottom:20px;
-    }
-    .card h3 {
-        font-size:22px;
-        margin-bottom:10px;
-    }
-    .card p {
-        font-size:15px;
-        color:#64748b;
-        margin-bottom:25px;
-    }
-    .card ul {
-        list-style:none;
-        text-align:left;
-        margin-bottom:30px;
-    }
-    .card ul li {
-        margin-bottom:10px;
-        font-size:14px;
-    }
-    .card ul li i {
-        color:#22c55e;
-        margin-right:10px;
-    }
+    if (empty($errors)) {
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+        $role = 'user';
 
-    /* BUTTON */
-    .btn {
-        display:inline-block;
-        background:#2563eb;
-        color:#fff;
-        padding:14px 26px;
-        border-radius:14px;
-        font-weight:700;
-    }
+        // PDO Insert
+        $stmt = $conn->prepare("
+            INSERT INTO users 
+            (fullname, email, phone, password, role, age, gender, height, weight, goal, activity, diet_type, allergies)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
 
-    /* FOOTER NOTE */
-    .note {
-        text-align:center;
-        padding-bottom:50px;
-        color:#94a3b8;
-        font-size:14px;
-    }
-    /* MODAL */
-    #modalOverlay {
-        position:fixed;
-        top:0; left:0;
-        width:100%;
-        height:100%;
-        background:rgba(0,0,0,.45);
-        display:flex;
-        justify-content:center;
-        align-items:center;
-        z-index:999;
-    }
-
-    .modal {
-        background:#fff;
-        padding:40px;
-        border-radius:24px;
-        width:90%;
-        max-width:420px;
-        text-align:center;
-        box-shadow:0 40px 80px rgba(0,0,0,.2);
-        animation:pop .25s ease;
-    }
-
-    .modal h2 {
-        margin-bottom:10px;
-    }
-
-    .modal p {
-        color:#64748b;
-        margin-bottom:25px;
-    }
-
-    .modal-actions {
-        display:flex;
-        gap:15px;
-        justify-content:center;
-    }
-
-    .cancel {
-        background:#e5e7eb;
-        color:#0f172a;
-    }
-
-    @keyframes pop {
-        from { transform:scale(.9); opacity:0; }
-        to { transform:scale(1); opacity:1; }
-    }
-
-    </style>
-    </head>
-
-    <body>
-
-    <!-- HEADER -->
-    <div class="header">
-        <div class="logo">AI Diet Planner</div>
-        <a href="../index.php" class="back">← Back</a>
-    </div>
-
-    <!-- HERO -->
-    <section class="hero">
-        <h1>Get Started</h1>
-        <p>Choose how you want to use the AI-Based Diet & Nutritional Planner</p>
-    </section>
-
-    <!-- CARDS -->
-    <section class="cards">
-
-        <!-- USER -->
-        <div class="card">
-            <div class="icon"><i class="fa-solid fa-user"></i></div>
-            <h3>I'm a User</h3>
-            <p>Get personalized diet plans powered by AI and nutrition experts.</p>
-
-            <ul>
-                <li><i class="fa-solid fa-check"></i> AI-generated meal plans</li>
-                <li><i class="fa-solid fa-check"></i> Calorie & macro tracking</li>
-                <li><i class="fa-solid fa-check"></i> Chat with nutritionists</li>
-            </ul>
-
-            <button class="btn" onclick="openModal('user')">Get Started</button>
-
-        </div>
-
-        <!-- NUTRITIONIST -->
-        <div class="card">
-            <div class="icon"><i class="fa-solid fa-user-doctor"></i></div>
-            <h3>I'm a Nutritionist</h3>
-            <p>Guide users with expert advice and AI-assisted planning.</p>
-
-            <ul>
-                <li><i class="fa-solid fa-check"></i> Manage client meal plans</li>
-                <li><i class="fa-solid fa-check"></i> Real-time chat support</li>
-                <li><i class="fa-solid fa-check"></i> Nutrition analytics</li>
-            </ul>
-
-            <button class="btn" onclick="openModal('nutritionist')">Join as Nutritionist</button>
-        </div>
-
-        
-
-    </section>
-
-    <div class="note">
-        Start your healthier journey today with AI-powered nutrition 🌱
-    </div>
-    <!-- MODAL OVERLAY -->
-    <div id="modalOverlay" style="display:none;">
-        <div class="modal">
-            <h2 id="modalTitle"></h2>
-            <p id="modalDesc"></p>
-
-            <div class="modal-actions">
-                <button class="btn" onclick="continueFlow()">Continue</button>
-                <button class="btn cancel" onclick="closeModal()">Cancel</button>
-            </div>
-        </div>
-    </div>
-    <script>
-    let selectedRole = '';
-
-    function openModal(role) {
-        selectedRole = role;
-
-        const title = {
-            user: "Continue as User",
-            nutritionist: "Continue as Nutritionist",
-            admin: "Admin Access"
-        };
-
-        const desc = {
-            user: "You’ll receive AI-powered meal plans and nutrition guidance.",
-            nutritionist: "You’ll manage clients and provide expert diet plans.",
-            admin: "You’ll manage users, meals, and system data."
-        };
-
-        document.getElementById("modalTitle").innerText = title[role];
-        document.getElementById("modalDesc").innerText = desc[role];
-        document.getElementById("modalOverlay").style.display = "flex";
-    }
-
-    function closeModal() {
-        document.getElementById("modalOverlay").style.display = "none";
-    }
-
-    function continueFlow() {
-    if (selectedRole === 'nutritionist') {
-        // Nutritionist goes to verification/registration page
-        window.location.href = "register_nutritionist.php";
-    } else if (selectedRole === 'user') {
-        // User goes to login page
-        window.location.href = "login.php";
+        if ($stmt->execute([
+            $fullname, $email, $phone, $hashed_password, $role, $age, $gender,
+            $height, $weight, $goal, $activity, $diet_type, $allergies
+        ])) {
+            $success = "Registration successful! You can now <a href='login.php'>Sign In</a>.";
+        } else {
+            $errors[] = "Database error occurred.";
+        }
     }
 }
+?>
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Create Profile</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family:'Inter',sans-serif; background:#f4f7ff; padding:20px; }
+        .container { max-width:500px; margin:auto; background:white; padding:30px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.05); }
+        h2 { text-align:center; margin-bottom:20px; color:#2563eb; }
+        input, select, textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #ccc; border-radius:8px; box-sizing: border-box; }
+        button { width:100%; padding:14px; background:#2563eb; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer; }
+        .error { background:#fee2e2; padding:10px; border-left:4px solid #dc2626; margin-bottom:15px; }
+        .success { background:#d1fae5; padding:10px; border-left:4px solid #22c55e; margin-bottom:15px; }
+        .password-box { position: relative; }
+        .toggle-password { position: absolute; right: 14px; top: 22px; cursor: pointer; color: #94a3b8; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Create Your Profile</h2>
+    <?php if (!empty($errors)): ?><div class="error"><?php foreach ($errors as $err) echo "• $err<br>"; ?></div><?php endif; ?>
+    <?php if ($success): ?><div class="success"><?php echo $success; ?></div><?php endif; ?>
 
-    </script>
+    <form method="POST">
+        <input type="text" name="fullname" placeholder="Full Name" required>
+        <input type="email" name="email" placeholder="Email Address" required>
+        
+        <div class="password-box">
+            <input type="password" name="password" id="password" placeholder="Password" required>
+            <i class="fa-regular fa-eye toggle-password" onclick="togglePassword('password', this)"></i>
+        </div>
+        <div class="password-box">
+            <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
+            <i class="fa-regular fa-eye toggle-password" onclick="togglePassword('confirm_password', this)"></i>
+        </div>
 
-    </body>
-    </html>
+        <input type="text" name="phone" placeholder="Phone (11 digits)" required>
+        <input type="number" name="age" placeholder="Age" required>
+        <select name="gender" required><option value="">Gender</option><option value="male">Male</option><option value="female">Female</option></select>
+        <input type="number" name="height" placeholder="Height (cm)" required>
+        <input type="number" name="weight" placeholder="Weight (kg)" required>
+        
+        <select name="goal" required><option value="">Goal</option><option value="lose">Lose Weight</option><option value="maintain">Maintain</option><option value="gain">Gain Muscle</option></select>
+        <select name="activity" required><option value="">Activity Level</option><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option></select>
+        <input type="text" name="diet_type" placeholder="Diet Type (e.g. Vegetarian)">
+        <textarea name="allergies" placeholder="Food Allergies (optional)"></textarea>
+
+        <button type="submit">Create Account</button>
+    </form>
+    <p style="text-align:center; margin-top:15px;"><a href="login.php" style="color:#2563eb;">Sign In instead</a></p>
+</div>
+
+<script>
+function togglePassword(fieldId, icon) {
+    let input = document.getElementById(fieldId);
+    if(input.type === "password") { input.type = "text"; icon.className = "fa-regular fa-eye-slash toggle-password"; } 
+    else { input.type = "password"; icon.className = "fa-regular fa-eye toggle-password"; }
+}
+</script>
+</body>
+</html>

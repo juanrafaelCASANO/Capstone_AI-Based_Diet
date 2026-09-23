@@ -15,7 +15,6 @@ if (isset($_POST['add_meal'])) {
     $goal = $_POST['goal'];
     $calories = $_POST['calories'];
     
-    // Handle Image Upload
     $photo_path = "";
     if (!empty($_FILES['photo']['name'])) {
         $target_dir = "../uploads/meals/";
@@ -30,13 +29,12 @@ if (isset($_POST['add_meal'])) {
     }
 
     $stmt = $conn->prepare("INSERT INTO meal_plans (title, description, goal, calories, photo) VALUES (?, ?, ?, ?, ?)");
-    $stmt->bind_param("sssis", $title, $description, $goal, $calories, $photo_path);
     
-    if ($stmt->execute()) {
+    if ($stmt->execute([$title, $description, $goal, $calories, $photo_path])) {
         header("Location: meals.php?msg=added");
         exit();
     } else {
-        $message = "Error: " . $conn->error;
+        $message = "Error occurred while adding meal.";
     }
 }
 ?>
@@ -61,23 +59,18 @@ if (isset($_POST['add_meal'])) {
         <form method="POST" enctype="multipart/form-data">
             <label>Meal Title</label>
             <input type="text" name="title" required placeholder="e.g. Keto Breakfast">
-            
             <label>Goal</label>
             <select name="goal">
                 <option value="Weight Loss">Weight Loss</option>
                 <option value="Muscle Building">Muscle Building</option>
                 <option value="Balanced">Balanced</option>
             </select>
-
             <label>Calories</label>
             <input type="number" name="calories" required>
-
             <label>Description</label>
             <textarea name="description" rows="4"></textarea>
-
             <label>Meal Photo</label>
             <input type="file" name="photo" accept="image/*">
-
             <button type="submit" name="add_meal" class="btn">Save Meal Plan</button>
             <a href="meals.php" class="btn-back">Cancel</a>
         </form>

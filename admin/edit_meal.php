@@ -8,8 +8,14 @@ if(!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin' || !isset($_GET['i
 }
 
 $id = intval($_GET['id']);
-$res = $conn->query("SELECT * FROM meal_plans WHERE id = $id");
-$meal = $res->fetch_assoc();
+$stmt = $conn->prepare("SELECT * FROM meal_plans WHERE id = ?");
+$stmt->execute([$id]);
+$meal = $stmt->fetch();
+
+if(!$meal){
+    header("Location: meals.php");
+    exit();
+}
 
 if (isset($_POST['update_meal'])) {
     $title = $_POST['title'];
@@ -17,7 +23,6 @@ if (isset($_POST['update_meal'])) {
     $goal = $_POST['goal'];
     $calories = $_POST['calories'];
     
-    // Keep old photo by default
     $photo_path = $meal['photo'];
 
     if (!empty($_FILES['photo']['name'])) {
@@ -31,9 +36,8 @@ if (isset($_POST['update_meal'])) {
     }
 
     $stmt = $conn->prepare("UPDATE meal_plans SET title=?, description=?, goal=?, calories=?, photo=? WHERE id=?");
-    $stmt->bind_param("ssdisi", $title, $description, $goal, $calories, $photo_path, $id);
     
-    if ($stmt->execute()) {
+    if ($stmt->execute([$title, $description, $goal, $calories, $photo_path, $id])) {
         header("Location: meals.php?msg=updated");
         exit();
     }
@@ -61,24 +65,19 @@ if (isset($_POST['update_meal'])) {
         <form method="POST" enctype="multipart/form-data">
             <label>Meal Title</label>
             <input type="text" name="title" value="<?= htmlspecialchars($meal['title']) ?>" required>
-            
             <label>Goal</label>
             <select name="goal">
                 <option value="Weight Loss" <?= $meal['goal'] == 'Weight Loss' ? 'selected' : '' ?>>Weight Loss</option>
                 <option value="Muscle Building" <?= $meal['goal'] == 'Muscle Building' ? 'selected' : '' ?>>Muscle Building</option>
                 <option value="Balanced" <?= $meal['goal'] == 'Balanced' ? 'selected' : '' ?>>Balanced</option>
             </select>
-
             <label>Calories</label>
             <input type="number" name="calories" value="<?= $meal['calories'] ?>" required>
-
             <label>Description</label>
             <textarea name="description" rows="4"><?= htmlspecialchars($meal['description']) ?></textarea>
-
             <label>Current Photo</label><br>
             <img src="../<?= $meal['photo'] ?>" class="current-img"><br>
             <input type="file" name="photo" accept="image/*">
-
             <button type="submit" name="update_meal" class="btn">Update Meal Plan</button>
             <a href="meals.php" class="btn-back">Cancel</a>
         </form>

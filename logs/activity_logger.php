@@ -10,35 +10,47 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config.php';
 
-/**
- * Log system activity
- *
- * @param mysqli $conn
- * @param int $actor_id
- * @param string $actor_role (user | nutritionist | admin)
- * @param string $action
- */
 function logActivity($conn, $actor_id, $actor_role, $action)
 {
     if (!$actor_id || !$actor_role || !$action) {
         return;
     }
 
-    $stmt = $conn->prepare("
-        INSERT INTO activity_logs (actor_id, actor_role, action, ip_address)
-        VALUES (?, ?, ?, ?)
-    ");
-
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
+    $current_time = date('Y-m-d H:i:s');
 
-    $stmt->bind_param(
-        "isss",
-        $actor_id,
-        $actor_role,
-        $action,
-        $ip
-    );
+    try {
+        // Unang subok: Standard insert kasama ang created_at
+        $stmt = $conn->prepare("
+            INSERT INTO activity_logs (actor_id, actor_role, action, ip_address, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        ");
 
-    $stmt->execute();
-    $stmt->close();
+        $stmt->execute([
+            $actor_id,
+            $actor_role,
+            $action,
+            $ip,
+            $current_time
+        ]);
+    } catch (PDOException $e) {
+        // Alternatibo: Kung mag-error pa rin sa ID, isasama natin ang manual max ID pati ang created_at
+        $stmtId = $conn->query("SELECT COALESCE(MAX(id), 0) + 1 FROM activity_logs");
+        $nextId = $stmtId->fetchColumn();
+
+        $stmt = $conn->prepare("
+            INSERT INTO activity_logs (id, actor_id, actor_role, action, ip_address, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+
+        $stmt->execute([
+            $nextId,
+            $actor_id,
+            $actor_role,
+            $action,
+            $ip,
+            $current_time
+        ]);
+    }
 }
+?>

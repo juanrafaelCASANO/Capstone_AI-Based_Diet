@@ -62,23 +62,22 @@ require_once '../config.php'; // Database connection
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-        $stmt->bind_param(
-        "sssssssssssss",
-        $fullname,
-        $email,
-        $phone,
-        $hashed_password,
-        $role,
-        $age,
-        $gender,
-        $height,
-        $weight,
-        $goal,
-        $activity,
-        $diet_type,
-        $allergies
-    );
-
+            $stmt->bind_param(
+                "sssssssssssss",
+                $fullname,
+                $email,
+                $phone,
+                $hashed_password,
+                $role,
+                $age,
+                $gender,
+                $height,
+                $weight,
+                $goal,
+                $activity,
+                $diet_type,
+                $allergies
+            );
 
             if ($stmt->execute()) {
                 $success = "Registration successful! You can now <a href='login.php'>Sign In</a>.";
@@ -153,10 +152,34 @@ require_once '../config.php'; // Database connection
         margin:8px 0;
         border-radius:8px; 
         border:1px solid #ccc;
+        font-family:'Inter',sans-serif;
     }
     textarea { 
         resize:none; 
     }
+
+    /* PASSWORD TOGGLE EYE WRAPPER & STYLING */
+    .password-box {
+        position: relative;
+        width: 100%;
+    }
+    .password-box input {
+        padding-right: 42px; /* Prevent text overlap with eye icon */
+    }
+    .toggle-password {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        color: #94a3b8;
+        font-size: 16px;
+        user-select: none;
+    }
+    .toggle-password:hover {
+        color: #2563eb;
+    }
+
     button { 
         width:100%; 
         background:#2563eb; 
@@ -182,7 +205,7 @@ require_once '../config.php'; // Database connection
     }
     .top-bar { 
         padding-bottom:20px; 
-        }
+    }
 </style>
 </head>
 <body>
@@ -190,8 +213,7 @@ require_once '../config.php'; // Database connection
 <div class="header">
         <div class="logo">AI Diet Planner</div>
         <a href="../index.php" class="back">← Back</a>
-    </div>
-
+</div>
 
 <div class="container">
     <h2>Create Your Profile</h2>
@@ -209,8 +231,19 @@ require_once '../config.php'; // Database connection
     <form method="POST">
         <input type="text" name="fullname" placeholder="Full Name" required>
         <input type="email" name="email" placeholder="Email Address" required>
-        <input type="password" name="password" placeholder="Password" required>
-        <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+        
+        <!-- PASSWORD FIELD WITH EYE TOGGLE -->
+        <div class="password-box">
+            <input type="password" name="password" id="password" placeholder="Password" required>
+            <i class="fa-regular fa-eye toggle-password" onclick="togglePasswordVisibility('password', this)"></i>
+        </div>
+
+        <!-- CONFIRM PASSWORD FIELD WITH EYE TOGGLE -->
+        <div class="password-box">
+            <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
+            <i class="fa-regular fa-eye toggle-password" onclick="togglePasswordVisibility('confirm_password', this)"></i>
+        </div>
+
         <input type="text" name="phone" placeholder="Phone Number (11 digits)" required>
 
         <input type="number" name="age" placeholder="Age" required>
@@ -248,6 +281,22 @@ require_once '../config.php'; // Database connection
         Already have an account? <a href="login.php">Sign In</a>
     </p>
 </div>
+
+<!-- JAVASCRIPT FOR EYE TOGGLE LOGIC -->
+<script>
+function togglePasswordVisibility(fieldId, iconElement) {
+    const passwordInput = document.getElementById(fieldId);
+    if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        iconElement.classList.remove("fa-eye");
+        iconElement.classList.add("fa-eye-slash");
+    } else {
+        passwordInput.type = "password";
+        iconElement.classList.remove("fa-eye-slash");
+        iconElement.classList.add("fa-eye");
+    }
+}
+</script>
 
 </body>
 </html>

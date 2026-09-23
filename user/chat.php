@@ -12,6 +12,7 @@
     $user_id = $_SESSION['user_id'];
 
     /* Fetch available nutritionists from your table */
+    /* Fetch available nutritionists */
     $nutritionists = $conn->query("SELECT id, fullname FROM nutritionist");
     ?>
     <!DOCTYPE html>
@@ -200,10 +201,10 @@
                 </div>
 
                 <select id="nutritionist">
-                    <?php while($row=$nutritionists->fetch_assoc()): ?>
-                        <option value="<?php echo $row['id']; ?>"><?php echo htmlspecialchars($row['fullname']); ?></option>
-                    <?php endwhile; ?>
-                </select>
+        <?php while($row = $nutritionists->fetch()): ?>
+            <option value="<?php echo $row['id']; ?>"><?php echo htmlspecialchars($row['fullname']); ?></option>
+        <?php endwhile; ?>
+    </select>
 
                 <div class="chat-body" id="chat-box"></div>
 
