@@ -1,255 +1,442 @@
-    <?php
-    session_start();
-    require_once '../config.php';
-    require_once '../logs/activity_logger.php';
-    logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], "Sent chat message");
+<?php
+session_start();
+require_once '../config.php';
+require_once '../logs/activity_logger.php';
+logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], "Sent chat message");
 
-    if(!isset($_SESSION['user_id'])){
-        header("Location: ../auth/login.php");
-        exit;
-    }
+if(!isset($_SESSION['user_id'])){
+    header("Location: ../auth/login.php");
+    exit;
+}
 
-    $user_id = $_SESSION['user_id'];
+$user_id = $_SESSION['user_id'];
 
-    /* Fetch available nutritionists from your table */
-    /* Fetch available nutritionists */
-    $nutritionists = $conn->query("SELECT id, fullname FROM nutritionist");
-    ?>
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="UTF-8">
-    <title>AI-Based Diet & Nutritional Planner</title>
-        
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>
-    * { box-sizing:border-box; margin:0; padding:0; }
-    body{
-        font-family: 'Inter', sans-serif;
-        background:#f4f7ff;
-        display:flex;
-    }
+/* Fetch approved nutritionists and their complete profile details */
+$sql = "SELECT id, fullname, profile_pic, email, specialization, bio, experience, certification 
+        FROM nutritionist 
+        WHERE status = 'approved' OR status IS NULL";
 
-    /* Sidebar styling like dashboard */
-    .sidebar {
-        width:220px;
-        background:#1e40af;
-        min-height:100vh;
-        padding:30px 20px;
-        color:white;
-        display:flex;
-        flex-direction:column;
-    }
-    .sidebar .logo {
-        font-size:22px;
-        font-weight:800;
-        margin-bottom:30px;
-    }
+$nutritionists = $conn->query($sql);
+$nutritionist_list = [];
 
-    /* Sidebar links */
-    .sidebar a {
-        text-decoration:none;
-        color:white;
-        margin:10px 0;
-        display:flex;
-        align-items:center;
+if($nutritionists) {
+    while($row = $nutritionists->fetch(PDO::FETCH_ASSOC)) {
+        $nutritionist_list[] = $row;
     }
-    .sidebar a:hover {
-        opacity:0.8;
-    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-Based Diet & Nutritional Planner</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    /* Main content */
-    .main-content {
-        flex:1;
-        padding:30px;
-        display:flex;
-        justify-content:center;
-        align-items:flex-start;
-    }
+<style>
+:root{
+  --navy:#173b32;
+  --navy-2:#123027;
+  --green:#3b8f63;
+  --green-soft:#e8f5ed;
+  --cream:#f7faf6;
+  --card:#fff;
+  --text:#193028;
+  --muted:#6c7b75;
+  --border:#e3ebe6;
+  --shadow:0 10px 30px rgba(27,61,48,.08);
+  --radius:18px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+body{background:var(--cream);color:var(--text)}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app{min-height:100vh;display:flex}
 
-    /* Chat container */
-    .chat-container{
-        width:400px;
-        max-width:100%;
-        height:600px;
-        display:flex;
-        flex-direction:column;
-        border-radius:12px;
-        background:white;
-        box-shadow:0 4px 20px rgba(0,0,0,0.1);
-        overflow:hidden;
-    }
+.sidebar{
+  width:260px;flex:0 0 260px;min-height:100vh;position:sticky;top:0;align-self:flex-start;
+  background:linear-gradient(180deg,var(--navy),var(--navy-2));color:#fff;padding:24px 18px;
+  display:flex;flex-direction:column;z-index:20;transition:transform .25s ease;
+}
+.brand{display:flex;align-items:center;gap:12px;padding:6px 10px 28px}
+.brand-icon{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:rgba(255,255,255,.12);font-size:23px}
+.brand strong{display:block;font-size:17px}.brand span{display:block;color:#b9d5ca;font-size:12px;margin-top:2px}
+.nav-label{padding:0 12px 8px;color:#9fc2b4;text-transform:uppercase;letter-spacing:.11em;font-size:10px;font-weight:800}
+.nav{display:grid;gap:6px}
+.nav a{display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px;border-radius:12px;color:#d9ebe4;font-size:14px;font-weight:650;transition:background .2s,transform .2s}
+.nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}
+.nav a.active{background:rgba(255,255,255,.14);color:#fff}
+.nav-icon{width:24px;text-align:center;font-size:17px}
+.sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
+.logout{color:#c6ddd4!important}
 
-    /* Chat header */
-    .chat-header{
-        padding:15px 20px;
-        background:#2563eb;
-        color:white;
-        font-weight:600;
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-    }
+.main{min-width:0;flex:1;padding:26px clamp(15px,4vw,48px) 40px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+.menu-btn{display:none;border:1px solid var(--border);background:#fff;width:44px;height:44px;border-radius:12px;color:var(--text);font-size:19px}
+.eyebrow{font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.1em}
+.topbar h1{font-size:clamp(25px,3vw,34px);line-height:1.15;margin:5px 0 0;letter-spacing:-.7px}
+.profile{display:flex;align-items:center;gap:10px;padding:7px 11px 7px 7px;background:#fff;border:1px solid var(--border);border-radius:999px}
+.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-weight:800}
+.profile-name{font-size:13px;font-weight:700}
 
-    /* Chat body */
-    .chat-body {
-        flex: 1;
-        padding: 15px;
-        overflow-y: auto;
-        background: #e5e7eb;
-        display: flex;
-        flex-direction: column; /* Stacks messages vertically */
-    }
+/* Reordered Grid: Chat on Left, Nutritionist Info Dropdown on Right */
+.chat-layout{
+  width:min(1150px,100%);margin:0 auto;
+  display:grid;grid-template-columns:minmax(0,1fr) 320px;
+  gap:18px;min-height:calc(100vh - 125px);
+}
 
-    /* Base message bubble */
-    .message {
-        max-width: 75%;
-        margin: 8px 0;
-        padding: 10px 14px;
-        border-radius: 18px;
-        word-wrap: break-word;
-        line-height: 1.4;
-        font-size: 14px;
-    }
+.chat-container{
+  min-width:0;height:min(700px,calc(100vh - 125px));min-height:520px;
+  display:flex;flex-direction:column;background:#fff;border:1px solid var(--border);
+  border-radius:22px;box-shadow:var(--shadow);overflow:hidden;
+}
+.chat-header{
+  padding:16px 19px;background:#fff;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:12px
+}
+.chat-title{display:flex;align-items:center;gap:11px;min-width:0}
+.chat-title-icon{width:40px;height:40px;border-radius:12px;background:var(--green-soft);display:grid;place-items:center;font-size:19px}
+.chat-title strong{display:block;font-size:15px}.chat-title span{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.status{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-size:11px;font-weight:750;white-space:nowrap}
+.status-dot{width:7px;height:7px;border-radius:50%;background:#4aa66f}
 
-    /* User (You) - Blue bubble on the Right */
-    .user-msg {
-        background: #2563eb;
-        color: white;
-        align-self: flex-end; /* Pushes to the right side */
-        border-bottom-right-radius: 2px;
-    }
+/* Right Side Card Styling */
+.info-card{
+  background:#fff;border:1px solid var(--border);border-radius:20px;padding:20px;height:max-content;
+  box-shadow:0 5px 18px rgba(27,61,48,.04);display:flex;flex-direction:column;gap:16px;
+}
+.info-card h2{font-size:16px;margin:0 0 4px;font-weight:700}
+.select-wrapper label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px}
+#nutritionist{
+  width:100%;min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:11px;
+  background:#fff;color:var(--text);outline:none;font-size:14px;cursor:pointer
+}
+#nutritionist:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(59,143,99,.12)}
 
-    /* Nutritionist - White bubble on the Left */
-    .nutritionist-msg {
-        background: white;
-        color: #111827;
-        align-self: flex-start; /* Pushes to the left side */
-        border-bottom-left-radius: 2px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    }
+.nutritionist-profile-display{
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+  padding-top:12px;border-top:1px solid var(--border);
+}
+.profile-img-container{
+  width:96px;height:96px;border-radius:50%;overflow:hidden;
+  border:3px solid var(--green-soft);background:#e8f0ec;margin-bottom:12px;
+  display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,0.06);
+}
+.profile-img-container img{width:100%;height:100%;object-fit:cover}
+.profile-img-placeholder{font-size:42px}
+.nutritionist-name{font-size:16px;font-weight:700;color:var(--text);margin:0 0 4px}
+.nutritionist-spec{font-size:12px;font-weight:600;color:var(--green);background:var(--green-soft);padding:4px 12px;border-radius:99px;display:inline-block;margin-bottom:12px}
 
-    /* Chat footer */
-    .chat-footer{
-        display:flex;
-        padding:10px;
-        border-top:1px solid #ddd;
-        background:white;
-    }
-    .chat-footer input[type=text]{
-        flex:1;
-        padding:10px 15px;
-        border-radius:20px;
-        border:1px solid #ccc;
-        outline:none;
-    }
-    .chat-footer button{
-        padding:10px 15px;
-        margin-left:8px;
-        border:none;
-        border-radius:20px;
-        background:#2563eb;
-        color:white;
-        cursor:pointer;
-    }
+.details-grid{
+  width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;text-align:left;
+}
+.detail-item{background:#f8faf8;border:1px solid var(--border);padding:8px 10px;border-radius:10px}
+.detail-item span{display:block;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase}
+.detail-item strong{display:block;font-size:12px;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    /* Nutritionist dropdown */
-    #nutritionist{
-        width:100%;
-        padding:8px 10px;
-        margin-bottom:10px;
-        border-radius:8px;
-        border:1px solid #ccc;
-        outline:none;
-    }
+.nutritionist-bio{font-size:12px;color:var(--muted);line-height:1.5;margin:0;text-align:left;width:100%}
 
-    /* Back button like Weekly Plan page */
-    .back {
-        font-size:14px;
-        font-weight:700;
-        color:white;
-        text-decoration:none;
-        border:1px solid white;
-        padding:6px 12px;
-        border-radius:6px;
-        display:inline-block;
-        margin-bottom:15px;
-        transition:0.2s;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
-    .back:hover {
-        background-color:white;
-        color:#1e40af;
-    }
-    </style>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    </head>
+.chat-body{
+  flex:1;min-height:0;padding:18px;overflow-y:auto;background:#f2f6f3;
+  display:flex;flex-direction:column;gap:2px;scroll-behavior:smooth
+}
+.chat-body:empty:before{
+  content:"Start a conversation with your nutritionist.";
+  margin:auto;color:#83918b;font-size:13px;text-align:center
+}
+.message{
+  max-width:min(76%,520px);margin:6px 0;padding:11px 14px;border-radius:16px;
+  word-wrap:break-word;line-height:1.5;font-size:13px
+}
+.user-msg{
+  background:var(--green);color:#fff;align-self:flex-end;border-bottom-right-radius:4px;
+  box-shadow:0 4px 10px rgba(59,143,99,.12)
+}
+.nutritionist-msg{
+  background:#fff;color:var(--text);align-self:flex-start;border:1px solid var(--border);
+  border-bottom-left-radius:4px;box-shadow:0 2px 6px rgba(27,61,48,.04)
+}
 
-    <body>
+.chat-footer{
+  padding:12px;border-top:1px solid var(--border);background:#fff;
+  display:flex;align-items:center;gap:8px
+}
+.chat-footer input[type=text]{
+  flex:1;min-width:0;min-height:46px;padding:0 15px;border-radius:13px;
+  border:1px solid var(--border);outline:none;background:#f9fbfa;color:var(--text);font-size:14px
+}
+.chat-footer input[type=text]:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(59,143,99,.12);background:#fff}
+.chat-footer button{
+  min-width:82px;min-height:46px;padding:0 16px;border:0;border-radius:13px;
+  background:var(--green);color:#fff;font-weight:750;transition:.2s
+}
+.chat-footer button:hover{transform:translateY(-1px);box-shadow:0 7px 16px rgba(59,143,99,.18)}
+.chat-footer button:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
 
-    <div class="sidebar">
-        <div class="logo">AI Diet Planner</div>
-        <a href="dashboard.php" class="back">← Back to Dashboard</a>
+.overlay{display:none}
+
+@media(max-width:900px){
+  .sidebar{width:240px;flex-basis:240px}
+  .chat-layout{grid-template-columns:1fr}
+  .info-card{order: -1;}
+  .chat-container{height:calc(100vh - 125px)}
+}
+@media(max-width:720px){
+  .app{display:block}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-105%);box-shadow:20px 0 40px rgba(0,0,0,.16)}
+  .sidebar.open{transform:translateX(0)}
+  .overlay{position:fixed;inset:0;background:rgba(12,28,22,.42);z-index:15}
+  .overlay.show{display:block}
+  .main{padding:16px 14px 24px}
+  .menu-btn{display:grid;place-items:center}
+  .profile-name{display:none}
+  .topbar{margin-bottom:15px}
+  .chat-layout{min-height:calc(100vh - 105px)}
+  .chat-container{height:calc(100vh - 105px);min-height:480px;border-radius:18px}
+  .chat-body{padding:13px}
+  .message{max-width:87%}
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <div class="brand">
+      <div class="brand-icon">🥗</div>
+      <div><strong>AI Diet Planner</strong><span>Personal nutrition assistant</span></div>
     </div>
 
-    <div class="main-content">
+    <div class="nav-label">Menu</div>
+    <nav class="nav">
+      <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
+      <a href="generate_weekly.php"><span class="nav-icon">▦</span>Weekly Meal Plan</a>
+      <a class="active" href="chat.php"><span class="nav-icon">◌</span>Nutritionist</a>
+    </nav>
 
-            <div class="chat-container">
-                <div class="chat-header">
-                    💬 Chat with Nutritionist
-                </div>
+    <div class="sidebar-bottom">
+      <a class="nav logout" href="../index.php"><span class="nav-icon">↪</span>Logout</a>
+    </div>
+  </aside>
 
-                <select id="nutritionist">
-        <?php while($row = $nutritionists->fetch()): ?>
-            <option value="<?php echo $row['id']; ?>"><?php echo htmlspecialchars($row['fullname']); ?></option>
-        <?php endwhile; ?>
-    </select>
-
-                <div class="chat-body" id="chat-box"></div>
-
-                <div class="chat-footer">
-                    <input type="text" id="message" placeholder="Type your message...">
-                    <button id="send">Send</button>
-                </div>
-            </div>
+  <main class="main">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="menu-btn" id="menuBtn" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <div>
+          <div class="eyebrow">Nutrition support</div>
+          <h1>Nutritionist Chat</h1>
         </div>
-    </div>
+      </div>
+      <div class="profile"><div class="avatar">💬</div><span class="profile-name">Live Chat</span></div>
+    </header>
 
-    <script>
-    let user_id = <?php echo $user_id; ?>;
-    let nutritionist_id = $('#nutritionist').val();
+    <section class="chat-layout">
+      <!-- Chat Interface (Left) -->
+      <section class="chat-container" aria-label="Nutritionist chat">
+        <header class="chat-header">
+          <div class="chat-title">
+            <div class="chat-title-icon">💬</div>
+            <div>
+              <strong>Chat with Nutritionist</strong>
+              <span id="active-nutritionist-label">Select a nutritionist to begin</span>
+            </div>
+          </div>
+          <div class="status"><span class="status-dot"></span>Connected</div>
+        </header>
 
-    function fetchMessages() {
-        $.post('fetch_messages.php', {user_id, nutritionist_id}, function(data){
-            $('#chat-box').html(data);
-            $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
-        });
+        <div class="chat-body" id="chat-box" aria-live="polite"></div>
+
+        <div class="chat-footer">
+          <input type="text" id="message" placeholder="Type your message..." autocomplete="off" aria-label="Message">
+          <button id="send" type="button">Send</button>
+        </div>
+      </section>
+
+      <!-- Right Side Panel: Dropdown & Details -->
+      <aside class="info-card">
+        <div>
+          <h2>Select Nutritionist</h2>
+          <div class="select-wrapper">
+            <select id="nutritionist" aria-label="Select nutritionist">
+              <?php foreach($nutritionist_list as $nutri): ?>
+                <option 
+                  value="<?php echo $nutri['id']; ?>"
+                  data-fullname="<?php echo htmlspecialchars($nutri['fullname'] ?? ''); ?>"
+                  data-pic="<?php echo htmlspecialchars($nutri['profile_pic'] ?? ''); ?>"
+                  data-spec="<?php echo htmlspecialchars($nutri['specialization'] ?? 'Certified Nutritionist'); ?>"
+                  data-exp="<?php echo htmlspecialchars($nutri['experience'] ?? 'N/A'); ?>"
+                  data-cert="<?php echo htmlspecialchars($nutri['certification'] ?? 'Certified'); ?>"
+                  data-bio="<?php echo htmlspecialchars($nutri['bio'] ?? 'Available for diet plans and nutritional guidance.'); ?>">
+                  <?php echo htmlspecialchars($nutri['fullname']); ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+
+        <div class="nutritionist-profile-display">
+          <div class="profile-img-container" id="display-pic-box">
+            <span class="profile-img-placeholder">🧑‍⚕️</span>
+          </div>
+          <h3 class="nutritionist-name" id="display-name">-</h3>
+          <span class="nutritionist-spec" id="display-spec">Certified Nutritionist</span>
+
+          <div class="details-grid">
+            <div class="detail-item">
+              <span>Experience</span>
+              <strong id="display-exp">N/A</strong>
+            </div>
+            <div class="detail-item">
+              <span>License / Cert</span>
+              <strong id="display-cert">Verified</strong>
+            </div>
+          </div>
+
+          <p class="nutritionist-bio" id="display-bio">Select a specialist above to start chatting.</p>
+        </div>
+      </aside>
+    </section>
+  </main>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+let user_id = <?php echo $user_id; ?>;
+let nutritionist_id = $('#nutritionist').val();
+
+function updateProfileCard() {
+  const selected = $('#nutritionist option:selected');
+  if(!selected.length) return;
+
+  const name = selected.data('fullname');
+  let pic = selected.data('pic');
+  const spec = selected.data('spec');
+  const exp = selected.data('exp');
+  const cert = selected.data('cert');
+  const bio = selected.data('bio');
+
+  $('#display-name').text(name);
+  $('#display-spec').text(spec);
+  $('#display-exp').text(exp);
+  $('#display-cert').text(cert);
+  $('#display-bio').text(bio);
+  $('#active-nutritionist-label').text('Talking to ' + name);
+
+  const $picBox = $('#display-pic-box');
+  $picBox.empty();
+
+  if (pic && pic.toString().trim() !== '') {
+    let filename = pic.toString().trim();
+    let imageSrc;
+
+    // Check if path is full URL or already formatted
+    if (filename.startsWith('http') || filename.startsWith('/')) {
+      imageSrc = filename;
+    } else {
+      // Matches the directory structure from browse.php ('uploads/profile_pics/')
+      imageSrc = '../uploads/profile_pics/' + filename;
     }
 
-    $('#send').click(function(){
-        let msg = $('#message').val();
-        if(msg.trim()!=''){
-            $.post('send_message.php', {user_id, nutritionist_id, message:msg}, function(){
-                $('#message').val('');
-                fetchMessages();
-            });
-        }
+    const $img = $('<img>', {
+      src: imageSrc,
+      alt: name
     });
 
-    $('#message').keypress(function(e){
-        if(e.which==13){ $('#send').click(); }
+    // Fallback if the file path is broken
+    $img.on('error', function() {
+      $picBox.html('<span class="profile-img-placeholder">🧑‍⚕️</span>');
     });
 
-    $('#nutritionist').change(function(){
-        nutritionist_id = $(this).val();
-        fetchMessages();
+    $picBox.append($img);
+  } else {
+    $picBox.html('<span class="profile-img-placeholder">🧑‍⚕️</span>');
+  }
+}
+
+function fetchMessages() {
+  if(!nutritionist_id) return;
+  $.post('fetch_messages.php', {user_id, nutritionist_id}, function(data){
+    const box = $('#chat-box');
+    const wasNearBottom = box[0].scrollHeight - box.scrollTop() - box.outerHeight() < 80;
+    box.html(data);
+    if (wasNearBottom) box.scrollTop(box[0].scrollHeight);
+  });
+}
+
+function sendMessage() {
+  const input = $('#message');
+  const send = $('#send');
+  const msg = input.val();
+
+  if(msg.trim() !== '' && nutritionist_id){
+    send.prop('disabled', true).text('Sending…');
+
+    $.post('send_message.php', {user_id, nutritionist_id, message:msg}, function(){
+      input.val('');
+      fetchMessages();
+    }).always(function(){
+      send.prop('disabled', false).text('Send');
+      input.trigger('focus');
     });
+  }
+}
 
-    // Auto refresh every 2 seconds
-    setInterval(fetchMessages, 2000);
-    fetchMessages();
-    </script>
+$('#send').click(sendMessage);
 
-    </body>
-    </html>
+$('#message').keypress(function(e){
+  if(e.which === 13 && !e.shiftKey){
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+$('#nutritionist').change(function(){
+  nutritionist_id = $(this).val();
+  updateProfileCard();
+  $('#chat-box').html('');
+  fetchMessages();
+});
+
+// Mobile menu toggling
+(function(){
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('overlay');
+  const menuBtn = document.getElementById('menuBtn');
+
+  function setMenu(open){
+    sidebar.classList.toggle('open', open);
+    overlay.classList.toggle('show', open);
+    menuBtn.setAttribute('aria-expanded', String(open));
+    overlay.setAttribute('aria-hidden', String(!open));
+  }
+
+  menuBtn.addEventListener('click', function(){
+    setMenu(!sidebar.classList.contains('open'));
+  });
+
+  overlay.addEventListener('click', function(){ setMenu(false); });
+
+  sidebar.querySelectorAll('a').forEach(function(link){
+    link.addEventListener('click', function(){
+      if(window.innerWidth <= 720) setMenu(false);
+    });
+  });
+
+  window.addEventListener('resize', function(){
+    if(window.innerWidth > 720) setMenu(false);
+  });
+})();
+
+// Initial setup
+updateProfileCard();
+setInterval(fetchMessages, 2000);
+fetchMessages();
+</script>
+</body>
+</html>

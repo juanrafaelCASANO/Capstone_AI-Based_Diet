@@ -28,9 +28,14 @@ if (isset($_POST['add_meal'])) {
         }
     }
 
-    $stmt = $conn->prepare("INSERT INTO meal_plans (title, description, goal, calories, photo) VALUES (?, ?, ?, ?, ?)");
+    // Fetch the next ID value manually for PostgreSQL
+    $id_stmt = $conn->query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM meal_plans");
+    $next_id = $id_stmt->fetchColumn();
+
+    // Include id in the INSERT statement
+    $stmt = $conn->prepare("INSERT INTO meal_plans (id, title, description, goal, calories, photo) VALUES (?, ?, ?, ?, ?, ?)");
     
-    if ($stmt->execute([$title, $description, $goal, $calories, $photo_path])) {
+    if ($stmt->execute([$next_id, $title, $description, $goal, $calories, $photo_path])) {
         header("Location: meals.php?msg=added");
         exit();
     } else {

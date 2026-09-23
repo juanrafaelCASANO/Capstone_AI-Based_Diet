@@ -1,9 +1,10 @@
 <?php 
 require_once 'config.php'; 
 
-// Fetch approved nutritionists
+// Fetch approved nutritionists using PDO
 $sql = "SELECT id, fullname, certification, experience, profile_pic FROM nutritionist WHERE status = 'approved' LIMIT 10";
-$result = $conn->query($sql);
+$stmt = $conn->query($sql);
+$nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -219,7 +220,7 @@ $result = $conn->query($sql);
             left: 0; 
         }
 
-        /* HOW IT WORKS SECTION (Adjusted for consistency) */
+        /* HOW IT WORKS SECTION */
         .how-it-works { 
             padding: 80px 60px; 
             background: #fff; 
@@ -350,12 +351,12 @@ $result = $conn->query($sql);
         <div class="hover-zone hover-left" id="hoverLeft"></div>
         <div class="hover-zone hover-right" id="hoverRight"></div>
         <div class="scroll-container" id="scrollContainer">
-            <?php if ($result && $result->num_rows > 0): ?>
-                <?php while($row = $result->fetch_assoc()): 
+            <?php if (!empty($nutritionists)): ?>
+                <?php foreach($nutritionists as $row): 
                     $img = !empty($row['profile_pic']) ? "uploads/profile_pics/".$row['profile_pic'] : "uploads/default_avatar.jpg";
                 ?>
                     <div class="feature-box">
-                        <img src="<?= $img ?>" class="expert-img">
+                        <img src="<?= htmlspecialchars($img) ?>" class="expert-img">
                         <div class="expert-name"><?= htmlspecialchars($row['fullname']) ?></div>
                         <div class="expert-specialty"><?= htmlspecialchars($row['certification']) ?></div>
                         <div style="margin-bottom: 20px;">
@@ -363,7 +364,7 @@ $result = $conn->query($sql);
                         </div>
                         <a href="nutritionist_profile.php?id=<?= $row['id'] ?>" class="btn-primary" style="width:100%; text-align:center;">View Profile</a>
                     </div>
-                <?php endwhile; ?>
+                <?php endforeach; ?>
             <?php else: ?>
                 <p style="color: #64748b;">No experts are currently available.</p>
             <?php endif; ?>

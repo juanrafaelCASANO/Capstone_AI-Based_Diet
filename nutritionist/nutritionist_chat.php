@@ -11,9 +11,10 @@ if (!isset($_SESSION['user_id'])) {
 $nutri_id = $_SESSION['user_id'];
 $user_id = isset($_GET['user_id']) ? intval($_GET['user_id']) : 0;
 
-// Fetch User Name for the header
-$user_query = $conn->query("SELECT fullname FROM users WHERE id = $user_id");
-$user_data = $user_query->fetch_assoc();
+// Fetch User Name for the header using PDO prepared statement
+$user_stmt = $conn->prepare("SELECT fullname FROM users WHERE id = ?");
+$user_stmt->execute([$user_id]);
+$user_data = $user_stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$user_data) {
     die("User not found.");
@@ -41,21 +42,25 @@ if (!$user_data) {
 </head>
 <body>
 
-<div class="chat-header">
-    <a href="inbox.php" style="float: left; color: white; text-decoration: none; font-weight: bold;">⬅ Back</a>
-    
-    Chatting with: <?php echo htmlspecialchars($user_data['fullname']); ?>
-    
-    <div style="clear: both;"></div> </div>
+<div class="chat-container">
+    <div class="chat-header">
+        <a href="inbox.php" style="float: left; color: white; text-decoration: none; font-weight: bold;">⬅ Back</a>
+        
+        Chatting with: <?php echo htmlspecialchars($user_data['fullname']); ?>
+        
+        <div style="clear: both;"></div> 
+    </div>
     
     <div class="chat-box" id="chatBox">
         <?php
-        $msg_query = "SELECT * FROM messages 
-                      WHERE (sender_id = $nutri_id AND receiver_id = $user_id) 
-                      OR (sender_id = $user_id AND receiver_id = $nutri_id) 
-                      ORDER BY id ASC";
-        $messages = $conn->query($msg_query);
-        while($msg = $messages->fetch_assoc()):
+        // Fetch messages using PDO prepared statement
+        $msg_stmt = $conn->prepare("SELECT * FROM messages 
+                                    WHERE (sender_id = ? AND receiver_id = ?) 
+                                       OR (sender_id = ? AND receiver_id = ?) 
+                                    ORDER BY id ASC");
+        $msg_stmt->execute([$nutri_id, $user_id, $user_id, $nutri_id]);
+        
+        while ($msg = $msg_stmt->fetch(PDO::FETCH_ASSOC)):
             $class = ($msg['sender_id'] == $nutri_id) ? 'sent' : 'received';
         ?>
             <div class="message <?php echo $class; ?>">
@@ -70,6 +75,12 @@ if (!$user_data) {
         <button type="submit">Send</button>
     </form>
 </div>
+
+<script>
+    // Auto-scroll chat box to bottom on page load
+    const chatBox = document.getElementById('chatBox');
+    chatBox.scrollTop = chatBox.scrollHeight;
+</script>
 
 </body>
 </html>

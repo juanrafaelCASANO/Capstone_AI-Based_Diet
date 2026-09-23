@@ -8,7 +8,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
     $message = trim($_POST['message']);
 
     if (!empty($message)) {
-        $stmt = $conn->prepare("INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)");
+        // Include created_at column explicitly with NOW()
+        $stmt = $conn->prepare("INSERT INTO messages (sender_id, receiver_id, message, created_at) VALUES (?, ?, ?, NOW())");
         
         if ($stmt->execute([$sender_id, $receiver_id, $message])) {
             header("Location: nutritionist_chat.php?user_id=" . $receiver_id);
