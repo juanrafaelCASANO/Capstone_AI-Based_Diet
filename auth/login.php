@@ -6,43 +6,16 @@ require_once '../logs/activity_logger.php';
 $errors = [];
 $success_msg = "";
 
-function sendOTP_Textbee($phone, $otp) {
-    $apiKey = 'txb_iXPcj9NBxTUvdjehHd4M4b6jt9DvCgLZ';   
-    $deviceId = '6ab00919385b7acf3f78edd3'; 
-
-    $phone = preg_replace('/\D/', '', $phone);
-    if (substr($phone, 0, 2) === '63') {
-        $phone = '0' . substr($phone, 2);
+// Handle URL query parameter errors (e.g., login.php?error=user_not_found)
+if (isset($_GET['error'])) {
+    if ($_GET['error'] === 'user_not_found') {
+        $errors[] = ['title' => 'Account Not Found', 'desc' => 'No account was found matching your session or credentials.'];
+    } elseif ($_GET['error'] === 'unauthorized') {
+        $errors[] = ['title' => 'Access Denied', 'desc' => 'You do not have permission to access that page.'];
+    } else {
+        $errors[] = ['title' => 'Authentication Error', 'desc' => htmlspecialchars($_GET['error'])];
     }
-
-    if (!preg_match('/^09\d{9}$/', $phone)) {
-        return ['success' => false, 'error' => 'Invalid Philippine mobile number format.'];
-    }
-
-    $message = "Your AI Diet Planner verification code is: " . $otp . ". Valid for 5 minutes.";
-    $url = "https://api.textbee.dev/api/v1/gateway/devices/{$deviceId}/send-sms";
-
-    $payload = ['recipients' => [$phone], 'message' => $message];
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => ['x-api-key: ' . $apiKey, 'Content-Type: application/json'],
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_TIMEOUT => 30
-    ]);
-
-    $response = curl_exec($ch);
-    $curlError = curl_error($ch);
-    curl_close($ch);
-
-    if ($response === false) { return ['success' => false, 'error' => 'cURL Error: ' . $curlError]; }
-
-    return ['success' => true, 'response' => json_decode($response, true)];
 }
-
-$mfa_step = isset($_SESSION['mfa_pending']) ? $_SESSION['mfa_step'] : 1;
 
 if (isset($_POST['login'])) {
     $email = trim($_POST['email']);
@@ -51,16 +24,16 @@ if (isset($_POST['login'])) {
 
     if (empty($email)) $errors[] = ['title' => 'Email Required', 'desc' => 'Please enter your registered email address.'];
     if (empty($password)) $errors[] = ['title' => 'Password Required', 'desc' => 'Your account password cannot be empty.'];
-    if (!$terms_accepted) $errors[] = ['title' => 'Terms Agreement Required', 'desc' => 'You must check and accept the Terms.'];
+    if (!$terms_accepted) $errors[] = ['title' => 'Terms Agreement Required', 'desc' => 'You must check and accept the Terms of Service.'];
 
     if (empty($errors)) {
-        // PDO User Query
+        $authenticated = false;
+        $user_data = [];
+
+        // 1. Check "users" table first (Regular Users & Admins)
         $stmt = $conn->prepare("SELECT id, fullname, email, phone, password, role FROM users WHERE email=? LIMIT 1");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
-
-        $authenticated = false;
-        $user_data = [];
 
         if ($user) {
             if (password_verify($password, $user['password'])) {
@@ -73,10 +46,10 @@ if (isset($_POST['login'])) {
                     'redirect' => ($user['role'] === 'admin') ? "../admin/dashboard.php" : "../user/dashboard.php"
                 ];
             } else {
-                $errors[] = ['title' => 'Invalid Credentials', 'desc' => 'Incorrect password.'];
+                $errors[] = ['title' => 'Invalid Credentials', 'desc' => 'Incorrect password entered.'];
             }
         } else {
-            // PDO Nutritionist Query
+            // 2. Check "nutritionist" table (Experts)
             $stmt = $conn->prepare("SELECT id, fullname, email, phone, password, status FROM nutritionist WHERE email=? LIMIT 1");
             $stmt->execute([$email]);
             $nutri = $stmt->fetch();
@@ -93,93 +66,34 @@ if (isset($_POST['login'])) {
                             'redirect' => "../nutritionist/dashboard.php"
                         ];
                     } elseif ($nutri['status'] === 'pending') {
-                        $errors[] = ['title' => 'Account Pending', 'desc' => 'Your application is under review.'];
+                        $errors[] = ['title' => 'Account Pending', 'desc' => 'Your application is under review by an admin.'];
                     } else {
-                        $errors[] = ['title' => 'Account Rejected', 'desc' => 'Your application has been declined.'];
+                        $errors[] = ['title' => 'Account Rejected', 'desc' => 'Your nutritionist application has been declined.'];
                     }
                 } else {
-                    $errors[] = ['title' => 'Invalid Credentials', 'desc' => 'Incorrect password.'];
+                    $errors[] = ['title' => 'Invalid Credentials', 'desc' => 'Incorrect password entered.'];
                 }
             } else {
-                $errors[] = ['title' => 'Account Not Found', 'desc' => 'No account found with that email.'];
+                $errors[] = ['title' => 'Account Not Found', 'desc' => 'No registered account found with this email address.'];
             }
         }
 
         if ($authenticated) {
-            /* === NAKA-DISABLE MUNA ANG TEXTBEE 2FA ===
-            $_SESSION['mfa_pending'] = true;
-            $_SESSION['mfa_user'] = $user_data;
-            $_SESSION['mfa_step'] = 'enter_phone';
-            $mfa_step = 'enter_phone';
-            ========================================= */
-
-            // I-SET AGAD ANG SESSION (Para malaman ng system na naka-login na)
+            // Set User Session Variables
             $_SESSION['user_id']  = $user_data['id'];
             $_SESSION['fullname'] = $user_data['fullname'];
             $_SESSION['role']     = $user_data['role'];
 
-            // I-log ang activity na walang 2FA
-            logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], "Logged in directly (2FA disabled temporarily)");
+            // Log activity
+            if (function_exists('logActivity')) {
+                logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], "Logged in successfully");
+            }
 
-            // DIRETSO NA SA DASHBOARD DEPENDE SA ROLE NIYA
+            // Redirect directly to the correct dashboard
             header("Location: " . $user_data['redirect']);
             exit();
         }
     }
-}
-
-if (isset($_POST['send_otp'])) {
-    $phone = trim($_POST['phone_number']);
-    
-    if (empty($phone)) {
-        $errors[] = ['title' => 'Phone Required', 'desc' => 'Input a valid mobile number.'];
-    } else {
-        $otp = rand(100000, 999999);
-        $result = sendOTP_Textbee($phone, $otp);
-
-        if ($result['success']) {
-            $_SESSION['mfa_phone'] = $phone;
-            $_SESSION['mfa_otp'] = $otp;
-            $_SESSION['mfa_otp_expiry'] = time() + (5 * 60);
-            $_SESSION['mfa_step'] = 'enter_code';
-            $mfa_step = 'enter_code';
-            $success_msg = "Verification code dispatched.";
-        } else {
-            $errors[] = ['title' => 'SMS Gateway Error', 'desc' => htmlspecialchars($result['error'])];
-            $mfa_step = 'enter_phone';
-        }
-    }
-}
-
-if (isset($_POST['verify_otp'])) {
-    $entered_code = trim($_POST['otp_code']);
-    
-    if (isset($_SESSION['mfa_otp_expiry']) && time() > $_SESSION['mfa_otp_expiry']) {
-        $errors[] = ['title' => 'OTP Expired', 'desc' => 'The code has expired. Request a new one.'];
-        $mfa_step = 'enter_code';
-    } elseif (isset($_SESSION['mfa_otp']) && $entered_code == $_SESSION['mfa_otp']) {
-        $user = $_SESSION['mfa_user'];
-        
-        $_SESSION['user_id']  = $user['id'];
-        $_SESSION['fullname'] = $user['fullname'];
-        $_SESSION['role']     = $user['role'];
-
-        logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], "Logged in with Textbee SMS 2FA");
-
-        unset($_SESSION['mfa_pending'], $_SESSION['mfa_user'], $_SESSION['mfa_phone'], $_SESSION['mfa_otp'], $_SESSION['mfa_otp_expiry'], $_SESSION['mfa_step']);
-
-        header("Location: " . $user['redirect']);
-        exit();
-    } else {
-        $errors[] = ['title' => 'Incorrect Code', 'desc' => 'The code you entered is invalid.'];
-        $mfa_step = 'enter_code';
-    }
-}
-
-if (isset($_POST['cancel_mfa'])) {
-    unset($_SESSION['mfa_pending'], $_SESSION['mfa_user'], $_SESSION['mfa_phone'], $_SESSION['mfa_otp'], $_SESSION['mfa_otp_expiry'], $_SESSION['mfa_step']);
-    header("Location: login.php");
-    exit();
 }
 ?>
 
@@ -212,9 +126,7 @@ if (isset($_POST['cancel_mfa'])) {
     .alert-card-danger { background: #fef2f2; border: 1px solid #fecaca; border-left: 5px solid #ef4444; color: #991b1b; }
     .alert-card-success { background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 5px solid #22c55e; color: #166534; }
     .btn { width:100%; background:#2563eb; color:#fff; padding:14px; border:none; border-radius:14px; font-weight:700; font-size:16px; cursor:pointer; margin-top:10px; }
-    .btn-secondary { background: transparent; color: #64748b; border: 1px solid #cbd5e1; }
     .signup-link { margin-top: 20px; font-size: 14px; color: #64748b; }
-    .small { margin-top:25px; font-size:12px; color:#94a3b8; }
 </style>
 </head>
 <body>
@@ -235,59 +147,25 @@ if (isset($_POST['cancel_mfa'])) {
             <?php endforeach; ?>
         <?php endif; ?>
 
-        <?php if (!empty($success_msg)): ?>
-            <div class="alert-card alert-card-success">
-                <i class="fa-solid fa-circle-check"></i>
-                <div><strong>Success</strong><br><?php echo htmlspecialchars($success_msg); ?></div>
+        <div class="icon"><i class="fa-solid fa-seedling"></i></div>
+        <h1>Welcome Back</h1>
+        <p>Sign in to your AI Diet Planner account</p>
+        <form method="POST" action="login.php">
+            <div class="form-group">
+                <label>Email</label>
+                <div class="input-box"><i class="fa-regular fa-envelope"></i><input type="email" name="email" required></div>
             </div>
-        <?php endif; ?>
-
-        <?php if ($mfa_step === 1): ?>
-            <div class="icon"><i class="fa-solid fa-seedling"></i></div>
-            <h1>Welcome Back</h1>
-            <p>Sign in to your AI Diet Planner account</p>
-            <form method="POST">
-                <div class="form-group">
-                    <label>Email</label>
-                    <div class="input-box"><i class="fa-regular fa-envelope"></i><input type="email" name="email" required></div>
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <div class="input-box"><i class="fa-solid fa-lock"></i><input type="password" name="password" required></div>
-                </div>
-                <div class="terms-group">
-                    <input type="checkbox" name="terms_accepted" required>
-                    <label>I agree to the Terms of Service and Privacy Policy.</label>
-                </div>
-                <button class="btn" name="login">Sign In</button>
-            </form>
-            <div class="signup-link">Don't have an account yet? <a href="register.php">Sign Up</a></div>
-
-        <?php elseif ($mfa_step === 'enter_phone'): ?>
-            <div class="icon"><i class="fa-solid fa-shield-halved"></i></div>
-            <h1>Two-Factor Check</h1>
-            <form method="POST">
-                <div class="form-group">
-                    <label>Phone Number</label>
-                    <div class="input-box"><input type="text" name="phone_number" value="<?php echo htmlspecialchars($_SESSION['mfa_user']['phone'] ?? ''); ?>" required></div>
-                </div>
-                <button class="btn" name="send_otp">Send Verification Code</button>
-            </form>
-            <form method="POST"><button class="btn btn-secondary" name="cancel_mfa">Cancel</button></form>
-
-        <?php elseif ($mfa_step === 'enter_code'): ?>
-            <div class="icon"><i class="fa-solid fa-key"></i></div>
-            <h1>Enter Code</h1>
-            <form method="POST">
-                <div class="form-group">
-                    <label>6-Digit Verification Code</label>
-                    <div class="input-box"><input type="text" name="otp_code" required></div>
-                </div>
-                <button class="btn" name="verify_otp">Verify & Sign In</button>
-            </form>
-            <form method="POST"><button class="btn btn-secondary" name="cancel_mfa">Cancel</button></form>
-        <?php endif; ?>
-
+            <div class="form-group">
+                <label>Password</label>
+                <div class="input-box"><i class="fa-solid fa-lock"></i><input type="password" name="password" required></div>
+            </div>
+            <div class="terms-group">
+                <input type="checkbox" name="terms_accepted" required>
+                <label>I agree to the Terms of Service and Privacy Policy.</label>
+            </div>
+            <button class="btn" name="login">Sign In</button>
+        </form>
+        <div class="signup-link">Don't have an account yet? <a href="register.php">Sign Up</a></div>
     </div>
 </div>
 </body>

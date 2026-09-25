@@ -2,15 +2,16 @@
 session_start();
 require_once '../config.php';
 
-if (!isset($_SESSION['user_id'])) {
+// Ensure user is logged in AND is a nutritionist
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'nutritionist') {
     header("Location: ../auth/login.php");
     exit;
 }
 
 $nutri_id = $_SESSION['user_id'];
 
-// Fetch nutritionist profile info
-$stmt = $conn->prepare("SELECT fullname, email FROM users WHERE id = ?");
+// Fetch nutritionist profile info from the CORRECT table
+$stmt = $conn->prepare("SELECT fullname, email FROM nutritionist WHERE id = ?");
 $stmt->execute([$nutri_id]);
 $nutri = $stmt->fetch();
 
