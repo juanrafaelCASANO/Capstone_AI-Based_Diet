@@ -13,8 +13,8 @@ if (!$user_id || !$nutri_id) {
     exit('Missing IDs');
 }
 
-// Fetch chat thread ordered chronologically
-$query = "SELECT sender_id, receiver_id, message, created_at, status 
+// Inalis ang 'status' sa pag-fetch para maiwasan ang Undefined column error
+$query = "SELECT sender_id, receiver_id, message, created_at 
           FROM messages 
           WHERE (sender_id = ? AND receiver_id = ?) 
              OR (sender_id = ? AND receiver_id = ?) 

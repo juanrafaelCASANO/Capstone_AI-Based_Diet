@@ -203,7 +203,7 @@
 
         <div class="cards-grid">
             <!-- User Registration Card -->
-            <a href="Register_user.php" class="role-card">
+            <a href="register_user.php" class="role-card">
                 <div class="icon-box">
                     <i class="fa-solid fa-user"></i>
                 </div>
@@ -213,7 +213,7 @@
             </a>
 
             <!-- Nutritionist Registration Card -->
-            <a href="Register_Nutritionist.php" class="role-card">
+            <a href="register_nutritionist.php" class="role-card">
                 <div class="icon-box">
                     <i class="fa-solid fa-user-doctor"></i>
                 </div>

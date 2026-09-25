@@ -6,6 +6,18 @@ require_once '../config.php'; // Database connection
 $errors = [];
 $success = "";
 
+$fullname = "";
+$email = "";
+$phone = "";
+$age = "";
+$gender = "";
+$height = "";
+$weight = "";
+$goal = "";
+$activity = "";
+$diet_type = "";
+$allergies = "";
+
 // When form is submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -42,13 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Check if email already exists
     if (empty($errors)) {
-        $stmt = $conn->prepare("SELECT id FROM users WHERE email=? LIMIT 1");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        if ($stmt->get_result()->num_rows > 0) {
+        $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+        $stmt->execute([$email]);
+
+        if ($stmt->fetch(PDO::FETCH_ASSOC)) {
             $errors[] = "Email already registered. Please sign in.";
         }
-        $stmt->close();
     }
 
     // Insert into DB
@@ -57,34 +68,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $role = 'user';
 
         $stmt = $conn->prepare("
-            INSERT INTO users 
+            INSERT INTO users
             (fullname, email, phone, password, role, age, gender, height, weight, goal, activity, diet_type, allergies)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
-        $stmt->bind_param(
-            "sssssssssssss",
-            $fullname,
-            $email,
-            $phone,
-            $hashed_password,
-            $role,
-            $age,
-            $gender,
-            $height,
-            $weight,
-            $goal,
-            $activity,
-            $diet_type,
-            $allergies
-        );
+        try {
+            $stmt->execute([
+                $fullname,
+                $email,
+                $phone,
+                $hashed_password,
+                $role,
+                $age,
+                $gender,
+                $height,
+                $weight,
+                $goal,
+                $activity,
+                $diet_type,
+                $allergies
+            ]);
 
-        if ($stmt->execute()) {
             $success = "Registration successful! You can now <a href='login.php'>Sign In</a>.";
-        } else {
-            $errors[] = "Database error: " . $conn->error;
+        } catch (PDOException $e) {
+            $errors[] = "Database error: " . $e->getMessage();
         }
-        $stmt->close();
     }
 }
 ?>

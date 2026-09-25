@@ -9,8 +9,6 @@ if(!isset($_SESSION['user_id'])){
 
 $user_id = $_SESSION['user_id'];
 
-/* Fetch approved nutritionists and their complete profile details */
-/* Fetch approved nutritionists and their profile details using LEFT JOIN */
 $sql = "SELECT n.id, n.fullname, n.email, n.profile_pic, 
                p.specialty AS specialization 
         FROM nutritionist n
@@ -77,6 +75,38 @@ button{cursor:pointer}
   border-radius:12px;color:#f8d7da!important;font-size:14px;font-weight:650;transition:background .2s,transform .2s;
 }
 .sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
+
+/* LOGOUT MODAL STYLES */
+.logout-modal-overlay {
+  position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+  opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.logout-modal-overlay.active { opacity: 1; visibility: visible; }
+.logout-modal-card {
+  background: #ffffff; width: 90%; max-width: 380px; border-radius: 20px; padding: 28px 24px;
+  text-align: center; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); transform: scale(0.85);
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.logout-modal-overlay.active .logout-modal-card { transform: scale(1); }
+.logout-modal-icon {
+  width: 56px; height: 56px; background: #fff3f1; color: #b42318; font-size: 26px;
+  border-radius: 50%; display: grid; place-items: center; margin: 0 auto 16px;
+}
+.logout-modal-card h3 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text); }
+.logout-modal-card p { margin: 0 0 24px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.logout-modal-actions { display: flex; gap: 12px; }
+.btn-modal-cancel {
+  flex: 1; height: 44px; background: var(--cream); color: var(--text); border: 1px solid var(--border);
+  border-radius: 12px; font-weight: 650; font-size: 14px; cursor: pointer; transition: background 0.2s;
+}
+.btn-modal-cancel:hover { background: var(--green-soft); }
+.btn-modal-logout {
+  flex: 1; height: 44px; background: #b42318; color: #ffffff; border: none; border-radius: 12px;
+  font-weight: 650; font-size: 14px; display: inline-flex; align-items: center; justify-content: center;
+  text-decoration: none; transition: background 0.2s, transform 0.2s;
+}
+.btn-modal-logout:hover { background: #901c12; transform: translateY(-1px); }
 
 .main{min-width:0;flex:1;padding:26px clamp(15px,4vw,48px) 40px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
@@ -227,7 +257,7 @@ button{cursor:pointer}
     </nav>
 
     <div class="sidebar-bottom">
-      <a class="logout" href="../auth/logout.php"><span class="nav-icon">↪</span>Logout</a>
+      <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
     </div>
   </aside>
 
@@ -313,8 +343,35 @@ button{cursor:pointer}
   </main>
 </div>
 
+<!-- LOGOUT CONFIRMATION MODAL -->
+<div id="logoutModal" class="logout-modal-overlay">
+  <div class="logout-modal-card">
+    <div class="logout-modal-icon">🚪</div>
+    <h3>Confirm Logout</h3>
+    <p>Are you sure you want to log out of your session?</p>
+    <div class="logout-modal-actions">
+      <button class="btn-modal-cancel" onclick="closeLogoutModal();">Cancel</button>
+      <a href="../auth/logout.php" class="btn-modal-logout">Yes, Logout</a>
+    </div>
+  </div>
+</div>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+function showLogoutModal() {
+  document.getElementById('logoutModal').classList.add('active');
+}
+
+function closeLogoutModal() {
+  document.getElementById('logoutModal').classList.remove('active');
+}
+
+document.getElementById('logoutModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeLogoutModal();
+  }
+});
+
 let user_id = <?php echo $user_id; ?>;
 let nutritionist_id = $('#nutritionist').val();
 
@@ -408,7 +465,6 @@ $('#nutritionist').change(function(){
   fetchMessages();
 });
 
-// Mobile menu toggling
 (function(){
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
@@ -438,7 +494,6 @@ $('#nutritionist').change(function(){
   });
 })();
 
-// Initial setup
 updateProfileCard();
 setInterval(fetchMessages, 2000);
 fetchMessages();

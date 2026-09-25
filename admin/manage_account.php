@@ -10,20 +10,74 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
+$errors = [];
+$success = "";
+
 // ======================================================
-// ACTIONS
+// ACTIONS: ADD EXPERT (Mirrors register_nutritionist.php logic)
 // ======================================================
 if (isset($_POST['add_expert'])) {
-    $fullname = $_POST['fullname'];
-    $email = $_POST['email'];
-    $experience = (int)$_POST['experience'];
-    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+    $fullname = trim($_POST['fullname'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
+    $certification = trim($_POST['certification'] ?? '');
+    $experience = trim($_POST['experience'] ?? '');
 
-    $stmt = $conn->prepare("INSERT INTO nutritionist (fullname, email, password, experience) VALUES (?, ?, ?, ?)");
-    if ($stmt->execute([$fullname, $email, $password, $experience])) {
-        header("Location: manage_account.php?msg=success");
-        exit();
+    if (empty($fullname)) $errors[] = "Full name is required.";
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required.";
+    if (strlen($password) < 6) $errors[] = "Password must be at least 6 characters.";
+    if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
+    if (empty($_FILES['profile_pic']['name'])) $errors[] = "Profile picture is required.";
+    if (empty($_FILES['document']['name'])) $errors[] = "Verification document is required.";
+
+    if (empty($errors)) {
+        $doc_dir = "../uploads/nutritionists/";
+        $pic_dir = "../uploads/profile_pics/";
+
+        if (!is_dir($doc_dir)) mkdir($doc_dir, 0755, true);
+        if (!is_dir($pic_dir)) mkdir($pic_dir, 0755, true);
+
+        $doc_filename = time() . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["document"]["name"]));
+        $pic_filename = time() . "_pic_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["profile_pic"]["name"]));
+
+        if (move_uploaded_file($_FILES["document"]["tmp_name"], $doc_dir . $doc_filename) && 
+            move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $pic_dir . $pic_filename)) {
+            
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+
+            // Insert using PDO with extended fields and approved status by admin
+            $stmt = $conn->prepare("INSERT INTO nutritionist (fullname, profile_pic, email, phone, password, certification, experience, document, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved')");
+            
+            if ($stmt->execute([$fullname, $pic_filename, $email, $phone, $hashed_password, $certification, $experience, $doc_filename])) {
+                header("Location: manage_account.php?msg=success");
+                exit();
+            } else {
+                $errors[] = "Database Error occurred.";
+            }
+        } else {
+            $errors[] = "File upload failed. Check folder permissions.";
+        }
     }
+}
+
+// Handle Approval
+if (isset($_GET['approve_id'])) {
+    $id = (int)$_GET['approve_id'];
+    $stmt = $conn->prepare("UPDATE nutritionist SET status = 'approved' WHERE id = ?");
+    $stmt->execute([$id]);
+    header("Location: manage_account.php?msg=approved");
+    exit();
+}
+
+// Handle Rejection
+if (isset($_GET['reject_id'])) {
+    $id = (int)$_GET['reject_id'];
+    $stmt = $conn->prepare("UPDATE nutritionist SET status = 'rejected' WHERE id = ?");
+    $stmt->execute([$id]);
+    header("Location: manage_account.php?msg=rejected");
+    exit();
 }
 
 if (isset($_GET['delete_id'])) {
@@ -41,7 +95,7 @@ $experts = [];
 $db_error = null;
 
 try {
-    $stmt = $conn->query("SELECT id, fullname, email, experience FROM nutritionist ORDER BY id DESC");
+    $stmt = $conn->query("SELECT id, fullname, email, phone, certification, experience, status, profile_pic, document FROM nutritionist ORDER BY id DESC");
     $experts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $db_error = $e->getMessage();
@@ -49,13 +103,17 @@ try {
 
 // Statistics Calculations
 $totalAccounts = count($experts);
-$juniorCount = 0;   // < 3 years
-$midCount = 0;      // 3 - 5 years
-$seniorCount = 0;   // > 5 years
+$juniorCount = 0;   
+$midCount = 0;      
+$seniorCount = 0;   
 $totalExp = 0;
 
 foreach ($experts as $exp) {
-    $yrs = (int)($exp['experience'] ?? 0);
+    $expText = $exp['experience'] ?? '';
+    // Extract numeric value if experience text contains numbers (e.g. "5 years" or just digits)
+    preg_match('/\d+/', $expText, $matches);
+    $yrs = isset($matches[0]) ? (int)$matches[0] : 0;
+    
     $totalExp += $yrs;
 
     if ($yrs < 3) {
@@ -83,9 +141,6 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
     <style>
-        /* ======================================================
-           GLOBAL
-        ====================================================== */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -103,13 +158,10 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             text-decoration: none;
         }
 
-        button, input, select {
+        button, input, select, textarea {
             font-family: inherit;
         }
 
-        /* ======================================================
-           ADMIN SIDEBAR & LAYOUT
-        ====================================================== */
         .admin-layout {
             display: flex;
             min-height: 100vh;
@@ -229,9 +281,6 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             padding: 32px 40px 50px;
         }
 
-        /* ======================================================
-           TOP HEADER
-        ====================================================== */
         .top-header {
             display: flex;
             align-items: center;
@@ -316,9 +365,6 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             box-shadow: 0 10px 25px rgba(34,197,94,.32);
         }
 
-        /* ======================================================
-           STATISTICS GRID
-        ====================================================== */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -390,9 +436,6 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             color: #111827;
         }
 
-        /* ======================================================
-           MAIN CARD & TOOLBAR
-        ====================================================== */
         .main-card {
             background: white;
             border-radius: 20px;
@@ -469,9 +512,6 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             cursor: pointer;
         }
 
-        /* ======================================================
-           TABLE
-        ====================================================== */
         .table-wrapper {
             overflow-x: auto;
         }
@@ -479,7 +519,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
         .account-table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 850px;
+            min-width: 900px;
         }
 
         .account-table th {
@@ -529,6 +569,13 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             font-weight: 800;
             font-size: 16px;
             border: 1px solid #dbeafe;
+            overflow: hidden;
+        }
+        
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .user-name {
@@ -555,9 +602,18 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             font-weight: 700;
         }
 
-        /* ======================================================
-           ACTION BUTTONS
-        ====================================================== */
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .status-pending { background: #fef3c7; color: #d97706; }
+        .status-approved { background: #dcfce7; color: #15803d; }
+        .status-rejected { background: #fee2e2; color: #b91c1c; }
+
         .actions {
             display: flex;
             align-items: center;
@@ -576,15 +632,18 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             transition: .2s;
         }
 
+        .approve-btn { background: #dcfce7; color: #15803d; }
+        .approve-btn:hover { background: #bbf7d0; transform: translateY(-2px); }
+
+        .reject-btn { background: #fef9c3; color: #ca8a04; }
+        .reject-btn:hover { background: #fef08a; transform: translateY(-2px); }
+
         .edit-btn { background: #eef2ff; color: #4f46e5; }
         .edit-btn:hover { background: #e0e7ff; transform: translateY(-2px); }
 
         .delete-btn { background: #fef2f2; color: #dc2626; }
         .delete-btn:hover { background: #fee2e2; transform: translateY(-2px); }
 
-        /* ======================================================
-           EMPTY STATE & ERRORS
-        ====================================================== */
         .empty-state {
             padding: 70px 20px;
             text-align: center;
@@ -614,9 +673,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             font-size: 13px;
         }
 
-        /* ======================================================
-           MODAL
-        ====================================================== */
+        /* MODAL STYLING (Redesigned with Registration fields layout) */
         .modal {
             position: fixed;
             inset: 0;
@@ -627,6 +684,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             padding: 20px;
             z-index: 1000;
             backdrop-filter: blur(5px);
+            overflow-y: auto;
         }
 
         .modal.active {
@@ -635,12 +693,14 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
 
         .modal-box {
             width: 100%;
-            max-width: 480px;
+            max-width: 620px;
             background: white;
             border-radius: 20px;
-            padding: 28px;
+            padding: 30px;
             box-shadow: 0 25px 70px rgba(15,23,42,.25);
             animation: modalIn .25s ease;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         @keyframes modalIn {
@@ -656,7 +716,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
         }
 
         .modal-header h3 {
-            font-size: 18px;
+            font-size: 20px;
             color: #111827;
             font-weight: 800;
         }
@@ -672,12 +732,23 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             font-size: 16px;
         }
 
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
         .form-group {
-            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 12px;
+        }
+
+        .form-group.full-width {
+            grid-column: span 2;
         }
 
         .form-group label {
-            display: block;
             font-size: 12px;
             font-weight: 700;
             color: #475569;
@@ -685,26 +756,64 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             text-transform: uppercase;
         }
 
-        .form-group input {
+        .form-group input[type="text"],
+        .form-group input[type="email"],
+        .form-group input[type="password"],
+        .form-group textarea {
             width: 100%;
-            height: 42px;
-            padding: 0 14px;
+            padding: 11px 14px;
             border: 1px solid #e2e8f0;
-            border-radius: 10px;
+            border-radius: 9px;
             outline: none;
             color: #1e293b;
             font-size: 14px;
             transition: .2s;
         }
 
-        .form-group input:focus {
+        .form-group input:focus, 
+        .form-group textarea:focus {
             border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37,99,235,.1);
         }
 
+        .form-group textarea {
+            resize: vertical;
+            min-height: 70px;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            background: #f8fafc;
+            font-size: 13px;
+            color: #64748b;
+            cursor: pointer;
+        }
+
+        .password-box {
+            position: relative;
+            width: 100%;
+        }
+
+        .password-box input {
+            padding-right: 40px;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #94a3b8;
+            font-size: 15px;
+        }
+
         .submit-btn {
             width: 100%;
-            height: 44px;
+            height: 46px;
             margin-top: 10px;
             border-radius: 10px;
             background: linear-gradient(135deg, #2563eb, #1d4ed8);
@@ -721,9 +830,16 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             box-shadow: 0 8px 22px rgba(37,99,235,.35);
         }
 
-        /* ======================================================
-           RESPONSIVE BREAKPOINTS
-        ====================================================== */
+        .error-alert {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 12px 14px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            border-left: 4px solid #dc2626;
+        }
+
         @media (max-width: 1100px) {
             .stats-grid { grid-template-columns: repeat(3, 1fr); }
         }
@@ -744,22 +860,8 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             .toolbar { align-items: stretch; flex-direction: column; }
             .toolbar-controls { width: 100%; flex-direction: column; }
             .search-box, .search-box input, .filter-select { width: 100%; }
-        }
-
-        @media (max-width: 650px) {
-            .admin-sidebar { width: 78px; min-width: 78px; padding: 15px 10px; }
-            .main-content { margin-left: 78px; }
-            .sidebar-brand { justify-content: center; padding-bottom: 30px; }
-            .sidebar-logo { width: 48px; height: 48px; flex-basis: 48px; }
-            .sidebar-brand > div:last-child, .sidebar-section-title, .sidebar-link span { display: none; }
-            .sidebar-link { justify-content: center; padding: 12px 0; }
-            .main-content .page { padding: 20px 15px 35px; }
-        }
-
-        @media (max-width: 500px) {
-            .stats-grid { grid-template-columns: 1fr; }
-            .header-actions { flex-direction: column; }
-            .back-btn, .add-btn { width: 100%; }
+            .form-grid { grid-template-columns: 1fr; }
+            .form-group.full-width { grid-column: span 1; }
         }
     </style>
 </head>
@@ -824,7 +926,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                     </div>
                     <div>
                         <h1>Manage Accounts</h1>
-                        <p>Create, audit, and oversee expert nutritionist accounts.</p>
+                        <p>Create, audit, approve, and oversee expert nutritionist accounts.</p>
                     </div>
                 </div>
 
@@ -943,8 +1045,9 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                         <thead>
                             <tr>
                                 <th>Expert Details</th>
-                                <th>Email Address</th>
+                                <th>Contact Info</th>
                                 <th>Experience</th>
+                                <th>Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -954,9 +1057,21 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                                     $id = (int)$row['id'];
                                     $fullname = $row['fullname'] ?? 'N/A';
                                     $email = $row['email'] ?? 'N/A';
-                                    $exp = (int)($row['experience'] ?? 0);
+                                    $phone = $row['phone'] ?? 'N/A';
+                                    $expText = $row['experience'] ?? '0';
+                                    preg_match('/\d+/', $expText, $matches);
+                                    $exp = isset($matches[0]) ? (int)$matches[0] : 0;
 
-                                    // Get user initials for avatar
+                                    $status = $row['status'] ?? 'pending';
+                                    $profile_pic = trim($row['profile_pic'] ?? '');
+
+                                    $imageSrc = '';
+                                    if ($profile_pic !== '') {
+                                        $imageSrc = (strpos($profile_pic, 'http') === 0 || strpos($profile_pic, '/') === 0) 
+                                            ? $profile_pic 
+                                            : '../uploads/profile_pics/' . $profile_pic;
+                                    }
+
                                     $initials = 'E';
                                     $parts = explode(' ', trim($fullname));
                                     if (count($parts) >= 2) {
@@ -972,7 +1087,14 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                                         
                                         <td>
                                             <div class="user-info">
-                                                <div class="user-avatar"><?= $initials ?></div>
+                                                <div class="user-avatar">
+                                                    <?php if ($imageSrc !== ''): ?>
+                                                        <img src="<?= htmlspecialchars($imageSrc) ?>" alt="<?= htmlspecialchars($fullname) ?>" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                        <span style="display:none; width:100%; height:100%; align-items:center; justify-content:center;"><?= $initials ?></span>
+                                                    <?php else: ?>
+                                                        <?= $initials ?>
+                                                    <?php endif; ?>
+                                                </div>
                                                 <div>
                                                     <div class="user-name"><?= htmlspecialchars($fullname) ?></div>
                                                     <div class="user-id">ID #<?= $id ?></div>
@@ -981,8 +1103,11 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                                         </td>
 
                                         <td>
-                                            <span style="color:#475569; font-weight:500; font-size:13px;">
+                                            <span style="color:#475569; font-weight:500; font-size:13px; display:block;">
                                                 <?= htmlspecialchars($email) ?>
+                                            </span>
+                                            <span style="color:#94a3b8; font-size:12px;">
+                                                <i class="fa-solid fa-phone" style="font-size:10px; margin-right:3px;"></i> <?= htmlspecialchars($phone) ?>
                                             </span>
                                         </td>
 
@@ -994,7 +1119,26 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                                         </td>
 
                                         <td>
+                                            <?php if ($status === 'approved'): ?>
+                                                <span class="status-badge status-approved">Approved</span>
+                                            <?php elseif ($status === 'rejected'): ?>
+                                                <span class="status-badge status-rejected">Rejected</span>
+                                            <?php else: ?>
+                                                <span class="status-badge status-pending">Pending</span>
+                                            <?php endif; ?>
+                                        </td>
+
+                                        <td>
                                             <div class="actions">
+                                                <?php if ($status === 'pending'): ?>
+                                                    <a href="manage_account.php?approve_id=<?= $id ?>" class="action-btn approve-btn" title="Approve Account">
+                                                        <i class="fa-solid fa-check"></i>
+                                                    </a>
+                                                    <a href="manage_account.php?reject_id=<?= $id ?>" class="action-btn reject-btn" title="Reject Account">
+                                                        <i class="fa-solid fa-xmark"></i>
+                                                    </a>
+                                                <?php endif; ?>
+                                                
                                                 <a href="edit_expert.php?id=<?= $id ?>" class="action-btn edit-btn" title="Edit Expert">
                                                     <i class="fa-solid fa-pen"></i>
                                                 </a>
@@ -1010,7 +1154,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="4" class="empty-state">
+                                    <td colspan="5" class="empty-state">
                                         <div class="empty-icon"><i class="fa-solid fa-user-slash"></i></div>
                                         <h3 style="color:#475569; margin-bottom:5px;">No Experts Found</h3>
                                         <p style="font-size:13px;">Add your first nutritionist account to the system.</p>
@@ -1026,7 +1170,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
     </main>
 </div>
 
-<!-- ADD EXPERT MODAL -->
+<!-- ADD EXPERT MODAL (Updated layout mimicking register_nutritionist.php) -->
 <div class="modal" id="addModal">
     <div class="modal-box">
         <div class="modal-header">
@@ -1036,30 +1180,77 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             </button>
         </div>
 
-        <form method="POST">
-            <div class="form-group">
-                <label>Full Name</label>
-                <input type="text" name="fullname" required placeholder="Dr. Jane Doe">
+        <?php if (!empty($errors)): ?>
+            <div class="error-alert">
+                <?php foreach ($errors as $err) echo "• " . htmlspecialchars($err) . "<br>"; ?>
             </div>
+        <?php endif; ?>
 
-            <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" name="email" required placeholder="jane@example.com">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="form-grid">
+                
+                <div class="form-group full-width">
+                    <label>Full Name</label>
+                    <input type="text" name="fullname" placeholder="e.g. Dr. Jane Doe" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" name="email" placeholder="name@example.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number (11 digits)</label>
+                    <input type="text" name="phone" placeholder="09123456789" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Password</label>
+                    <div class="password-box">
+                        <input type="password" name="password" id="modal_password" placeholder="At least 6 characters" required>
+                        <i class="fa-regular fa-eye toggle-password" onclick="togglePasswordVisibility('modal_password', this)"></i>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <div class="password-box">
+                        <input type="password" name="confirm_password" id="modal_confirm_password" placeholder="Re-enter password" required>
+                        <i class="fa-regular fa-eye toggle-password" onclick="togglePasswordVisibility('modal_confirm_password', this)"></i>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Profile Photo</label>
+                    <div class="file-input-wrapper">
+                        <input type="file" name="profile_pic" accept="image/*" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Verification Document (PDF/Image)</label>
+                    <div class="file-input-wrapper">
+                        <input type="file" name="document" accept="image/*,.pdf" required>
+                    </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Certifications & Licenses</label>
+                    <textarea name="certification" placeholder="List your professional licenses, degrees, or certifications..." required></textarea>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Professional Experience</label>
+                    <textarea name="experience" placeholder="Describe your relevant work history and areas of expertise..." required></textarea>
+                </div>
+
+                <div class="form-group full-width">
+                    <button type="submit" name="add_expert" class="submit-btn">
+                        Create Expert Account
+                    </button>
+                </div>
+
             </div>
-
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" name="password" required placeholder="••••••••">
-            </div>
-
-            <div class="form-group">
-                <label>Years of Experience</label>
-                <input type="number" name="experience" required min="0" placeholder="e.g. 5">
-            </div>
-
-            <button type="submit" name="add_expert" class="submit-btn">
-                Create Account
-            </button>
         </form>
     </div>
 </div>
@@ -1109,7 +1300,7 @@ if (searchInput) searchInput.addEventListener('input', filterAccounts);
 if (expFilter) expFilter.addEventListener('change', filterAccounts);
 
 /* ======================================================
-   MODAL CONTROLS
+   MODAL CONTROLS & PASSWORD VISIBILITY
 ====================================================== */
 function openModal() {
     document.getElementById('addModal').classList.add('active');
@@ -1126,6 +1317,19 @@ document.getElementById('addModal').addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') closeModal();
 });
+
+function togglePasswordVisibility(fieldId, iconElement) {
+    const passwordInput = document.getElementById(fieldId);
+    if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        iconElement.classList.remove("fa-eye");
+        iconElement.classList.add("fa-eye-slash");
+    } else {
+        passwordInput.type = "password";
+        iconElement.classList.remove("fa-eye-slash");
+        iconElement.classList.add("fa-eye");
+    }
+}
 </script>
 
 </body>
