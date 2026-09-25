@@ -94,8 +94,15 @@ a{color:inherit}
 .nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}
 .nav a.active{background:rgba(255,255,255,.14);color:#fff}
 .nav-icon{width:24px;text-align:center;font-size:17px}
+
+/* SIDEBAR BOTTOM & LOGOUT STYLES */
 .sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
-.logout{color:#c6ddd4!important}
+.sidebar-bottom a.logout{
+  display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px;
+  border-radius:12px;color:#f8d7da!important;font-size:14px;font-weight:650;
+  transition:background .2s,transform .2s;
+}
+.sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
 
 .main{min-width:0;flex:1;padding:26px clamp(18px,4vw,48px) 48px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}
@@ -105,10 +112,14 @@ a{color:inherit}
 }
 .eyebrow{font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.1em}
 .welcome h1{font-size:clamp(25px,3vw,36px);line-height:1.15;margin:5px 0 0;letter-spacing:-.8px}
+
+/* CLICKABLE PROFILE CHIP IN TOP BAR */
 .profile{
   display:flex;align-items:center;gap:10px;padding:7px 11px 7px 7px;
   background:#fff;border:1px solid var(--border);border-radius:999px;
+  text-decoration:none;transition:border-color .2s,box-shadow .2s;
 }
+.profile:hover{border-color:#b9d5ca;box-shadow:0 4px 12px rgba(27,61,48,.06)}
 .avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-weight:800}
 .profile-name{font-size:13px;font-weight:700;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
@@ -216,10 +227,12 @@ a{color:inherit}
       <a class="active" href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="generate_weekly.php"><span class="nav-icon">▦</span>Weekly Meal Plan</a>
       <a href="chat.php"><span class="nav-icon">◌</span>Nutritionist</a>
+      <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
     </nav>
 
     <div class="sidebar-bottom">
-      <a class="nav logout" href="../index.php"><span class="nav-icon">↪</span>Logout</a>
+      <!-- FIXED LOGOUT ROUTE & CONFIRMATION -->
+      <a class="logout" href="../auth/logout.php" onclick="return confirm('Are you sure you want to logout?');"><span class="nav-icon">↪</span>Logout</a>
     </div>
   </aside>
 
@@ -232,12 +245,12 @@ a{color:inherit}
           <h1>Welcome, <?php echo htmlspecialchars($user['fullname']); ?> 👋</h1>
         </div>
       </div>
-      <div class="profile" title="Signed-in user">
+      <a class="profile" href="profile.php" title="View & Edit Profile">
         <div class="avatar">
           <?php echo htmlspecialchars(strtoupper(substr($user['fullname'], 0, 1))); ?>
         </div>
         <span class="profile-name"><?php echo htmlspecialchars($user['fullname']); ?></span>
-      </div>
+      </a>
     </header>
 
     <section class="hero">
@@ -300,9 +313,9 @@ a{color:inherit}
         <b>🧑‍⚕️ Nutritionist Chat</b>
         <span>Get help refining your nutrition plan.</span>
       </a>
-      <a class="quick" href="../index.php">
-        <b>↪ Sign out</b>
-        <span>Return to the main site.</span>
+      <a class="quick" href="profile.php">
+        <b>👤 Edit Profile</b>
+        <span>Update preferences & body metrics.</span>
       </a>
     </section>
   </main>

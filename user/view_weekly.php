@@ -1,11 +1,51 @@
 <?php
 /**
  * AI-Based Diet and Nutritional Planner System
- * A complete, single-file PHP solution for meal plan extraction.
+ * Complete single-file PHP page with dynamic user profile autofetch.
  */
 
+session_start();
+require_once '../config.php';
+
+// Redirect if user is not logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../auth/login.php");
+    exit;
+}
+
+$user_id = $_SESSION['user_id'];
+
+/* =========================================================
+   FETCH USER PROFILE DATA FOR AUTO-FILL
+========================================================= */
+$stmt = $conn->prepare("
+    SELECT
+        fullname,
+        age,
+        height,
+        weight,
+        goal,
+        activity,
+        diet_type
+    FROM users
+    WHERE id = ?
+");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch();
+
+// Prepare variables with fallback defaults
+$userFullName  = $user['fullname'] ?? 'User';
+$userAge       = !empty($user['age']) ? $user['age'] : 25;
+$userWeight    = !empty($user['weight']) ? $user['weight'] : 70;
+$userHeight    = !empty($user['height']) ? $user['height'] : 170;
+$userGoal      = $user['goal'] ?? '';
+$userActivity  = $user['activity'] ?? '';
+$userDietType  = $user['diet_type'] ?? '';
+
+/* =========================================================
+   GEMINI AI CLASS
+========================================================= */
 class NutriAI {
-    // We trim the key to prevent issues with hidden spaces from copy-pasting
     private $apiKey = "AIzaSyCiX5989dytjy2koeu1t9_h0G5EvhAejYs"; 
     private $apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent";
 
@@ -13,7 +53,7 @@ class NutriAI {
         $cleanKey = trim($this->apiKey);
         
         if (empty($cleanKey) || $cleanKey === "YOUR_ACTUAL_API_KEY_HERE") {
-            throw new Exception("API Key is missing. Please add your Gemini API key to implementation.php");
+            throw new Exception("API Key is missing. Please add your Gemini API key.");
         }
 
         $systemPrompt = "You are a professional Nutritionist AI. Generate a 3-day meal plan. "
@@ -45,7 +85,7 @@ class NutriAI {
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
         curl_setopt($ch, CURLOPT_TIMEOUT, 30); 
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Helps if local SSL certs are missing
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -58,12 +98,10 @@ class NutriAI {
             return $jsonStr ? json_decode($jsonStr, true) : null;
         }
 
-        // Specific error handling for API Key issues
         if ($httpCode === 400 || $httpCode === 403) {
             throw new Exception("API Key Error (Code $httpCode): Your API key may be invalid, restricted, or pasted incorrectly.");
         }
 
-        // Retry logic for rate limits (429) or server errors (500+)
         if ($retries > 0 && ($httpCode === 429 || $httpCode >= 500)) {
             sleep($backoff);
             return $this->fetchWithRetry($payload, $key, $retries - 1, $backoff * 2);
@@ -119,13 +157,24 @@ a{color:inherit}
 .nav-label{padding:0 12px 8px;color:#9fc2b4;text-transform:uppercase;letter-spacing:.11em;font-size:10px;font-weight:800}
 .nav{display:grid;gap:6px}.nav a{display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px;border-radius:12px;color:#d9ebe4;font-size:14px;font-weight:650;transition:.2s}
 .nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}.nav a.active{background:rgba(255,255,255,.14);color:#fff}
-.nav-icon{width:24px;text-align:center;font-size:17px}.sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}.logout{color:#c6ddd4!important}
+.nav-icon{width:24px;text-align:center;font-size:17px}
+
+/* SIDEBAR BOTTOM & LOGOUT STYLES */
+.sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
+.sidebar-bottom a.logout{
+  display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px;
+  border-radius:12px;color:#f8d7da!important;font-size:14px;font-weight:650;transition:background .2s,transform .2s;
+}
+.sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
+
 .main{min-width:0;flex:1;padding:26px clamp(18px,4vw,48px) 48px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
 .menu-btn{display:none;border:1px solid var(--border);background:#fff;width:44px;height:44px;border-radius:12px;cursor:pointer}
 .eyebrow{font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.1em}
 .topbar h1{font-size:clamp(25px,3vw,34px);line-height:1.15;margin:5px 0 0;letter-spacing:-.7px}
-.profile{display:flex;align-items:center;gap:10px;padding:7px 11px 7px 7px;background:#fff;border:1px solid var(--border);border-radius:999px}
+
+.profile{display:flex;align-items:center;gap:10px;padding:7px 11px 7px 7px;background:#fff;border:1px solid var(--border);border-radius:999px;text-decoration:none;transition:border-color .2s,box-shadow .2s}
+.profile:hover{border-color:#b9d5ca;box-shadow:0 4px 12px rgba(27,61,48,.06)}
 .avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-weight:800}.profile-name{font-size:13px;font-weight:700;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .panel{background:#fff;border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow);overflow:hidden}
@@ -151,7 +200,7 @@ a{color:inherit}
 .calorie{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:14px 20px;text-align:center;min-width:150px}.calorie small{display:block;color:#b8d2c8;text-transform:uppercase;font-size:10px;font-weight:800;letter-spacing:.1em}.calorie strong{display:block;color:#9be4b8;font-size:23px;margin-top:4px}
 .day{background:#fff;border:1px solid var(--border);border-radius:20px;overflow:hidden}
 .day-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 22px;background:#f4f8f5;border-bottom:1px solid var(--border)}
-.day-head h3{margin:0;font-size:17px}.day-head button{border:1px solid var(--border);background:#fff;border-radius:9px;padding:7px 10px;cursor:pointer;font-size:12px;font-weight:750;color:var(--muted)}
+.day-head h3{margin:0;font-size:17px}.day-head button{border:1px solid var(--border);background:#fff;border-radius:99px;padding:7px 10px;cursor:pointer;font-size:12px;font-weight:750;color:var(--muted)}
 .meals{padding:20px 22px}.meal{display:grid;grid-template-columns:155px minmax(0,1fr);gap:20px;padding:0 0 22px;margin-bottom:22px;border-bottom:1px solid var(--border)}.meal:last-child{margin:0;padding:0;border:0}
 .meal-type{font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.08em;color:var(--green);background:var(--green-soft);display:inline-flex;padding:6px 9px;border-radius:999px}.meal-cal{font-size:12px;color:var(--muted);margin-top:9px;font-weight:650}
 .meal h4{font-size:19px;margin:0 0 12px}.macros{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.macro{background:#f7faf8;border:1px solid var(--border);border-radius:11px;padding:10px;text-align:center}.macro small{display:block;text-transform:uppercase;font-size:9px;font-weight:800;color:#8a9892}.macro b{display:block;font-size:12px;margin-top:3px}
@@ -185,8 +234,12 @@ a{color:inherit}
       <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a class="active" href="generate_weekly.php"><span class="nav-icon">▦</span>Weekly Meal Plan</a>
       <a href="chat.php"><span class="nav-icon">◌</span>Nutritionist</a>
+      <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
     </nav>
-    <div class="sidebar-bottom"><a class="nav logout" href="../index.php"><span class="nav-icon">↪</span>Logout</a></div>
+    <div class="sidebar-bottom">
+      <!-- FIXED LOGOUT ROUTE -->
+      <a class="logout" href="../auth/logout.php"><span class="nav-icon">↪</span>Logout</a>
+    </div>
   </aside>
 
   <main class="main">
@@ -198,7 +251,13 @@ a{color:inherit}
           <h1>Build your nutrition plan</h1>
         </div>
       </div>
-      <div class="profile"><div class="avatar">N</div><span class="profile-name">NutriAI</span></div>
+      <!-- DYNAMIC PROFILE CHIP -->
+      <a class="profile" href="profile.php" title="View & Edit Profile">
+        <div class="avatar">
+          <?php echo htmlspecialchars(strtoupper(substr($userFullName, 0, 1))); ?>
+        </div>
+        <span class="profile-name"><?php echo htmlspecialchars($userFullName); ?></span>
+      </a>
     </header>
 
     <?php if (!$mealPlan): ?>
@@ -216,38 +275,40 @@ a{color:inherit}
           <div class="form-grid">
             <div class="field">
               <label for="age">Age</label>
-              <input id="age" type="number" name="age" value="25" min="1" max="120" required>
+              <input id="age" type="number" name="age" value="<?php echo htmlspecialchars((string)$userAge); ?>" min="1" max="120" required>
               <div class="hint">Your age in years</div>
             </div>
             <div class="field">
               <label for="weight">Weight (kg)</label>
-              <input id="weight" type="number" name="weight" value="70" min="1" max="500" step="0.1" required>
+              <input id="weight" type="number" name="weight" value="<?php echo htmlspecialchars((string)$userWeight); ?>" min="1" max="500" step="0.1" required>
               <div class="hint">Current body weight</div>
             </div>
             <div class="field">
               <label for="height">Height (cm)</label>
-              <input id="height" type="number" name="height" value="170" min="50" max="250" step="0.1" required>
+              <input id="height" type="number" name="height" value="<?php echo htmlspecialchars((string)$userHeight); ?>" min="50" max="250" step="0.1" required>
               <div class="hint">Your height in centimeters</div>
             </div>
           </div>
 
           <div class="form-grid">
             <div class="field">
-              <label for="goal">Health Goal</label>
+              <label for="goal">Nutrition Goal</label>
               <select id="goal" name="goal">
-                <option>Weight Loss</option><option>Muscle Gain</option><option>General Health</option>
+                <option value="lose" <?php echo ($userGoal === 'lose' || $userGoal === 'Weight Loss') ? 'selected' : ''; ?>>Lose Weight</option>
+                <option value="maintain" <?php echo ($userGoal === 'maintain' || $userGoal === 'General Health') ? 'selected' : ''; ?>>Maintain Weight</option>
+                <option value="gain" <?php echo ($userGoal === 'gain' || $userGoal === 'Muscle Gain') ? 'selected' : ''; ?>>Gain Weight</option>
               </select>
             </div>
             <div class="field">
               <label for="dietType">Diet Type</label>
-              <select id="dietType" name="dietType">
-                <option>Balanced</option><option>Keto</option><option>Vegan</option>
-              </select>
+              <input type="text" id="dietType" name="dietType" maxlength="50" placeholder="e.g. Filipino, Vegetarian, Low Carb" value="<?php echo htmlspecialchars($userDietType); ?>">
             </div>
             <div class="field">
               <label for="activityLevel">Activity</label>
               <select id="activityLevel" name="activityLevel">
-                <option>Sedentary</option><option>Moderate</option><option>Very Active</option>
+                <option value="low" <?php echo ($userActivity === 'low' || $userActivity === 'Sedentary') ? 'selected' : ''; ?>>Low</option>
+                <option value="moderate" <?php echo ($userActivity === 'moderate' || $userActivity === 'Moderate') ? 'selected' : ''; ?>>Moderate</option>
+                <option value="high" <?php echo ($userActivity === 'high' || $userActivity === 'Very Active') ? 'selected' : ''; ?>>High</option>
               </select>
             </div>
           </div>
@@ -256,7 +317,7 @@ a{color:inherit}
             <button class="btn btn-primary" id="generateBtn" type="submit">✨ Generate Plan Using Gemini AI</button>
             <a class="btn btn-secondary" href="dashboard.php">← Back to Dashboard</a>
           </div>
-          <div class="form-note">🔒 Your inputs are used to create this meal plan.</div>
+          <div class="form-note">🔒 Your inputs are loaded from your user profile.</div>
         </form>
       </section>
 

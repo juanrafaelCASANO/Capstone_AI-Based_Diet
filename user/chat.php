@@ -1,8 +1,6 @@
 <?php
 session_start();
 require_once '../config.php';
-require_once '../logs/activity_logger.php';
-logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], "Sent chat message");
 
 if(!isset($_SESSION['user_id'])){
     header("Location: ../auth/login.php");
@@ -72,19 +70,25 @@ button{cursor:pointer}
 .nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}
 .nav a.active{background:rgba(255,255,255,.14);color:#fff}
 .nav-icon{width:24px;text-align:center;font-size:17px}
+
 .sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
-.logout{color:#c6ddd4!important}
+.sidebar-bottom a.logout{
+  display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px;
+  border-radius:12px;color:#f8d7da!important;font-size:14px;font-weight:650;transition:background .2s,transform .2s;
+}
+.sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
 
 .main{min-width:0;flex:1;padding:26px clamp(15px,4vw,48px) 40px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
 .menu-btn{display:none;border:1px solid var(--border);background:#fff;width:44px;height:44px;border-radius:12px;color:var(--text);font-size:19px}
 .eyebrow{font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.1em}
 .topbar h1{font-size:clamp(25px,3vw,34px);line-height:1.15;margin:5px 0 0;letter-spacing:-.7px}
-.profile{display:flex;align-items:center;gap:10px;padding:7px 11px 7px 7px;background:#fff;border:1px solid var(--border);border-radius:999px}
+
+.profile{display:flex;align-items:center;gap:10px;padding:7px 11px 7px 7px;background:#fff;border:1px solid var(--border);border-radius:999px;text-decoration:none;transition:border-color .2s,box-shadow .2s}
+.profile:hover{border-color:#b9d5ca;box-shadow:0 4px 12px rgba(27,61,48,.06)}
 .avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-weight:800}
 .profile-name{font-size:13px;font-weight:700}
 
-/* Reordered Grid: Chat on Left, Nutritionist Info Dropdown on Right */
 .chat-layout{
   width:min(1150px,100%);margin:0 auto;
   display:grid;grid-template-columns:minmax(0,1fr) 320px;
@@ -106,7 +110,6 @@ button{cursor:pointer}
 .status{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-size:11px;font-weight:750;white-space:nowrap}
 .status-dot{width:7px;height:7px;border-radius:50%;background:#4aa66f}
 
-/* Right Side Card Styling */
 .info-card{
   background:#fff;border:1px solid var(--border);border-radius:20px;padding:20px;height:max-content;
   box-shadow:0 5px 18px rgba(27,61,48,.04);display:flex;flex-direction:column;gap:16px;
@@ -220,10 +223,11 @@ button{cursor:pointer}
       <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="generate_weekly.php"><span class="nav-icon">▦</span>Weekly Meal Plan</a>
       <a class="active" href="chat.php"><span class="nav-icon">◌</span>Nutritionist</a>
+      <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
     </nav>
 
     <div class="sidebar-bottom">
-      <a class="nav logout" href="../index.php"><span class="nav-icon">↪</span>Logout</a>
+      <a class="logout" href="../auth/logout.php"><span class="nav-icon">↪</span>Logout</a>
     </div>
   </aside>
 
@@ -236,11 +240,13 @@ button{cursor:pointer}
           <h1>Nutritionist Chat</h1>
         </div>
       </div>
-      <div class="profile"><div class="avatar">💬</div><span class="profile-name">Live Chat</span></div>
+      <a class="profile" href="profile.php" title="View & Edit Profile">
+        <div class="avatar">💬</div>
+        <span class="profile-name">Live Chat</span>
+      </a>
     </header>
 
     <section class="chat-layout">
-      <!-- Chat Interface (Left) -->
       <section class="chat-container" aria-label="Nutritionist chat">
         <header class="chat-header">
           <div class="chat-title">
@@ -261,7 +267,6 @@ button{cursor:pointer}
         </div>
       </section>
 
-      <!-- Right Side Panel: Dropdown & Details -->
       <aside class="info-card">
         <div>
           <h2>Select Nutritionist</h2>
@@ -336,22 +341,9 @@ function updateProfileCard() {
 
   if (pic && pic.toString().trim() !== '') {
     let filename = pic.toString().trim();
-    let imageSrc;
+    let imageSrc = (filename.startsWith('http') || filename.startsWith('/')) ? filename : '../uploads/profile_pics/' + filename;
 
-    // Check if path is full URL or already formatted
-    if (filename.startsWith('http') || filename.startsWith('/')) {
-      imageSrc = filename;
-    } else {
-      // Matches the directory structure from browse.php ('uploads/profile_pics/')
-      imageSrc = '../uploads/profile_pics/' + filename;
-    }
-
-    const $img = $('<img>', {
-      src: imageSrc,
-      alt: name
-    });
-
-    // Fallback if the file path is broken
+    const $img = $('<img>', { src: imageSrc, alt: name });
     $img.on('error', function() {
       $picBox.html('<span class="profile-img-placeholder">🧑‍⚕️</span>');
     });
@@ -380,9 +372,19 @@ function sendMessage() {
   if(msg.trim() !== '' && nutritionist_id){
     send.prop('disabled', true).text('Sending…');
 
-    $.post('send_message.php', {user_id, nutritionist_id, message:msg}, function(){
-      input.val('');
-      fetchMessages();
+    $.post('send_message.php', {
+      user_id: user_id, 
+      nutritionist_id: nutritionist_id, 
+      message: msg
+    }, function(response){
+      if (response.trim() === 'success') {
+        input.val('');
+        fetchMessages();
+      } else {
+        alert('Server returned: ' + response);
+      }
+    }).fail(function(xhr, status, error) {
+      alert('Request Failed: ' + error);
     }).always(function(){
       send.prop('disabled', false).text('Send');
       input.trigger('focus');
