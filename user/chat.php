@@ -12,9 +12,12 @@ if(!isset($_SESSION['user_id'])){
 $user_id = $_SESSION['user_id'];
 
 /* Fetch approved nutritionists and their complete profile details */
-$sql = "SELECT id, fullname, profile_pic, email, specialization, bio, experience, certification 
-        FROM nutritionist 
-        WHERE status = 'approved' OR status IS NULL";
+/* Fetch approved nutritionists and their profile details using LEFT JOIN */
+$sql = "SELECT n.id, n.fullname, n.email, n.profile_pic, 
+               p.specialty AS specialization 
+        FROM nutritionist n
+        LEFT JOIN nutritionists_profile p ON n.fullname = p.name
+        WHERE n.status = 'approved' OR n.status IS NULL";
 
 $nutritionists = $conn->query($sql);
 $nutritionist_list = [];

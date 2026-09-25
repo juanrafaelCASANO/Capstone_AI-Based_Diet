@@ -1,26 +1,20 @@
 <?php
-
-// ============================================================
-// DATABASE CONFIGURATION
-// ============================================================
-
-$servername = "localhost";
-$username   = "postgres";
-$password   = "aibased";
-$dbname     = "postgres";
+$host = "localhost";
+$port = "5432";
+$dbname = "postgres"; // Pangalan ng database mo
+$user = "postgres";
+$password = "aibased"; // Password mo sa pgAdmin
 
 try {
-    $dsn = "pgsql:host=$servername;port=5432;dbname=$dbname";
-
-    $conn = new PDO($dsn, $username, $password, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
-
+    // Gumagamit ito ng PDO para pareho ng format sa MySQL niyo dati
+    $conn = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $user, $password);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    // Pwede mo itong burahin kapag okay na
+    // echo "Connected na sa PostgreSQL gamit ang PDO!"; 
 } catch (PDOException $e) {
     die("Connection failed: " . $e->getMessage());
 }
-
 
 // ============================================================
 // FIREBASE 2FA / AUTH CONFIGURATION

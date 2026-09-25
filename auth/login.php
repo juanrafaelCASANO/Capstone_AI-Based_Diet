@@ -106,10 +106,24 @@ if (isset($_POST['login'])) {
         }
 
         if ($authenticated) {
+            /* === NAKA-DISABLE MUNA ANG TEXTBEE 2FA ===
             $_SESSION['mfa_pending'] = true;
             $_SESSION['mfa_user'] = $user_data;
             $_SESSION['mfa_step'] = 'enter_phone';
             $mfa_step = 'enter_phone';
+            ========================================= */
+
+            // I-SET AGAD ANG SESSION (Para malaman ng system na naka-login na)
+            $_SESSION['user_id']  = $user_data['id'];
+            $_SESSION['fullname'] = $user_data['fullname'];
+            $_SESSION['role']     = $user_data['role'];
+
+            // I-log ang activity na walang 2FA
+            logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], "Logged in directly (2FA disabled temporarily)");
+
+            // DIRETSO NA SA DASHBOARD DEPENDE SA ROLE NIYA
+            header("Location: " . $user_data['redirect']);
+            exit();
         }
     }
 }
