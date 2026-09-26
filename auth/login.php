@@ -108,24 +108,60 @@ if (isset($_POST['login'])) {
     * { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:'Inter',sans-serif; background:#f4f7ff; color:#0f172a; }
     a { text-decoration:none; color:#2563eb; }
+    
     .header { padding:25px 60px; display:flex; justify-content:space-between; align-items:center; }
     .logo { font-size:22px; font-weight:800; color:#2563eb; }
-    .back { font-size:16px; color:#2563eb; }
+    
+    /* Back link hover effect */
+    .back { 
+        font-size:16px; 
+        color:#2563eb; 
+        transition: all 0.3s ease;
+        display: inline-block;
+    }
+    .back:hover {
+        transform: translateX(-3px);
+    }
+    
     .wrapper { min-height:85vh; display:flex; justify-content:center; align-items:center; }
     .card { background:#fff; width:100%; max-width:480px; padding:50px 45px; border-radius:20px; box-shadow:0 25px 60px rgba(0,0,0,.08); text-align:center; }
     .icon { font-size:42px; color:#2563eb; margin-bottom:15px; }
     .card h1 { font-size:28px; margin-bottom:5px; }
     .card p { color:#64748b; margin-bottom:30px; }
+    
     .form-group { text-align:left; margin-bottom:18px; }
     .form-group label { font-weight:600; font-size:14px; }
+    
     .input-box { position:relative; }
     .input-box i { position:absolute; top:50%; left:15px; transform:translateY(-50%); color:#94a3b8; }
     .input-box input { width:100%; padding:14px 14px 14px 45px; border-radius:12px; border:1px solid #cbd5e1; font-family:'Inter',sans-serif; }
+    
     .terms-group { display:flex; align-items:flex-start; gap:10px; text-align:left; margin-bottom:18px; font-size:13px; color:#64748b; }
+    
     .alert-card { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 12px; margin-bottom: 12px; text-align: left; font-size: 13px; }
     .alert-card-danger { background: #fef2f2; border: 1px solid #fecaca; border-left: 5px solid #ef4444; color: #991b1b; }
     .alert-card-success { background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 5px solid #22c55e; color: #166534; }
-    .btn { width:100%; background:#2563eb; color:#fff; padding:14px; border:none; border-radius:14px; font-weight:700; font-size:16px; cursor:pointer; margin-top:10px; }
+    
+    /* Submit Button with Pop-up Effect */
+    .btn { 
+        width:100%; 
+        background:#2563eb; 
+        color:#fff; 
+        padding:14px; 
+        border:none; 
+        border-radius:14px; 
+        font-weight:700; 
+        font-size:16px; 
+        cursor:pointer; 
+        margin-top:10px; 
+        transition: all 0.3s ease; 
+    }
+    .btn:hover {
+        background-color: #1d4ed8; 
+        transform: translateY(-3px); 
+        box-shadow: 0 6px 15px rgba(37,99,235,0.3); 
+    }
+    
     .signup-link { margin-top: 20px; font-size: 14px; color: #64748b; }
 </style>
 </head>

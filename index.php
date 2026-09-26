@@ -51,11 +51,17 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .logo span { 
             margin-left: 10px; 
         }
+        /* Hover at pop-up effect sa mga nav links */
         .nav-links a { 
-            margin-left: 25px; 
+            margin-left: 10px; 
+            padding: 8px 15px; 
+            border-radius: 8px; 
             font-weight: 500; 
             color: #334155; 
+            transition: all 0.3s ease; 
+            display: inline-block; 
         }
+
         .btn-primary { 
             background: #2563eb; 
             color: #fff; 
@@ -65,6 +71,36 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             display: inline-block; 
             border: none; 
             cursor: pointer; 
+            transition: all 0.3s ease; 
+        }
+
+        /* Hover effects */
+        .nav-links a:not(.btn-primary):hover {
+            background-color: #eff6ff; 
+            color: #2563eb; 
+            transform: translateY(-3px); 
+            box-shadow: 0 4px 10px rgba(37,99,235,0.1); 
+        }
+
+        .btn-primary:hover {
+            background-color: #1d4ed8; 
+            transform: translateY(-3px); 
+            box-shadow: 0 6px 15px rgba(37,99,235,0.3); 
+        }
+
+        /* Disenyo ng View All button */
+        .view-all-btn {
+            color: #2563eb; 
+            font-weight: 700;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .view-all-btn:hover {
+            background-color: #eff6ff; 
+            transform: translateX(5px); 
         }
 
         /* HERO SECTION */
@@ -85,6 +121,28 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             color: #475569; 
             margin-bottom: 35px; 
         }
+        
+        /* Container ng text */
+        .hero-text {
+            position: relative;
+            z-index: 1; 
+        }
+
+        /* Background image gamit ang ::before */
+        .hero-text::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('uploads/1.png') no-repeat center center;
+            background-size: contain; 
+            opacity: 0.40; 
+            z-index: -1; 
+            transform: scale(3.5) translateX(-1.5%);
+        }
+
         .btn-outline { 
             border: 2px solid #2563eb; 
             padding: 12px 22px; 
@@ -101,7 +159,9 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             box-shadow: 0 30px 60px rgba(37,99,235,.15);
          }
         .hero-card img { 
-            max-width: 260px; 
+            width: 100%;
+            max-width: 400px;
+            height: auto; 
         }
 
         /* SCROLLING SECTION (FEATURES) */
@@ -326,7 +386,7 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </div>
 
 <section class="hero">
-    <div>
+    <div class="hero-text"> 
         <h1>Plan Your Diet with AI</h1>
         <p>Get personalized meal plans, nutrition guidance, and expert consultations powered by Artificial Intelligence.</p>
         <div class="hero-buttons">
@@ -335,14 +395,14 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
     <div class="hero-card">
-        <img src="https://cdn-icons-png.flaticon.com/512/706/706164.png" alt="AI Nutrition">
+        <img src="uploads/2.png" alt="AI Nutrition">
     </div>
 </section>
 
 <section class="features" id="features">
     <div style="display:flex; justify-content:space-between; align-items:center;">
         <h2>Featured Nutritionists</h2>
-        <a href="browse.php?type=nutritionists" style="color:#2563eb; font-weight:700;">View All →</a>
+        <a href="browse.php?type=nutritionists" class="view-all-btn">View All →</a>
     </div>
 
     <div class="scroll-wrapper">

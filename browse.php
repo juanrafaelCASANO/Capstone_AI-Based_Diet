@@ -1,9 +1,10 @@
 <?php
 require_once 'config.php';
 
-$type = $_GET['type'] ?? 'meals';
-$goal = $_GET['goal'] ?? '';
-$specialty = $_GET['specialty'] ?? '';
+// Pinalitan natin ito para sigurado at walang maging error sa server
+$type = isset($_GET['type']) ? $_GET['type'] : 'meals';
+$goal = isset($_GET['goal']) ? $_GET['goal'] : '';
+$specialty = isset($_GET['specialty']) ? $_GET['specialty'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -21,15 +22,60 @@ $specialty = $_GET['specialty'] ?? '';
         .navbar { background: #fff; padding: 15px 50px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,.05); position: sticky; top:0; z-index: 1000; }
         .logo { display: flex; align-items: center; font-weight: 800; font-size: 22px; color: #2563eb; }
         .logo span { margin-left: 10px; }
-        .nav-links a { margin-left: 25px; font-weight: 500; color: #334155; }
-        .btn-primary { background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 10px; font-weight: 600; display: inline-block; border: none; cursor: pointer; }
-        .header { padding:25px 60px; display:flex; justify-content:space-between; align-items:center; }
+.nav-links a { 
+    margin-left: 10px; 
+    padding: 8px 15px; 
+    border-radius: 8px; 
+    font-weight: 500; 
+    color: #334155; 
+    transition: all 0.3s ease; 
+    display: inline-block; 
+}        
+.btn-primary { 
+    background: #2563eb; 
+    color: #fff; 
+    padding: 10px 20px; 
+    border-radius: 10px; 
+    font-weight: 600; 
+    display: inline-block; 
+    border: none; 
+    cursor: pointer; 
+    transition: all 0.3s ease; 
+}        
+.nav-links a:not(.btn-primary):hover {
+    background-color: #eff6ff; 
+    color: #2563eb; 
+    transform: translateY(-3px); 
+    box-shadow: 0 4px 10px rgba(37,99,235,0.1); 
+}
+.btn-primary:hover {
+    background-color: #1d4ed8; 
+    transform: translateY(-3px); 
+    box-shadow: 0 6px 15px rgba(37,99,235,0.3); 
+}
+.header { padding:25px 60px; display:flex; justify-content:space-between; align-items:center; }
         .container { max-width:1200px; margin:auto; padding:20px 40px; }
         h1 { font-size:40px; font-weight:800; }
         .tabs { display:flex; gap:20px; margin:30px 0; }
-        .tab { padding:14px 26px; border-radius:14px; font-weight:600; background:#e0e7ff; color:#2563eb; text-decoration:none; }
-        .tab.active { background:#2563eb; color:#fff; }
-        .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:30px; }
+.tab { 
+    padding: 14px 26px; 
+    border-radius: 14px; 
+    font-weight: 600; 
+    background: #e0e7ff; 
+    color: #2563eb; 
+    text-decoration: none; 
+    transition: all 0.3s ease;
+    display: inline-block;
+}       
+.tab.active { 
+    background: #2563eb; 
+    color: #fff; 
+}      
+.tab:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(37,99,235,0.2);
+} 
+ .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:30px; }
         .card { background:#fff; padding:30px; border-radius:22px; box-shadow:0 20px 50px rgba(0,0,0,.08); transition: transform .3s ease, box-shadow .3s ease; }
         .card:hover { transform: translateY(-10px); box-shadow: 0 30px 60px rgba(37,99,235,.2); cursor:pointer; }
         .card h3 { margin:10px 0; }

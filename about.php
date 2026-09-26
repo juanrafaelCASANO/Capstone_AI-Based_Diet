@@ -19,7 +19,7 @@
             overflow-x: hidden; 
         }
 
-        /* --- FIXED NAVBAR (Matches Index) --- */
+        /* --- FIXED NAVBAR --- */
         .navbar { 
             background: #fff; 
             padding: 15px 50px; 
@@ -45,11 +45,16 @@
         
         .logo span { margin-left: 10px; }
 
+        /* Hover at pop-up effect sa mga nav links */
         .nav-links a { 
-            margin-left: 25px; 
+            margin-left: 10px; 
+            padding: 8px 15px; 
+            border-radius: 8px; 
             font-weight: 500; 
             color: #334155; 
             text-decoration: none;
+            transition: all 0.3s ease; 
+            display: inline-block; 
         }
 
         .btn-primary { 
@@ -60,6 +65,22 @@
             font-weight: 600; 
             display: inline-block; 
             border: none; 
+            cursor: pointer;
+            transition: all 0.3s ease; 
+        }
+
+        /* Hover effects */
+        .nav-links a:not(.btn-primary):hover {
+            background-color: #eff6ff; 
+            color: #2563eb; 
+            transform: translateY(-3px); 
+            box-shadow: 0 4px 10px rgba(37,99,235,0.1); 
+        }
+
+        .btn-primary:hover {
+            background-color: #1d4ed8; 
+            transform: translateY(-3px); 
+            box-shadow: 0 6px 15px rgba(37,99,235,0.3); 
         }
 
         /* --- CONTAINER ADJUSTMENT --- */

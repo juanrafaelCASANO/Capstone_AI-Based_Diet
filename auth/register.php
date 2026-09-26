@@ -36,16 +36,19 @@
             text-decoration: none;
         }
 
+        /* Hover at pop-up effect sa Back link */
         .back-link {
             font-size: 15px;
             font-weight: 600;
             color: #2563eb;
             text-decoration: none;
-            transition: color 0.2s;
+            transition: all 0.3s ease;
+            display: inline-block;
         }
 
         .back-link:hover {
             color: #1d4ed8;
+            transform: translateX(-3px);
         }
 
         .main-container {
@@ -167,10 +170,13 @@
             color: #2563eb;
             font-weight: 600;
             text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-block;
         }
 
         .footer-text a:hover {
-            text-decoration: underline;
+            color: #1d4ed8;
+            transform: translateY(-2px);
         }
 
         @media (max-width: 640px) {

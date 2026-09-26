@@ -1,4 +1,4 @@
-    <?php 
+<?php 
     require_once 'config.php'; 
 
     $success_status = false;
@@ -39,7 +39,7 @@
             overflow-x: hidden;
         }
 
-        /* --- FIXED NAVBAR (Consistent with Index/About) --- */
+        /* --- FIXED NAVBAR --- */
         .navbar { 
             background: #fff; 
             padding: 15px 50px; 
@@ -65,11 +65,16 @@
         
         .logo span { margin-left: 10px; }
 
+        /* Hover at pop-up effect sa mga nav links */
         .nav-links a { 
-            margin-left: 25px; 
+            margin-left: 10px; 
+            padding: 8px 15px; 
+            border-radius: 8px; 
             font-weight: 500; 
             color: #334155; 
             text-decoration: none;
+            transition: all 0.3s ease; 
+            display: inline-block; 
         }
 
         .btn-primary { 
@@ -80,6 +85,22 @@
             font-weight: 600; 
             display: inline-block; 
             border: none; 
+            cursor: pointer;
+            transition: all 0.3s ease; 
+        }
+
+        /* Hover effects para sa Navigation */
+        .nav-links a:not(.btn-primary):hover {
+            background-color: #eff6ff; 
+            color: #2563eb; 
+            transform: translateY(-3px); 
+            box-shadow: 0 4px 10px rgba(37,99,235,0.1); 
+        }
+
+        .btn-primary:hover {
+            background-color: #1d4ed8; 
+            transform: translateY(-3px); 
+            box-shadow: 0 6px 15px rgba(37,99,235,0.3); 
         }
 
         /* --- CONTENT AREA --- */
@@ -143,6 +164,8 @@
             border-color: #2563eb;
             background: #fff;
         }
+        
+        /* Submit Button with Pop-up Effect */
         button {
             margin-top:30px;
             background:#2563eb;
@@ -154,9 +177,13 @@
             cursor:pointer;
             width: 100%;
             font-size: 16px;
-            transition: opacity 0.3s ease;
+            transition: all 0.3s ease;
         }
-        button:hover { opacity: 0.9; }
+        button:hover { 
+            background-color: #1d4ed8; 
+            transform: translateY(-3px); 
+            box-shadow: 0 6px 15px rgba(37,99,235,0.3); 
+        }
 
         @media(max-width:768px){
             .navbar { padding: 15px 20px; }
