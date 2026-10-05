@@ -2,7 +2,7 @@
 session_start();
 require_once '../config.php';
 
-// Ensure user is logged in AND is a nutritionist[cite: 8]
+// Ensure user is logged in AND is a nutritionist
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'nutritionist') {
     header("Location: ../auth/login.php");
     exit;
@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'nutritionist'
 
 $nutri_id = $_SESSION['user_id'];
 
-// Fetch nutritionist profile info from the CORRECT table[cite: 8]
+// Fetch nutritionist profile info from the CORRECT table
 $stmt = $conn->prepare("SELECT fullname, email FROM nutritionist WHERE id = ?");
 $stmt->execute([$nutri_id]);
 $nutri = $stmt->fetch();
@@ -22,14 +22,28 @@ if (!$nutri) {
 }
 
 $unread_count = 0; 
+$latest_message = null;
 
 try {
-    $stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ?");
+    // FIXED: Added 'AND status = 0' to only count unread messages
+    $stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
     $stmt->execute([$nutri_id]);
     $row = $stmt->fetch();
     if ($row) {
         $unread_count = $row['total'];
     }
+
+    // Fetch the most recent message requiring attention (e.g. from users to this nutritionist)
+    $msg_stmt = $conn->prepare("
+        SELECT m.*, u.fullname as sender_name 
+        FROM messages m 
+        JOIN users u ON m.sender_id = u.id 
+        WHERE m.receiver_id = ? 
+        ORDER BY m.created_at DESC 
+        LIMIT 1
+    ");
+    $msg_stmt->execute([$nutri_id]);
+    $latest_message = $msg_stmt->fetch();
 } catch (Exception $e) {
     $unread_count = 0;
 }
@@ -71,7 +85,7 @@ body{
 button,a{font:inherit}
 a{color:inherit}
 
-.app{min-height:100vh;display:flex}
+.app{min-height:100vh;display:flex;position:relative;}
 
 /* SIDEBAR - Fixed at pantay-pantay */
 .sidebar{
@@ -213,6 +227,113 @@ a{color:inherit}
 .quick b{font-size:14px}
 .quick span{display:block;color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5}
 
+/* LOWER-RIGHT NOTIFICATION TOAST (Position of the black box reference) */
+.bottom-right-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 320px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 35px rgba(15, 58, 46, 0.15);
+  padding: 16px;
+  z-index: 998;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: slideUpToast 0.3s ease-out;
+}
+
+@keyframes slideUpToast {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toast-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toast-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+
+.toast-title-group strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.toast-close:hover {
+  color: var(--text);
+}
+
+.toast-body {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.toast-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.toast-btn {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toast-btn-primary {
+  background: var(--teal);
+  color: #fff;
+}
+.toast-btn-primary:hover {
+  background: var(--teal-dark);
+}
+
 /* LOGOUT MODAL STYLES */
 .logout-modal-overlay {
   position: fixed;
@@ -345,6 +466,7 @@ a{color:inherit}
   .hero h2{font-size:29px}
   .hero-stat{display:none}
   .section-title{align-items:flex-start;flex-direction:column;gap:4px}
+  .bottom-right-toast { right: 15px; left: 15px; width: auto; }
 }
 @media(max-width:420px){
   .actions .btn{width:100%}
@@ -470,6 +592,26 @@ a{color:inherit}
       </a>
     </section>
   </main>
+
+  <!-- LOWER RIGHT NOTIFICATION BAR / TOAST -->
+  <?php if ($latest_message && $unread_count > 0): ?>
+  <div id="notificationToast" class="bottom-right-toast">
+    <div class="toast-header">
+      <div class="toast-title-group">
+        <div class="toast-icon">💬</div>
+        <strong>New Assistance Request</strong>
+      </div>
+      <button class="toast-close" onclick="closeToast()" aria-label="Close notification">&times;</button>
+    </div>
+    <p class="toast-body">
+      <b><?php echo htmlspecialchars($latest_message['sender_name'] ?? 'User'); ?>:</b> 
+      <?php echo htmlspecialchars($latest_message['message'] ?? 'Needs your assistance regarding their meal plan.'); ?>
+    </p>
+    <div class="toast-footer">
+      <a href="inbox.php" class="toast-btn toast-btn-primary">View in Inbox →</a>
+    </div>
+  </div>
+  <?php endif; ?>
 </div>
 
 <!-- LOGOUT CONFIRMATION MODAL -->
@@ -486,6 +628,16 @@ a{color:inherit}
 </div>
 
 <script>
+function closeToast() {
+  const toast = document.getElementById('notificationToast');
+  if (toast) {
+    toast.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    setTimeout(() => toast.remove(), 200);
+  }
+}
+
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
 }

@@ -14,7 +14,40 @@ $errors = [];
 $success = "";
 
 // ======================================================
-// ACTIONS: ADD EXPERT (Mirrors register_nutritionist.php logic)
+// TEXTBEE SMS HELPER FUNCTION
+// ======================================================
+function sendTextBeeSMS($phoneNumber, $message) {
+    $apiKey = 'txb_3skNWW7LOoXe9MjSrRHXiC8WWUcXq806'; // Palitan ng iyong TextBee API Key
+    
+    $phoneNumber = trim($phoneNumber);
+    if (strpos($phoneNumber, '09') === 0) {
+        $phoneNumber = '+63' . substr($phoneNumber, 1);
+    }
+
+    $url = 'https://api.textbee.dev/api/v1/gateway/send-sms';
+    
+    $data = [
+        'recipients' => [$phoneNumber],
+        'message' => $message
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'x-api-key: ' . $apiKey
+    ]);
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    return $response;
+}
+
+// ======================================================
+// ACTIONS: ADD EXPERT (Multiple Files Support)
 // ======================================================
 if (isset($_POST['add_expert'])) {
     $fullname = trim($_POST['fullname'] ?? '');
@@ -30,7 +63,7 @@ if (isset($_POST['add_expert'])) {
     if (strlen($password) < 6) $errors[] = "Password must be at least 6 characters.";
     if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
     if (empty($_FILES['profile_pic']['name'])) $errors[] = "Profile picture is required.";
-    if (empty($_FILES['document']['name'])) $errors[] = "Verification document is required.";
+    if (empty($_FILES['document']['name'][0])) $errors[] = "Verification documents are required.";
 
     if (empty($errors)) {
         $doc_dir = "../uploads/nutritionists/";
@@ -39,18 +72,26 @@ if (isset($_POST['add_expert'])) {
         if (!is_dir($doc_dir)) mkdir($doc_dir, 0755, true);
         if (!is_dir($pic_dir)) mkdir($pic_dir, 0755, true);
 
-        $doc_filename = time() . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["document"]["name"]));
         $pic_filename = time() . "_pic_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["profile_pic"]["name"]));
+        $pic_uploaded = move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $pic_dir . $pic_filename);
 
-        if (move_uploaded_file($_FILES["document"]["tmp_name"], $doc_dir . $doc_filename) && 
-            move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $pic_dir . $pic_filename)) {
-            
+        $uploaded_docs = [];
+        foreach ($_FILES['document']['name'] as $key => $name) {
+            if ($_FILES['document']['error'][$key] === UPLOAD_ERR_OK) {
+                $doc_filename = time() . "_" . $key . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
+                if (move_uploaded_file($_FILES['document']['tmp_name'][$key], $doc_dir . $doc_filename)) {
+                    $uploaded_docs[] = $doc_filename;
+                }
+            }
+        }
+
+        if ($pic_uploaded && !empty($uploaded_docs)) {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            $documents_json = json_encode($uploaded_docs);
 
-            // Insert using PDO with extended fields and approved status by admin
             $stmt = $conn->prepare("INSERT INTO nutritionist (fullname, profile_pic, email, phone, password, certification, experience, document, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved')");
             
-            if ($stmt->execute([$fullname, $pic_filename, $email, $phone, $hashed_password, $certification, $experience, $doc_filename])) {
+            if ($stmt->execute([$fullname, $pic_filename, $email, $phone, $hashed_password, $certification, $experience, $documents_json])) {
                 header("Location: manage_account.php?msg=success");
                 exit();
             } else {
@@ -62,20 +103,42 @@ if (isset($_POST['add_expert'])) {
     }
 }
 
-// Handle Approval
+// Handle Approval & Send SMS Notification
 if (isset($_GET['approve_id'])) {
     $id = (int)$_GET['approve_id'];
-    $stmt = $conn->prepare("UPDATE nutritionist SET status = 'approved' WHERE id = ?");
+    
+    $stmt = $conn->prepare("SELECT fullname, phone FROM nutritionist WHERE id = ?");
     $stmt->execute([$id]);
+    $nutri = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($nutri) {
+        $updateStmt = $conn->prepare("UPDATE nutritionist SET status = 'approved' WHERE id = ?");
+        $updateStmt->execute([$id]);
+
+        $message = "Hello " . $nutri['fullname'] . ", great news! Your nutritionist account on AI Diet Planner has been APPROVED. You can now log in.";
+        sendTextBeeSMS($nutri['phone'], $message);
+    }
+
     header("Location: manage_account.php?msg=approved");
     exit();
 }
 
-// Handle Rejection
+// Handle Rejection & Send SMS Notification
 if (isset($_GET['reject_id'])) {
     $id = (int)$_GET['reject_id'];
-    $stmt = $conn->prepare("UPDATE nutritionist SET status = 'rejected' WHERE id = ?");
+    
+    $stmt = $conn->prepare("SELECT fullname, phone FROM nutritionist WHERE id = ?");
     $stmt->execute([$id]);
+    $nutri = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($nutri) {
+        $updateStmt = $conn->prepare("UPDATE nutritionist SET status = 'rejected' WHERE id = ?");
+        $updateStmt->execute([$id]);
+
+        $message = "Hello " . $nutri['fullname'] . ", we regret to inform you that your nutritionist account application on AI Diet Planner has been REJECTED.";
+        sendTextBeeSMS($nutri['phone'], $message);
+    }
+
     header("Location: manage_account.php?msg=rejected");
     exit();
 }
@@ -110,7 +173,6 @@ $totalExp = 0;
 
 foreach ($experts as $exp) {
     $expText = $exp['experience'] ?? '';
-    // Extract numeric value if experience text contains numbers (e.g. "5 years" or just digits)
     preg_match('/\d+/', $expText, $matches);
     $yrs = isset($matches[0]) ? (int)$matches[0] : 0;
     
@@ -243,6 +305,11 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             font-size: 13px;
             font-weight: 600;
             transition: .2s;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
         }
 
         .sidebar-link i {
@@ -590,16 +657,26 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             margin-top: 2px;
         }
 
-        .exp-badge {
+        /* VIEW CREDENTIALS BUTTON STYLE */
+        .view-credentials-btn {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            padding: 6px 11px;
-            border-radius: 20px;
-            background: #f0fdf4;
-            color: #16a34a;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
             font-size: 12px;
             font-weight: 700;
+            cursor: pointer;
+            transition: .2s;
+        }
+
+        .view-credentials-btn:hover {
+            background: #dbeafe;
+            border-color: #93c5fd;
+            transform: translateY(-1px);
         }
 
         .status-badge {
@@ -673,7 +750,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             font-size: 13px;
         }
 
-        /* MODAL STYLING (Redesigned with Registration fields layout) */
+        /* MODAL STYLING */
         .modal {
             position: fixed;
             inset: 0;
@@ -693,7 +770,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
 
         .modal-box {
             width: 100%;
-            max-width: 620px;
+            max-width: 750px;
             background: white;
             border-radius: 20px;
             padding: 30px;
@@ -840,6 +917,134 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
             border-left: 4px solid #dc2626;
         }
 
+        /* Document Thumbnails Grid */
+        .doc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .doc-item {
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+            cursor: pointer;
+            text-align: center;
+            padding: 6px;
+            transition: .2s;
+        }
+        .doc-item:hover {
+            border-color: #2563eb;
+            box-shadow: 0 4px 12px rgba(37,99,235,.15);
+        }
+        .doc-item img, .doc-item .pdf-icon {
+            width: 100%;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 6px;
+        }
+        .doc-item .pdf-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f1f5f9;
+            color: #dc2626;
+            font-size: 28px;
+        }
+        .doc-name {
+            font-size: 11px;
+            color: #475569;
+            margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* CONFIRMATION CARD MODAL SPECIFIC STYLES */
+        .confirm-modal-box {
+            max-width: 420px;
+            text-align: center;
+            padding: 35px 25px;
+            border-radius: 24px;
+        }
+        .confirm-icon-frame {
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+        .confirm-icon-delete { background: #fef2f2; color: #dc2626; }
+        .confirm-icon-approve { background: #f0fdf4; color: #16a34a; }
+        .confirm-icon-reject { background: #fefce8; color: #ca8a04; }
+        .confirm-icon-logout { background: #fef2f2; color: #dc2626; }
+
+        .confirm-modal-box h3 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+        .confirm-modal-box p {
+            font-size: 13px;
+            color: #64748b;
+            line-height: 1.5;
+            margin-bottom: 25px;
+        }
+        .confirm-modal-actions {
+            display: flex;
+            gap: 12px;
+        }
+        .confirm-btn-cancel, .confirm-btn-action {
+            flex: 1;
+            height: 44px;
+            border-radius: 11px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: .2s;
+        }
+        .confirm-btn-cancel {
+            background: #ffffff;
+            color: #1e293b;
+            border: 1px solid #e2e8f0;
+        }
+        .confirm-btn-cancel:hover {
+            background: #f8fafc;
+        }
+        .confirm-btn-danger {
+            background: #dc2626;
+            color: white;
+            box-shadow: 0 4px 14px rgba(220,38,38,.3);
+        }
+        .confirm-btn-danger:hover {
+            background: #b91c1c;
+        }
+        .confirm-btn-success {
+            background: #16a34a;
+            color: white;
+            box-shadow: 0 4px 14px rgba(22,163,74,.3);
+        }
+        .confirm-btn-success:hover {
+            background: #15803d;
+        }
+        .confirm-btn-warning {
+            background: #ca8a04;
+            color: white;
+            box-shadow: 0 4px 14px rgba(202,138,4,.3);
+        }
+        .confirm-btn-warning:hover {
+            background: #a16207;
+        }
+
         @media (max-width: 1100px) {
             .stats-grid { grid-template-columns: repeat(3, 1fr); }
         }
@@ -906,10 +1111,10 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
         <div class="sidebar-system">
             <div class="sidebar-section-title">System</div>
             <nav class="sidebar-nav">
-                <a href="../auth/login.php" class="sidebar-link signout">
+                <button type="button" class="sidebar-link signout" onclick="openConfirmModal('logout', '../auth/login.php', '')">
                     <i class="fa-solid fa-right-from-bracket"></i>
                     <span>Sign Out</span>
-                </a>
+                </button>
             </nav>
         </div>
     </aside>
@@ -1046,7 +1251,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                             <tr>
                                 <th>Expert Details</th>
                                 <th>Contact Info</th>
-                                <th>Experience</th>
+                                <th>Credentials</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -1064,12 +1269,26 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
 
                                     $status = $row['status'] ?? 'pending';
                                     $profile_pic = trim($row['profile_pic'] ?? '');
+                                    $document_raw = $row['document'] ?? '';
+                                    $certification = $row['certification'] ?? '';
+                                    $experience_desc = $row['experience'] ?? '';
 
                                     $imageSrc = '';
                                     if ($profile_pic !== '') {
                                         $imageSrc = (strpos($profile_pic, 'http') === 0 || strpos($profile_pic, '/') === 0) 
                                             ? $profile_pic 
                                             : '../uploads/profile_pics/' . $profile_pic;
+                                    }
+
+                                    // Parse multiple documents JSON array
+                                    $doc_list = [];
+                                    if (!empty($document_raw)) {
+                                        $decoded = json_decode($document_raw, true);
+                                        if (is_array($decoded)) {
+                                            $doc_list = $decoded;
+                                        } else {
+                                            $doc_list = [$document_raw];
+                                        }
                                     }
 
                                     $initials = 'E';
@@ -1112,10 +1331,15 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                                         </td>
 
                                         <td>
-                                            <span class="exp-badge">
-                                                <i class="fa-solid fa-briefcase"></i>
-                                                <?= $exp ?> Years
-                                            </span>
+                                            <button type="button" class="view-credentials-btn" 
+                                                onclick='openCredentialsModal(
+                                                    <?= json_encode($doc_list) ?>, 
+                                                    <?= json_encode($fullname) ?>,
+                                                    <?= json_encode($experience_desc) ?>,
+                                                    <?= json_encode($certification) ?>
+                                                )'>
+                                                <i class="fa-solid fa-file-shield"></i> View Credentials
+                                            </button>
                                         </td>
 
                                         <td>
@@ -1131,23 +1355,20 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                                         <td>
                                             <div class="actions">
                                                 <?php if ($status === 'pending'): ?>
-                                                    <a href="manage_account.php?approve_id=<?= $id ?>" class="action-btn approve-btn" title="Approve Account">
+                                                    <button type="button" class="action-btn approve-btn" title="Approve Account" onclick="openConfirmModal('approve', 'manage_account.php?approve_id=<?= $id ?>', '<?= htmlspecialchars($fullname, ENT_QUOTES) ?>')">
                                                         <i class="fa-solid fa-check"></i>
-                                                    </a>
-                                                    <a href="manage_account.php?reject_id=<?= $id ?>" class="action-btn reject-btn" title="Reject Account">
+                                                    </button>
+                                                    <button type="button" class="action-btn reject-btn" title="Reject Account" onclick="openConfirmModal('reject', 'manage_account.php?reject_id=<?= $id ?>', '<?= htmlspecialchars($fullname, ENT_QUOTES) ?>')">
                                                         <i class="fa-solid fa-xmark"></i>
-                                                    </a>
+                                                    </button>
                                                 <?php endif; ?>
                                                 
                                                 <a href="edit_expert.php?id=<?= $id ?>" class="action-btn edit-btn" title="Edit Expert">
                                                     <i class="fa-solid fa-pen"></i>
                                                 </a>
-                                                <a href="manage_account.php?delete_id=<?= $id ?>" 
-                                                   class="action-btn delete-btn" 
-                                                   title="Delete Account"
-                                                   onclick="return confirm('Are you sure you want to delete this account?');">
+                                                <button type="button" class="action-btn delete-btn" title="Delete Account" onclick="openConfirmModal('delete', 'manage_account.php?delete_id=<?= $id ?>', '<?= htmlspecialchars($fullname, ENT_QUOTES) ?>')">
                                                     <i class="fa-solid fa-trash"></i>
-                                                </a>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -1170,7 +1391,7 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
     </main>
 </div>
 
-<!-- ADD EXPERT MODAL (Updated layout mimicking register_nutritionist.php) -->
+<!-- ADD EXPERT MODAL -->
 <div class="modal" id="addModal">
     <div class="modal-box">
         <div class="modal-header">
@@ -1228,9 +1449,9 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
                 </div>
 
                 <div class="form-group">
-                    <label>Verification Document (PDF/Image)</label>
+                    <label>Verification Documents (Multiple PDF/Images)</label>
                     <div class="file-input-wrapper">
-                        <input type="file" name="document" accept="image/*,.pdf" required>
+                        <input type="file" name="document[]" accept="image/*,.pdf" multiple required>
                     </div>
                 </div>
 
@@ -1255,10 +1476,72 @@ $avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
     </div>
 </div>
 
+<!-- VIEW CREDENTIALS MODAL -->
+<div class="modal" id="credentialsModal">
+    <div class="modal-box" style="max-width: 750px;">
+        <div class="modal-header">
+            <h3 id="credModalTitle">Expert Credentials</h3>
+            <button type="button" class="close-modal" onclick="closeCredentialsModal()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                    <i class="fa-solid fa-briefcase" style="color: #16a34a; margin-right: 4px;"></i> Professional Experience
+                </label>
+                <p id="credExpText" style="font-size: 14px; color: #1e293b; white-space: pre-wrap; line-height: 1.5;"></p>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                    <i class="fa-solid fa-award" style="color: #2563eb; margin-right: 4px;"></i> Certifications & Licenses
+                </label>
+                <p id="credCertText" style="font-size: 14px; color: #1e293b; white-space: pre-wrap; line-height: 1.5;"></p>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                    <i class="fa-solid fa-file-shield" style="color: #9333ea; margin-right: 4px;"></i> Verification Documents (Click to Preview)
+                </label>
+                <div id="docGridContainer" class="doc-grid"></div>
+                <div id="noDocText" style="display: none; color: #94a3b8; font-size: 13px;">No documents uploaded</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SINGLE FILE PREVIEW SUB-MODAL -->
+<div class="modal" id="filePreviewModal" style="z-index: 1050;">
+    <div class="modal-box" style="max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+            <h3>Document Preview</h3>
+            <button type="button" class="close-modal" onclick="document.getElementById('filePreviewModal').classList.remove('active')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div style="flex: 1; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+            <iframe id="previewIframe" src="" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
+            <img id="previewImage" src="" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;">
+        </div>
+    </div>
+</div>
+
+<!-- CUSTOM UNIVERSAL ACTION CONFIRMATION MODAL CARD -->
+<div class="modal" id="actionConfirmModal">
+    <div class="modal-box confirm-modal-box">
+        <div id="confirmIconFrame" class="confirm-icon-frame">
+            <i id="confirmIcon" class="fa-solid fa-door-closed"></i>
+        </div>
+        <h3 id="confirmTitle">Confirm Logout</h3>
+        <p id="confirmDesc">Are you sure you want to log out of your session?</p>
+        <div class="confirm-modal-actions">
+            <button type="button" class="confirm-btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+            <a id="confirmActionBtn" href="#" class="confirm-btn-action">Yes, Logout</a>
+        </div>
+    </div>
+</div>
+
 <script>
-/* ======================================================
-   SEARCH & FILTER LOGIC
-====================================================== */
 const searchInput = document.getElementById('searchInput');
 const expFilter = document.getElementById('expFilter');
 const rows = document.querySelectorAll('.account-row');
@@ -1299,9 +1582,6 @@ function filterAccounts() {
 if (searchInput) searchInput.addEventListener('input', filterAccounts);
 if (expFilter) expFilter.addEventListener('change', filterAccounts);
 
-/* ======================================================
-   MODAL CONTROLS & PASSWORD VISIBILITY
-====================================================== */
 function openModal() {
     document.getElementById('addModal').classList.add('active');
 }
@@ -1315,7 +1595,12 @@ document.getElementById('addModal').addEventListener('click', function(e) {
 });
 
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+        closeModal();
+        closeCredentialsModal();
+        closeConfirmModal();
+        document.getElementById('filePreviewModal').classList.remove('active');
+    }
 });
 
 function togglePasswordVisibility(fieldId, iconElement) {
@@ -1330,6 +1615,122 @@ function togglePasswordVisibility(fieldId, iconElement) {
         iconElement.classList.add("fa-eye");
     }
 }
+
+// DYNAMIC UNIVERSAL CONFIRMATION CARD MODAL TRIGGER
+function openConfirmModal(type, targetUrl, expertName) {
+    const modal = document.getElementById('actionConfirmModal');
+    const iconFrame = document.getElementById('confirmIconFrame');
+    const icon = document.getElementById('confirmIcon');
+    const title = document.getElementById('confirmTitle');
+    const desc = document.getElementById('confirmDesc');
+    const actionBtn = document.getElementById('confirmActionBtn');
+
+    // Reset classes
+    iconFrame.className = "confirm-icon-frame";
+    actionBtn.className = "confirm-btn-action";
+
+    if (type === 'delete') {
+        iconFrame.classList.add('confirm-icon-delete');
+        icon.className = "fa-solid fa-trash";
+        title.textContent = "Delete Account";
+        desc.innerHTML = `Are you sure you want to permanently delete <strong>${expertName}</strong>'s account? This action cannot be undone.`;
+        actionBtn.textContent = "Yes, Delete";
+        actionBtn.classList.add('confirm-btn-danger');
+    } else if (type === 'approve') {
+        iconFrame.classList.add('confirm-icon-approve');
+        icon.className = "fa-solid fa-check";
+        title.textContent = "Approve Account";
+        desc.innerHTML = `Are you sure you want to approve <strong>${expertName}</strong>? An SMS notification will be sent automatically.`;
+        actionBtn.textContent = "Yes, Approve";
+        actionBtn.classList.add('confirm-btn-success');
+    } else if (type === 'reject') {
+        iconFrame.classList.add('confirm-icon-reject');
+        icon.className = "fa-solid fa-xmark";
+        title.textContent = "Reject Account";
+        desc.innerHTML = `Are you sure you want to reject <strong>${expertName}</strong>'s application? An SMS alert will be sent.`;
+        actionBtn.textContent = "Yes, Reject";
+        actionBtn.classList.add('confirm-btn-warning');
+    } else if (type === 'logout') {
+        iconFrame.classList.add('confirm-icon-logout');
+        icon.className = "fa-solid fa-door-closed";
+        title.textContent = "Confirm Logout";
+        desc.textContent = "Are you sure you want to log out of your session?";
+        actionBtn.textContent = "Yes, Logout";
+        actionBtn.classList.add('confirm-btn-danger');
+    }
+
+    actionBtn.href = targetUrl;
+    modal.classList.add('active');
+}
+
+function closeConfirmModal() {
+    document.getElementById('actionConfirmModal').classList.remove('active');
+}
+
+document.getElementById('actionConfirmModal').addEventListener('click', function(e) {
+    if (e.target === this) closeConfirmModal();
+});
+
+function openCredentialsModal(docList, expertName, experienceText, certificationText) {
+    const modal = document.getElementById('credentialsModal');
+    const title = document.getElementById('credModalTitle');
+    const certText = document.getElementById('credCertText');
+    const expText = document.getElementById('credExpText');
+    const gridContainer = document.getElementById('docGridContainer');
+    const noDocText = document.getElementById('noDocText');
+
+    title.textContent = "Credentials - " + expertName;
+    certText.textContent = certificationText || 'No certification provided';
+    expText.textContent = experienceText || 'No experience provided';
+    gridContainer.innerHTML = '';
+
+    if (docList && docList.length > 0) {
+        noDocText.style.display = 'none';
+        docList.forEach((doc, index) => {
+            const docUrl = '../uploads/nutritionists/' + doc;
+            const ext = doc.split('.').pop().toLowerCase();
+
+            const item = document.createElement('div');
+            item.className = 'doc-item';
+            
+            if (ext === 'pdf') {
+                item.innerHTML = `<div class="pdf-icon"><i class="fa-solid fa-file-pdf"></i></div><div class="doc-name">Document ${index + 1}</div>`;
+            } else {
+                item.innerHTML = `<img src="${docUrl}" alt="Doc"><div class="doc-name">Document ${index + 1}</div>`;
+            }
+
+            item.onclick = function() {
+                const iframe = document.getElementById('previewIframe');
+                const image = document.getElementById('previewImage');
+                if (ext === 'pdf') {
+                    iframe.src = docUrl;
+                    iframe.style.display = 'block';
+                    image.style.display = 'none';
+                } else {
+                    image.src = docUrl;
+                    image.style.display = 'block';
+                    iframe.style.display = 'none';
+                }
+                document.getElementById('filePreviewModal').classList.add('active');
+            };
+
+            gridContainer.appendChild(item);
+        });
+    } else {
+        noDocText.style.display = 'block';
+    }
+
+    modal.classList.add('active');
+}
+
+function closeCredentialsModal() {
+    const modal = document.getElementById('credentialsModal');
+    modal.classList.remove('active');
+}
+
+document.getElementById('credentialsModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCredentialsModal();
+});
 </script>
 
 </body>

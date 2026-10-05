@@ -284,7 +284,7 @@ a{color:inherit}
       <div>
         <div class="eyebrow">Smart meal planning</div>
         <h2>Eat better with a plan made around your goals.</h2>
-        <p>Generate a weekly Filipino-based diet plan and use your nutritionist chat to make practical adjustments along the way.</p>
+        <p>Generate a weekly diet plan and use your nutritionist chat to make practical adjustments along the way.</p>
         <div class="actions">
           <a class="btn btn-primary" href="generate_weekly.php">🍽️ Generate Weekly Plan</a>
           <a class="btn btn-secondary" href="chat.php">💬 Talk to Nutritionist</a>
@@ -310,7 +310,7 @@ a{color:inherit}
           <div class="card-icon">🍱</div>
         </div>
         <h3>Your AI Meal Plan</h3>
-        <p>Generate a weekly Filipino-based diet plan tailored to your goals and make meal planning easier.</p>
+        <p>Generate a weekly Artificial Intelligence based diet plan tailored to your goals and make meal planning easier.</p>
         <a class="btn btn-primary" href="generate_weekly.php">Generate Plan <span>→</span></a>
       </article>
 

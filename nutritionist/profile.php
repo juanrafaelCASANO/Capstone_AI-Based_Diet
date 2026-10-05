@@ -565,7 +565,7 @@ a { color: inherit; }
             <div class="form-group full">
               <label>Profile Picture</label>
               <input type="file" name="profile_pic" accept="image/png, image/jpeg, image/jpg, image/gif">
-              <span class="file-hint">Iwanang blangko kung hindi papalitan ang kasalukuyang litrato.</span>
+              <span class="file-hint">Leave blank if you do not want to change the current photo.</span>
             </div>
           </div>
 

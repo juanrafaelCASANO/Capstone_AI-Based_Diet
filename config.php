@@ -1,4 +1,7 @@
 <?php
+
+
+
 $host = "localhost";
 $port = "5432";
 $dbname = "postgres"; // Pangalan ng database mo
@@ -27,4 +30,8 @@ define('FIREBASE_STORAGE_BUCKET', 'ai-based-diet.firebasestorage.app');
 define('FIREBASE_MESSAGING_SENDER_ID', '285856196933');
 define('FIREBASE_APP_ID', '1:285856196933:web:4cce0bcbd56aa4c8bf762c');
 
+// ============================================================
+// TEXTBEE SMS API CONFIGURATION
+// ============================================================
+define('TEXTBEE_API_KEY', 'txb_3skNWW7LOoXe9MjSrRHXiC8WWUcXq806'); // Palitan ng iyong totoong TextBee API Key
 ?>

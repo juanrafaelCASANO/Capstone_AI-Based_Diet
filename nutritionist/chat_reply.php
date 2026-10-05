@@ -31,6 +31,17 @@ if (!$user_data) {
     header("Location: inbox.php");
     exit;
 }
+// Mark messages from this user as read when the nutritionist opens the chat
+try {
+    $mark_read_stmt = $conn->prepare("
+        UPDATE messages 
+        SET status = 1 
+        WHERE sender_id = ? AND receiver_id = ? AND status = 0
+    ");
+    $mark_read_stmt->execute([$user_id, $nutri_id]);
+} catch (Exception $e) {
+    // Handle error if needed
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

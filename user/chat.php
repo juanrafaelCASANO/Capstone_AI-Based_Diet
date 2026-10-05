@@ -7,20 +7,33 @@ if(!isset($_SESSION['user_id'])){
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
+$user_id =$_SESSION['user_id'];
 
 $sql = "SELECT n.id, n.fullname, n.email, n.profile_pic, 
+               n.experience, 
+               n.certification, 
+               n.document, 
                p.specialty AS specialization 
         FROM nutritionist n
         LEFT JOIN nutritionists_profile p ON n.fullname = p.name
         WHERE n.status = 'approved' OR n.status IS NULL";
 
-$nutritionists = $conn->query($sql);
-$nutritionist_list = [];
+$nutritionists =$conn->query($sql);$nutritionist_list = [];
 
 if($nutritionists) {
-    while($row = $nutritionists->fetch(PDO::FETCH_ASSOC)) {
-        $nutritionist_list[] = $row;
+    while($row =$nutritionists->fetch(PDO::FETCH_ASSOC)) {
+        // Parse document JSON or string para maging array
+        $doc_raw = $row['document'] ?? '';$doc_list = [];
+        if (!empty($doc_raw)) {
+            $decoded = json_decode($doc_raw, true);
+            if (is_array($decoded)) {
+                $doc_list =$decoded;
+            } else {
+                $doc_list = [$doc_raw];
+            }
+        }
+        $row['doc_list'] =$doc_list;
+        $nutritionist_list[] =$row;
     }
 }
 ?>
@@ -29,9 +42,11 @@ if($nutritionists) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI-Based Diet & Nutritional Planner</title>
+<title>AI-Based Diet & Nutritional Planner - Nutritionist Chat</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Font Awesome para sa mga icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
 <style>
 :root{
@@ -173,7 +188,29 @@ button{cursor:pointer}
 .detail-item span{display:block;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase}
 .detail-item strong{display:block;font-size:12px;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-.nutritionist-bio{font-size:12px;color:var(--muted);line-height:1.5;margin:0;text-align:left;width:100%}
+/* VIEW CREDENTIALS BUTTON STYLE */
+.view-credentials-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: .2s;
+  text-decoration: none;
+}
+.view-credentials-btn:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
 
 .chat-body{
   flex:1;min-height:0;padding:18px;overflow-y:auto;background:#f2f6f3;
@@ -213,6 +250,107 @@ button{cursor:pointer}
 .chat-footer button:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
 
 .overlay{display:none}
+
+/* MODAL STYLING (katulad ng sa manage_account.php) */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, .55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+  overflow-y: auto;
+}
+.modal.active {
+  display: flex;
+}
+.modal-box {
+  width: 100%;
+  max-width: 750px;
+  background: white;
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 25px 70px rgba(15,23,42,.25);
+  animation: modalIn .25s ease;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(15px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.modal-header h3 {
+  font-size: 20px;
+  color: #111827;
+  font-weight: 800;
+  margin: 0;
+}
+.close-modal {
+  width: 35px;
+  height: 35px;
+  border: none;
+  border-radius: 8px;
+  background: #f1f5f9;
+  cursor: pointer;
+  color: #475569;
+  font-size: 16px;
+  display: grid;
+  place-items: center;
+}
+.close-modal:hover { background: #e2e8f0; }
+
+/* Document Thumbnails Grid */
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.doc-item {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  cursor: pointer;
+  text-align: center;
+  padding: 6px;
+  transition: .2s;
+}
+.doc-item:hover {
+  border-color: #2563eb;
+  box-shadow: 0 4px 12px rgba(37,99,235,.15);
+}
+.doc-item img, .doc-item .pdf-icon {
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.doc-item .pdf-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #dc2626;
+  font-size: 28px;
+}
+.doc-name {
+  font-size: 11px;
+  color: #475569;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 @media(max-width:900px){
   .sidebar{width:240px;flex-basis:240px}
@@ -302,7 +440,7 @@ button{cursor:pointer}
           <h2>Select Nutritionist</h2>
           <div class="select-wrapper">
             <select id="nutritionist" aria-label="Select nutritionist">
-              <?php foreach($nutritionist_list as $nutri): ?>
+              <?php foreach($nutritionist_list as$nutri): ?>
                 <option 
                   value="<?php echo $nutri['id']; ?>"
                   data-fullname="<?php echo htmlspecialchars($nutri['fullname'] ?? ''); ?>"
@@ -310,7 +448,7 @@ button{cursor:pointer}
                   data-spec="<?php echo htmlspecialchars($nutri['specialization'] ?? 'Certified Nutritionist'); ?>"
                   data-exp="<?php echo htmlspecialchars($nutri['experience'] ?? 'N/A'); ?>"
                   data-cert="<?php echo htmlspecialchars($nutri['certification'] ?? 'Certified'); ?>"
-                  data-bio="<?php echo htmlspecialchars($nutri['bio'] ?? 'Available for diet plans and nutritional guidance.'); ?>">
+                  data-docs='<?php echo htmlspecialchars(json_encode($nutri['doc_list']), ENT_QUOTES, 'UTF-8'); ?>'>
                   <?php echo htmlspecialchars($nutri['fullname']); ?>
                 </option>
               <?php endforeach; ?>
@@ -331,12 +469,17 @@ button{cursor:pointer}
               <strong id="display-exp">N/A</strong>
             </div>
             <div class="detail-item">
-              <span>License / Cert</span>
+              <span>Certification</span>
               <strong id="display-cert">Verified</strong>
             </div>
           </div>
 
-          <p class="nutritionist-bio" id="display-bio">Select a specialist above to start chatting.</p>
+          <!-- View Credentials Button matching manage_account.php -->
+          <div style="width: 100%; margin-top: 4px;">
+            <button type="button" id="viewCredentialsBtn" class="view-credentials-btn">
+              <i class="fa-solid fa-file-shield"></i> View Credentials
+            </button>
+          </div>
         </div>
       </aside>
     </section>
@@ -354,6 +497,56 @@ button{cursor:pointer}
       <a href="../auth/logout.php" class="btn-modal-logout">Yes, Logout</a>
     </div>
   </div>
+</div>
+
+<!-- VIEW CREDENTIALS MODAL (galing sa manage_account.php) -->
+<div class="modal" id="credentialsModal">
+    <div class="modal-box" style="max-width: 750px;">
+        <div class="modal-header">
+            <h3 id="credModalTitle">Expert Credentials</h3>
+            <button type="button" class="close-modal" onclick="closeCredentialsModal()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                    <i class="fa-solid fa-briefcase" style="color: #16a34a; margin-right: 4px;"></i> Professional Experience
+                </label>
+                <p id="credExpText" style="font-size: 14px; color: #1e293b; white-space: pre-wrap; line-height: 1.5; margin:0;"></p>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                    <i class="fa-solid fa-award" style="color: #2563eb; margin-right: 4px;"></i> Certifications & Licenses
+                </label>
+                <p id="credCertText" style="font-size: 14px; color: #1e293b; white-space: pre-wrap; line-height: 1.5; margin:0;"></p>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                    <i class="fa-solid fa-file-shield" style="color: #9333ea; margin-right: 4px;"></i> Verification Documents (Click to Preview)
+                </label>
+                <div id="docGridContainer" class="doc-grid"></div>
+                <div id="noDocText" style="display: none; color: #94a3b8; font-size: 13px;">No documents uploaded</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SINGLE FILE PREVIEW SUB-MODAL -->
+<div class="modal" id="filePreviewModal" style="z-index: 1050;">
+    <div class="modal-box" style="max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+            <h3>Document Preview</h3>
+            <button type="button" class="close-modal" onclick="document.getElementById('filePreviewModal').classList.remove('active')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div style="flex: 1; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+            <iframe id="previewIframe" src="" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
+            <img id="previewImage" src="" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;">
+        </div>
+    </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -384,32 +577,103 @@ function updateProfileCard() {
   const spec = selected.data('spec');
   const exp = selected.data('exp');
   const cert = selected.data('cert');
-  const bio = selected.data('bio');
+  let docs = [];
+  try {
+    docs = selected.data('docs') || [];
+  } catch(e) {
+    docs = [];
+  }
 
   $('#display-name').text(name);
   $('#display-spec').text(spec);
-  $('#display-exp').text(exp);
-  $('#display-cert').text(cert);
-  $('#display-bio').text(bio);
+  $('#display-exp').text(exp !== '' ? exp : 'N/A');
+  $('#display-cert').text(cert !== '' ? cert : 'N/A');
   $('#active-nutritionist-label').text('Talking to ' + name);
 
-  const $picBox = $('#display-pic-box');
+  // Bind View Credentials Button click event
+  $('#viewCredentialsBtn').off('click').on('click', function() {
+    openCredentialsModal(docs, name, exp, cert);
+  });
+
+  // Handle Profile Picture
+  const $picBox =$('#display-pic-box');
   $picBox.empty();
 
   if (pic && pic.toString().trim() !== '') {
     let filename = pic.toString().trim();
     let imageSrc = (filename.startsWith('http') || filename.startsWith('/')) ? filename : '../uploads/profile_pics/' + filename;
 
-    const $img = $('<img>', { src: imageSrc, alt: name });
-    $img.on('error', function() {
-      $picBox.html('<span class="profile-img-placeholder">🧑‍⚕️</span>');
+    const $img =$('<img>', { src: imageSrc, alt: name });
+    $img.on('error', function() {$picBox.html('<span class="profile-img-placeholder">🧑‍⚕️</span>');
     });
 
     $picBox.append($img);
   } else {
-    $picBox.html('<span class="profile-img-placeholder">🧑‍⚕️</span>');
+    $picBox.html('<span class="profile-img-placeholder">🧑‍⚕️️</span>');
   }
 }
+
+// Credentials Modal Functions (galing sa manage_account.php)
+function openCredentialsModal(docList, expertName, experienceText, certificationText) {
+    const modal = document.getElementById('credentialsModal');
+    const title = document.getElementById('credModalTitle');
+    const certText = document.getElementById('credCertText');
+    const expText = document.getElementById('credExpText');
+    const gridContainer = document.getElementById('docGridContainer');
+    const noDocText = document.getElementById('noDocText');
+
+    title.textContent = "Credentials - " + expertName;
+    certText.textContent = certificationText || 'No certification provided';
+    expText.textContent = experienceText || 'No experience provided';
+    gridContainer.innerHTML = '';
+
+    if (docList && docList.length > 0) {
+        noDocText.style.display = 'none';
+        docList.forEach((doc, index) => {
+            const docUrl = '../uploads/nutritionists/' + doc;
+            const ext = doc.split('.').pop().toLowerCase();
+
+            const item = document.createElement('div');
+            item.className = 'doc-item';
+            
+            if (ext === 'pdf') {
+                item.innerHTML = `<div class="pdf-icon"><i class="fa-solid fa-file-pdf"></i></div><div class="doc-name">Document ${index + 1}</div>`;
+            } else {
+                item.innerHTML = `<img src="${docUrl}" alt="Doc"><div class="doc-name">Document ${index + 1}</div>`;
+            }
+
+            item.onclick = function() {
+                const iframe = document.getElementById('previewIframe');
+                const image = document.getElementById('previewImage');
+                if (ext === 'pdf') {
+                    iframe.src = docUrl;
+                    iframe.style.display = 'block';
+                    image.style.display = 'none';
+                } else {
+                    image.src = docUrl;
+                    image.style.display = 'block';
+                    iframe.style.display = 'none';
+                }
+                document.getElementById('filePreviewModal').classList.add('active');
+            };
+
+            gridContainer.appendChild(item);
+        });
+    } else {
+        noDocText.style.display = 'block';
+    }
+
+    modal.classList.add('active');
+}
+
+function closeCredentialsModal() {
+    const modal = document.getElementById('credentialsModal');
+    modal.classList.remove('active');
+}
+
+document.getElementById('credentialsModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCredentialsModal();
+});
 
 function fetchMessages() {
   if(!nutritionist_id) return;

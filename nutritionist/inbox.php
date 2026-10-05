@@ -37,11 +37,11 @@ $inbox_sql = "
         WHERE sender_id = :nutri_id OR receiver_id = :nutri_id
     ),
     unread_counts AS (
-        SELECT sender_id AS client_id, COUNT(*) as unread_count
-        FROM messages
-        WHERE receiver_id = :nutri_id 
-        GROUP BY sender_id
-    )
+    SELECT sender_id AS client_id, COUNT(*) as unread_count
+    FROM messages
+    WHERE receiver_id = :nutri_id AND status = 0
+    GROUP BY sender_id
+)
     SELECT 
         u.id AS client_id,
         u.fullname AS client_name,
@@ -59,6 +59,8 @@ $inbox_sql = "
 $inbox_stmt = $conn->prepare($inbox_sql);
 $inbox_stmt->execute(['nutri_id' => $nutri_id]);
 $conversations = $inbox_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">

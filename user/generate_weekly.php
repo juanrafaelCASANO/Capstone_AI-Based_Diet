@@ -7,7 +7,7 @@
 session_start();
 require_once '../config.php';
 
-// Redirect if user is not logged in[cite: 28]
+// Redirect if user is not logged in[cite: 2]
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../auth/login.php");
     exit;
@@ -33,7 +33,7 @@ $stmt = $conn->prepare("
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
 
-// Prepare variables with fallback defaults[cite: 28]
+// Prepare variables with fallback defaults[cite: 2]
 $userFullName  = $user['fullname'] ?? 'User';
 $userAge       = !empty($user['age']) ? $user['age'] : 25;
 $userWeight    = !empty($user['weight']) ? $user['weight'] : 70;
@@ -43,46 +43,51 @@ $userActivity  = $user['activity'] ?? '';
 $userDietType  = $user['diet_type'] ?? '';
 
 /* =========================================================
-   GEMINI AI CLASS
+   OPENAI AI CLASS
 ========================================================= */
 class NutriAI {
-    private $apiKey = "AIzaSyCiX5989dytjy2koeu1t9_h0G5EvhAejYs"; 
-    private $apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent";
+    private $apiKey = "YOUR_OPENAI_API_KEY_HERE"; // Replace with your actual OpenAI API key or env variable
+    private $apiUrl = "https://api.openai.com/v1/chat/completions";
 
     public function generateMealPlan($formData) {
         $cleanKey = trim($this->apiKey);
         
-        if (empty($cleanKey) || $cleanKey === "YOUR_ACTUAL_API_KEY_HERE") {
-            throw new Exception("API Key is missing. Please add your Gemini API key.");
+        // Corrected validation check condition
+        if (empty($cleanKey) || $cleanKey === "YOUR_OPENAI_API_KEY_HERE") {
+            throw new Exception("API Key is missing. Please add your OpenAI API key.");
         }
 
         $systemPrompt = "You are a professional Nutritionist AI. Generate a 3-day meal plan. "
-                      . "Return ONLY a JSON object. No conversational text. "
+                      . "Return ONLY a valid JSON object. No conversational text or markdown code blocks outside JSON if possible. "
                       . "Structure: { \"summary\": { \"total_avg_calories\": number, \"primary_focus\": string }, "
                       . "\"days\": [ { \"day_number\": number, \"meals\": [ { \"type\": \"Breakfast|Lunch|Dinner|Snack\", \"name\": \"string\", "
                       . "\"calories\": number, \"protein\": \"string\", \"carbs\": \"string\", \"fats\": \"string\", \"ingredients\": [] } ] } ] }";
 
         $userQuery = "User: {$formData['age']}yo, {$formData['weight']}kg, {$formData['height']}cm. Goal: {$formData['goal']}. Diet: {$formData['dietType']}. Activity: {$formData['activityLevel']}.";
 
+        // OpenAI payload structure using messages and response_format for JSON
         $payload = [
-            "contents" => [["parts" => [["text" => $userQuery]]]],
-            "systemInstruction" => ["parts" => [["text" => $systemPrompt]]],
-            "generationConfig" => [
-                "responseMimeType" => "application/json",
-                "temperature" => 0.7
-            ]
+            "model" => "gpt-4o-mini", // Or "gpt-4o"
+            "messages" => [
+                ["role" => "system", "content" => $systemPrompt],
+                ["role" => "user", "content" => $userQuery]
+            ],
+            "response_format" => ["type" => "json_object"],
+            "temperature" => 0.7
         ];
 
         return $this->fetchWithRetry($payload, $cleanKey);
     }
 
     private function fetchWithRetry($payload, $key, $retries = 3, $backoff = 2) {
-        $url = $this->apiUrl . "?key=" . $key;
-        $ch = curl_init($url);
+        $ch = curl_init($this->apiUrl);
         
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $key
+        ]);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
         curl_setopt($ch, CURLOPT_TIMEOUT, 30); 
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -94,12 +99,17 @@ class NutriAI {
 
         if ($httpCode === 200) {
             $data = json_decode($response, true);
-            $jsonStr = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
-            return $jsonStr ? json_decode($jsonStr, true) : null;
+            $jsonStr = $data['choices'][0]['message']['content'] ?? null;
+            if ($jsonStr) {
+                // Clean markdown code blocks if the model includes them anyway
+                $jsonStr = str_replace(['```json', '```'], '', $jsonStr);
+                return json_decode(trim($jsonStr), true);
+            }
+            return null;
         }
 
-        if ($httpCode === 400 || $httpCode === 403) {
-            throw new Exception("API Key Error (Code $httpCode): Your API key may be invalid, restricted, or pasted incorrectly.");
+        if ($httpCode === 401 || $httpCode === 403) {
+            throw new Exception("API Key Error (Code $httpCode): Your OpenAI API key is invalid or unauthorized.");
         }
 
         if ($retries > 0 && ($httpCode === 429 || $httpCode >= 500)) {
@@ -111,11 +121,11 @@ class NutriAI {
             throw new Exception("Network Error: " . $curlError);
         }
 
-        return null;
+        throw new Exception("OpenAI API returned status code $httpCode: " . $response);
     }
 }
 
-// Logic for handling form submission
+// Logic for handling form submission[cite: 2]
 $mealPlan = null;
 $error = null;
 
@@ -159,7 +169,6 @@ a{color:inherit}
 .nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}.nav a.active{background:rgba(255,255,255,.14);color:#fff}
 .nav-icon{width:24px;text-align:center;font-size:17px}
 
-/* SIDEBAR BOTTOM & LOGOUT STYLES */
 .sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
 .sidebar-bottom a.logout{
   display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px;
@@ -167,7 +176,6 @@ a{color:inherit}
 }
 .sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
 
-/* LOGOUT MODAL STYLES */
 .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -269,7 +277,6 @@ a{color:inherit}
       <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
     </nav>
     <div class="sidebar-bottom">
-      <!-- CUSTOM LOGOUT MODAL TRIGGER -->
       <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
     </div>
   </aside>
@@ -283,7 +290,6 @@ a{color:inherit}
           <h1>Build your nutrition plan</h1>
         </div>
       </div>
-      <!-- DYNAMIC PROFILE CHIP -->
       <a class="profile" href="profile.php" title="View & Edit Profile">
         <div class="avatar">
           <?php echo htmlspecialchars(strtoupper(substr($userFullName, 0, 1))); ?>
@@ -346,7 +352,7 @@ a{color:inherit}
           </div>
 
           <div class="actions">
-            <button class="btn btn-primary" id="generateBtn" type="submit">✨ Generate Plan Using Gemini AI</button>
+            <button class="btn btn-primary" id="generateBtn" type="submit">✨ Generate Weekly Plan</button>
             <a class="btn btn-secondary" href="dashboard.php">← Back to Dashboard</a>
           </div>
           <div class="form-note">🔒 Your inputs are loaded from your user profile.</div>
@@ -409,7 +415,6 @@ a{color:inherit}
   </main>
 </div>
 
-<!-- LOGOUT CONFIRMATION MODAL -->
 <div id="logoutModal" class="logout-modal-overlay">
   <div class="logout-modal-card">
     <div class="logout-modal-icon">🚪</div>

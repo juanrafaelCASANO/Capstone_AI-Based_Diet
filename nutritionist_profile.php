@@ -2,34 +2,69 @@
 session_start();
 require_once 'config.php';
 
-$id = $_GET['id'] ?? 0;
+// Make sure the nutritionist ID is a valid integer.
+$id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 
-// ADDED 'profile_pic' to your SELECT query
+if (!$id || $id < 1) {
+    die("Invalid nutritionist ID.");
+}
+
+/*
+ * IMPORTANT:
+ * Your config.php is using PDO, so this file must use PDO methods.
+ * Do NOT use bind_param(), get_result(), num_rows, or fetch_assoc().
+ */
+
+// Get approved nutritionist profile
 $stmt = $conn->prepare("
     SELECT id, fullname, profile_pic, email, phone, certification, experience, document
     FROM nutritionist
-    WHERE id = ? AND status = 'approved'
+    WHERE id = :id AND status = 'approved'
+    LIMIT 1
 ");
-$stmt->bind_param("i", $id);
-$stmt->execute();
-$result = $stmt->get_result();
 
-if ($result->num_rows === 0) {
+$stmt->execute([':id' => $id]);
+$n = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$n) {
     die("Nutritionist not found.");
 }
 
-$n = $result->fetch_assoc();
-
-// LOGIC FOR REVIEWS: Handle submission
+// Handle review submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
-    $u_id = $_SESSION['user_id'];
-    $rating = $_POST['rating'];
-    $comment = $_POST['comment'];
-    
-    $ins = $conn->prepare("INSERT INTO nutritionist_reviews (nutritionist_id, user_id, rating, review_text) VALUES (?, ?, ?, ?)");
-    $ins->bind_param("iiis", $id, $u_id, $rating, $comment);
-    $ins->execute();
-    header("Location: nutritionist_profile.php?id=$id");
+
+    $u_id = filter_var($_SESSION['user_id'], FILTER_VALIDATE_INT);
+    $rating = filter_input(INPUT_POST, 'rating', FILTER_VALIDATE_INT);
+    $comment = trim($_POST['comment'] ?? '');
+
+    // Validate review data
+    if (!$u_id) {
+        die("Invalid user session.");
+    }
+
+    if ($rating === false || $rating < 1 || $rating > 5) {
+        die("Invalid rating. Please select a rating from 1 to 5.");
+    }
+
+    if ($comment === '') {
+        die("Please enter a review.");
+    }
+
+    $ins = $conn->prepare("
+        INSERT INTO nutritionist_reviews
+            (nutritionist_id, user_id, rating, review_text)
+        VALUES
+            (:nutritionist_id, :user_id, :rating, :review_text)
+    ");
+
+    $ins->execute([
+        ':nutritionist_id' => $id,
+        ':user_id' => $u_id,
+        ':rating' => $rating,
+        ':review_text' => $comment
+    ]);
+
+    header("Location: nutritionist_profile.php?id=" . $id);
     exit;
 }
 ?>
@@ -106,17 +141,27 @@ input, textarea, select { width: 100%; padding: 12px; margin: 10px 0; border-rad
     <div class="section">
         <h3>Client Reviews</h3>
         <?php
-        $rev_sql = "SELECT r.*, u.fullname FROM nutritionist_reviews r JOIN users u ON r.user_id = u.id WHERE r.nutritionist_id = $id ORDER BY r.created_at DESC";
-        $reviews = $conn->query($rev_sql);
-        if($reviews->num_rows > 0):
-            while($rev = $reviews->fetch_assoc()): ?>
+        $rev_stmt = $conn->prepare("
+            SELECT r.*, u.fullname
+            FROM nutritionist_reviews r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.nutritionist_id = :nutritionist_id
+            ORDER BY r.created_at DESC
+        ");
+        $rev_stmt->execute([':nutritionist_id' => $id]);
+        $reviews = $rev_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (count($reviews) > 0):
+            foreach ($reviews as $rev): ?>
                 <div class="review-item">
                     <strong><?= htmlspecialchars($rev['fullname']) ?></strong> 
                     <span class="stars"><?= str_repeat('⭐', $rev['rating']) ?></span>
                     <p style="margin: 5px 0 0; color: #475569;"><?= htmlspecialchars($rev['review_text']) ?></p>
                 </div>
-            <?php endwhile;
-        else: echo "<p style='color:#64748b'>No reviews yet.</p>"; endif; ?>
+            <?php endforeach;
+        else: ?>
+            <p style="color:#64748b">No reviews yet.</p>
+        <?php endif; ?>
     </div>
 
     <?php if(isset($_SESSION['user_id'])): ?>
@@ -124,14 +169,14 @@ input, textarea, select { width: 100%; padding: 12px; margin: 10px 0; border-rad
         <h3>Leave a Review</h3>
         <form method="POST">
             <label>Rating:</label>
-            <select name="rating">
+            <select name="rating" required>
                 <option value="5">⭐⭐⭐⭐⭐ (Excellent)</option>
                 <option value="4">⭐⭐⭐⭐ (Good)</option>
                 <option value="3">⭐⭐⭐ (Average)</option>
                 <option value="2">⭐⭐ (Poor)</option>
                 <option value="1">⭐ (Terrible)</option>
             </select>
-            <textarea name="comment" rows="3" placeholder="Write your feedback here..." required></textarea>
+            <textarea name="comment" rows="3" maxlength="1000" placeholder="Write your feedback here..." required></textarea>
             <button type="submit" class="btn-primary" style="margin-top:10px;">Post Review</button>
         </form>
     </div>
