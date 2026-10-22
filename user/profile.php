@@ -154,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Profile | AI-Based Diet & Nutritional Planner</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
-
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 <style>
 :root{
   --navy:#173b32;
@@ -208,7 +208,7 @@ a{color:inherit}
   display:grid;place-items:center;background:rgba(255,255,255,.12);
   font-size:23px;
 }
-.brand strong{display:block;font-size:17px;letter-spacing:-.2px}
+.brand strong{display:block;font-size:17px}
 .brand span{display:block;color:#b9d5ca;font-size:12px;margin-top:2px}
 .nav-label{
   padding:0 12px 8px;color:#9fc2b4;
@@ -385,7 +385,8 @@ a{color:inherit}
     <nav class="nav">
       <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="generate_weekly.php"><span class="nav-icon">▦</span>Weekly Meal Plan</a>
-      <a href="chat.php"><span class="nav-icon">◌</span>Nutritionist</a>
+      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+      <a href="user_inbox.php"><span class="nav-icon">📥</span>Inbox</a>
       <a class="active" href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
     </nav>
 

@@ -1,69 +1,97 @@
 <?php
+// register_nutritionist.php
 session_start();
 require_once '../config.php';
 
-$errors = [];
-$success = "";
+$errors = [];$success = "";
 
-$fullname = $_POST['fullname'] ?? '';
-$email = $_POST['email'] ?? '';
-$phone = $_POST['phone'] ?? '';
-$certification = $_POST['certification'] ?? '';
-$experience = $_POST['experience'] ?? '';
+$firstname =$_POST['firstname'] ?? '';
+$middlename =$_POST['middlename'] ?? '';
+$lastname =$_POST['lastname'] ?? '';
+$address =$_POST['address'] ?? '';
+$email =$_POST['email'] ?? '';
+$phone =$_POST['phone'] ?? '';
+$nutritionist_type =$_POST['nutritionist_type'] ?? '';
+$experience =$_POST['experience'] ?? '';
+$latitude =$_POST['latitude'] ?? '14.3498';
+$longitude =$_POST['longitude'] ?? '121.0794';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $fullname = trim($_POST['fullname']);
-    $email = trim($_POST['email']);
-    $password = $_POST['password'];
-    $confirm_password = $_POST['confirm_password'];
-    $phone = trim($_POST['phone']);
-    $certification = trim($_POST['certification']);
-    $experience = trim($_POST['experience']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {$firstname = trim($_POST['firstname']);$middlename = trim($_POST['middlename']);$lastname = trim($_POST['lastname']);$address = trim($_POST['address']);$email = trim($_POST['email']);$password = $_POST['password'];$confirm_password = $_POST['confirm_password'];$phone = trim($_POST['phone']);$nutritionist_type = $_POST['nutritionist_type'];$experience = trim($_POST['experience']);$latitude = !empty($_POST['latitude']) ? floatval($_POST['latitude']) : 14.3498;
+    $longitude = !empty($_POST['longitude']) ? floatval($_POST['longitude']) : 121.0794;
 
-    if (empty($fullname)) $errors[] = "Full name is required.";
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required.";
-    if (strlen($password) < 6) $errors[] = "Password must be at least 6 characters.";
-    if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
-    if (empty($_FILES['profile_pic']['name'])) $errors[] = "Profile picture is required.";
-    if (empty($_FILES['document']['name'][0])) $errors[] = "At least one verification document is required.";
+    if (empty($firstname))$errors[] = "First name is required.";
+    if (empty($lastname))$errors[] = "Last name is required.";
+    if (empty($address))$errors[] = "Address is required.";
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL))$errors[] = "Valid email is required.";
+    if (empty($nutritionist_type))$errors[] = "Type of Nutritionist is required.";
+    
+    // Strict Password Requirements
+    if (empty($password)) {$errors[] = "Password is required.";
+    } elseif (strlen($password) < 8) {$errors[] = "Password must be at least 8 characters long.";
+    } elseif (!preg_match('/[A-Z]/', $password)) {$errors[] = "Password must contain at least one uppercase letter (A-Z).";
+    } elseif (!preg_match('/[a-z]/', $password)) {$errors[] = "Password must contain at least one lowercase letter (a-z).";
+    } elseif (!preg_match('/[0-9]/', $password)) {$errors[] = "Password must contain at least one number (0-9).";
+    } elseif (!preg_match('/[^a-zA-Z0-9]/', $password)) {$errors[] = "Password must contain at least one special character (e.g. @, #, $, !).";
+    }
+
+    if ($password !== $confirm_password)$errors[] = "Passwords do not match.";
+    if (empty($_FILES['resume']['name']))$errors[] = "Resume or CV file is required.";
+    if (empty($_FILES['certification_files']['name'][0]))$errors[] = "At least one certification document file is required.";
 
     if (empty($errors)) {
+        // Pinag-isa ang folder para sa lahat ng Documents (Resume at Certs)
         $doc_dir = "../uploads/nutritionists/";
         $pic_dir = "../uploads/profile_pics/";
 
         if (!is_dir($doc_dir)) mkdir($doc_dir, 0755, true);
         if (!is_dir($pic_dir)) mkdir($pic_dir, 0755, true);
 
-        // Upload Profile Picture
-        $pic_filename = time() . "_pic_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["profile_pic"]["name"]));
-        $pic_uploaded = move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $pic_dir . $pic_filename);
+        // Profile Picture Handling
+        $pic_filename = "default_avatar.png";
+        if (!empty($_FILES['profile_pic']['name']) &&$_FILES['profile_pic']['error'] === UPLOAD_ERR_OK) {
+            $pic_filename = time() . "_pic_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["profile_pic"]["name"]));
+            move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $pic_dir .$pic_filename);
+        }
 
-        // Upload Multiple Verification Documents
-        $uploaded_docs = [];
-        foreach ($_FILES['document']['name'] as $key => $name) {
-            if ($_FILES['document']['error'][$key] === UPLOAD_ERR_OK) {
-                $doc_filename = time() . "_" . $key . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
-                if (move_uploaded_file($_FILES['document']['tmp_name'][$key], $doc_dir . $doc_filename)) {
-                    $uploaded_docs[] = $doc_filename;
+        $uploaded_docs = []; // Dito ilalagay ang LAHAT ng documents
+
+        // Upload Resume / CV at isama sa array
+        $resume_uploaded = false;
+        if (!empty($_FILES['resume']['name']) &&$_FILES['resume']['error'] === UPLOAD_ERR_OK) {
+            $resume_filename = time() . "_resume_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["resume"]["name"]));
+            $resume_uploaded = move_uploaded_file($_FILES['resume']['tmp_name'], $doc_dir .$resume_filename);
+            
+            if ($resume_uploaded) {
+                $uploaded_docs[] =$resume_filename; // Idagdag ang resume sa database list
+            }
+        }
+
+        // Upload Certification Files at isama din sa array
+        foreach ($_FILES['certification_files']['name'] as $key =>$name) {
+            if ($_FILES['certification_files']['error'][$key] === UPLOAD_ERR_OK) {$doc_filename = time() . "_cert_" . $key . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
+                if (move_uploaded_file($_FILES['certification_files']['tmp_name'][$key], $doc_dir .$doc_filename)) {
+                    $uploaded_docs[] =$doc_filename; // Idagdag ang certs sa database list
                 }
             }
         }
 
-        if ($pic_uploaded && !empty($uploaded_docs)) {
+        if ($resume_uploaded && count($uploaded_docs) > 1) { // Dapat may Resume + at least 1 Cert
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             $documents_json = json_encode($uploaded_docs);
 
-            // PDO Insert
-            $stmt = $conn->prepare("INSERT INTO nutritionist (fullname, profile_pic, email, phone, password, certification, experience, document, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+            $fullname = trim($firstname . ' ' . (!empty($middlename) ? $middlename . ' ' : '') .$lastname);
+
+            $stmt =$conn->prepare("INSERT INTO nutritionist (fullname, profile_pic, email, phone, password, address, latitude, longitude, certification, experience, document, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
             
-            if ($stmt->execute([$fullname, $pic_filename, $email, $phone, $hashed_password, $certification, $experience, $documents_json])) {
-                $success = "Registration successful! We will review your info soon.";
-                $email = ""; $phone = ""; $certification = ""; $experience = "";
+            $cert_data = "Type: " . $nutritionist_type;
+
+            if ($stmt->execute([$fullname,$pic_filename, $email,$phone, $hashed_password,$address, $latitude,$longitude, $cert_data,$experience, $documents_json])) {$success = "Registration successful! We will review your info soon.";
+                $firstname = ""; $middlename = ""; $lastname = ""; $address = ""; $email = ""; $phone = ""; $nutritionist_type = ""; $experience = "";
             } else {
                 $errors[] = "Database Error occurred.";
             }
         } else {
-            $errors[] = "File upload failed. Check folder permissions.";
+            $errors[] = "File upload failed. Please check folder permissions and required fields.";
         }
     }
 }
@@ -79,6 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
 
     <style>
         :root{
@@ -119,30 +149,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         a { text-decoration: none; color: inherit; }
-
-        body::before {
-            content: "";
-            position: fixed;
-            width: 520px; height: 520px;
-            top: -230px; right: -180px;
-            background: rgba(22,163,106,.10);
-            filter: blur(20px);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: -1;
-        }
-        
-        body::after {
-            content: "";
-            position: fixed;
-            width: 400px; height: 400px;
-            bottom: -150px; left: -150px;
-            background: rgba(22,163,106,.07);
-            filter: blur(20px);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: -1;
-        }
 
         .header {
             padding: 24px clamp(20px, 5vw, 60px);
@@ -240,11 +246,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-bottom: 24px;
             font-size: 14px;
             line-height: 1.5;
-            animation: slideDown 0.4s ease-out forwards;
-        }
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
         }
         
         .alert-card-danger { background: var(--error-bg); border: 1px solid var(--error-border); color: var(--error-text); }
@@ -262,6 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .form-group {
             display: flex;
             flex-direction: column;
+            position: relative;
         }
 
         .form-group.full-width { grid-column: 1 / -1; }
@@ -293,6 +295,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 14px;
             color: var(--dark-2);
             margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .align-label-perfect {
+            align-items: flex-start !important;
+            min-height: auto !important;
+            margin-top: 0px !important;
         }
 
         .form-control {
@@ -314,7 +324,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: 0 0 0 4px var(--primary-soft);
         }
 
-        .form-control::placeholder { color: #9ba7a2; }
+        select.form-control {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2365736d'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 16px;
+            padding-right: 40px;
+        }
 
         textarea.form-control { resize: vertical; min-height: 100px; }
 
@@ -338,30 +356,144 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-right: 14px;
             cursor: pointer;
             transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(7,26,18,0.02);
         }
 
-        input[type="file"]::-webkit-file-upload-button:hover {
-            background: var(--primary-soft);
-            color: var(--primary-dark);
-            border-color: rgba(22, 163, 106, 0.2);
+        /* ADDRESS AUTOCOMPLETE SUGGESTIONS DROPDOWN */
+        .address-row { display: flex; gap: 10px; }
+        .btn-pick-map {
+            background: var(--primary-soft); color: var(--primary-dark); border: 1px solid #c9ebd8;
+            padding: 0 16px; border-radius: 12px; font-weight: 700; font-size: 13.5px;
+            cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; transition: .2s;
         }
+        .btn-pick-map:hover { background: #d4f2e1; }
+
+        #address-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 2px solid var(--primary);
+            border-top: none;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+            max-height: 220px;
+            overflow-y: auto;
+            z-index: 99999;
+            display: none;
+            margin-top: 2px;
+        }
+        .suggestion-item {
+            padding: 12px 16px;
+            font-size: 14px;
+            color: var(--text);
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.15s;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: var(--primary-soft); color: var(--primary-dark); font-weight: 600; }
+
+        /* MAP MODAL STYLING */
+        .map-modal {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, .6);
+            display: none; align-items: center; justify-content: center; padding: 20px; z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+        .map-modal.active { display: flex; }
+        .map-modal-box {
+            width: 100%; max-width: 680px; background: white; border-radius: 24px; padding: 25px;
+            box-shadow: 0 25px 70px rgba(15,23,42,.25);
+        }
+        .map-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .map-modal-header h3 { margin: 0; font-size: 18px; color: var(--dark); font-weight: 700; }
+        .close-map-modal {
+            width: 35px; height: 35px; border: none; border-radius: 8px; background: #f1f5f9;
+            cursor: pointer; color: #475569; font-size: 16px; display: grid; place-items: center;
+        }
+        .close-map-modal:hover { background: #e2e8f0; }
+
+        #modal-map-container {
+            width: 100%;
+            height: 340px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+        }
+
+        .map-footer-card {
+            margin-top: 15px;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .selected-address-info {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 13.5px;
+            color: var(--dark);
+        }
+        .selected-address-info i {
+            color: var(--primary);
+            font-size: 16px;
+            margin-top: 2px;
+        }
+        .btn-choose-address {
+            background: linear-gradient(135deg,#19ad70,#078151);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 8px 20px rgba(8,129,81,.2);
+            transition: transform 0.2s;
+        }
+        .btn-choose-address:hover { transform: translateY(-2px); }
 
         .password-box { position: relative; width: 100%; }
         .password-box .form-control { padding-right: 45px; }
         
         .toggle-password {
-            position: absolute;
-            right: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            cursor: pointer;
-            color: #9ba7a2;
-            font-size: 16px;
-            transition: color 0.25s ease;
-            user-select: none;
+            position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+            cursor: pointer; color: #9ba7a2; font-size: 16px; transition: color 0.25s ease;
         }
         .toggle-password:hover { color: var(--primary-dark); }
+
+        .password-strength-container {
+            margin-top: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .strength-bars {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            height: 4px;
+            width: 100%;
+        }
+        .strength-bar {
+            background-color: #e2e8f0;
+            border-radius: 2px;
+            transition: background-color 0.3s ease;
+        }
+        .strength-text {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            text-align: right;
+        }
 
         .btn-primary {
             display: inline-flex;
@@ -407,15 +539,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         @media (max-width: 768px) {
             .form-grid { grid-template-columns: 1fr; gap: 18px; }
-            .section-divider { margin-top: 10px; }
-        }
-
-        @media (max-width: 480px) {
-            .header { padding: 20px 15px; }
-            .logo { font-size: 16px; }
-            .logo-mark { width: 36px; height: 36px; font-size: 19px; border-radius: 11px; }
-            .card { padding: 30px 20px; border-radius: 24px; }
-            .card-header h2 { font-size: 24px; }
         }
     </style>
 </head>
@@ -461,56 +584,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <div class="section-divider">Account Credentials</div>
 
-                <div class="form-group full-width">
-                    <label for="fullname">Full Name</label>
-                    <input type="text" id="fullname" name="fullname" class="form-control" placeholder="e.g. Dr. Jane Doe" value="<?php echo htmlspecialchars($fullname); ?>" required>
+                <div class="form-group">
+                    <label for="firstname">First Name <span style="color: #d32f2f;">*</span></label>
+                    <input type="text" id="firstname" name="firstname" class="form-control" placeholder="e.g. Jane" value="<?php echo htmlspecialchars($firstname); ?>" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="email">Email Address</label>
+                    <label for="middlename">Middle Name <span style="color: var(--muted); font-weight: 400;">(Optional)</span></label>
+                    <input type="text" id="middlename" name="middlename" class="form-control" placeholder="Enter middle name" value="<?php echo htmlspecialchars($middlename); ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="lastname">Last Name <span style="color: #d32f2f;">*</span></label>
+                    <input type="text" id="lastname" name="lastname" class="form-control" placeholder="e.g. Doe" value="<?php echo htmlspecialchars($lastname); ?>" required>
+                </div>
+
+                <!-- ADDRESS FIELD WITH AUTOCOMPLETE & MAP PIN -->
+                <div class="form-group">
+                    <label for="address">Address <span style="color: #d32f2f;">*</span></label>
+                    <div class="address-row">
+                        <input type="text" id="address" name="address" class="form-control" placeholder="e.g. Biñan, Laguna" autocomplete="off" value="<?php echo htmlspecialchars($address); ?>" required>
+                        <button type="button" class="btn-pick-map" onclick="openMapModal()">
+                            <i class="fa-solid fa-map-location-dot"></i> Pin Map
+                        </button>
+                    </div>
+                    <!-- Dropdown suggestions container -->
+                    <div id="address-suggestions"></div>
+
+                    <input type="hidden" id="latitude" name="latitude" value="<?php echo htmlspecialchars($latitude); ?>">
+                    <input type="hidden" id="longitude" name="longitude" value="<?php echo htmlspecialchars($longitude); ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address <span style="color: #d32f2f;">*</span></label>
                     <input type="email" id="email" name="email" class="form-control" placeholder="name@example.com" value="<?php echo htmlspecialchars($email); ?>" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="phone">Phone Number (11 digits)</label>
-                    <input type="text" id="phone" name="phone" class="form-control" placeholder="09123456789" value="<?php echo htmlspecialchars($phone); ?>" required>
+                    <label for="phone">Phone Number (11 digits) <span style="color: #d32f2f;">*</span></label>
+                    <input type="text" id="phone" name="phone" class="form-control" placeholder="09123456789" value="<?php echo htmlspecialchars($phone); ?>" maxlength="11" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="password">Password</label>
+                    <label for="password">Password <span style="color: #d32f2f;">*</span></label>
                     <div class="password-box">
-                        <input type="password" id="password" name="password" class="form-control" placeholder="At least 6 characters" required>
+                        <input type="password" id="password" name="password" class="form-control" placeholder="At least 8 characters" oninput="checkPasswordStrength(this.value)" required>
                         <i class="fa-regular fa-eye toggle-password" onclick="togglePasswordVisibility('password', this)"></i>
+                    </div>
+                    <!-- Password Strength Bar Indicator -->
+                    <div class="password-strength-container">
+                        <div class="strength-bars">
+                            <div class="strength-bar" id="bar-1"></div>
+                            <div class="strength-bar" id="bar-2"></div>
+                            <div class="strength-bar" id="bar-3"></div>
+                            <div class="strength-bar" id="bar-4"></div>
+                        </div>
+                        <div class="strength-text" id="strength-text">Password strength</div>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="confirm_password">Confirm Password</label>
+                    <label for="confirm_password">Confirm Password <span style="color: #d32f2f;">*</span></label>
                     <div class="password-box">
                         <input type="password" id="confirm_password" name="confirm_password" class="form-control" placeholder="Re-enter password" required>
                         <i class="fa-regular fa-eye toggle-password" onclick="togglePasswordVisibility('confirm_password', this)"></i>
                     </div>
                 </div>
 
+                <div class="form-group full-width" style="font-size: 13px; color: var(--muted); margin-top: -10px;">
+                    Password must be at least 8 characters long and include an uppercase letter (A-Z), lowercase letter (a-z), number (0-9), and special symbol (e.g. @, #, $, !).
+                </div>
+
                 <div class="section-divider">Professional Credentials</div>
 
                 <div class="form-group">
-                    <label for="profile_pic">Profile Photo</label>
-                    <input type="file" id="profile_pic" name="profile_pic" class="form-control" accept="image/*" required>
+                    <label for="profile_pic">Profile Photo <span style="color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px;">(Optional)</span></label>
+                    <input type="file" id="profile_pic" name="profile_pic" class="form-control" accept="image/*">
                 </div>
 
                 <div class="form-group">
-                    <label for="document">Verification Documents (Multiple PDF/Images)</label>
-                    <input type="file" id="document" name="document[]" class="form-control" accept="image/*,.pdf" multiple required>
+                    <label for="resume">Resume / CV <span style="color: #d32f2f;">*</span></label>
+                    <input type="file" id="resume" name="resume" class="form-control" accept="image/*,.pdf,.doc,.docx" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="certification_files">Certifications & Licenses <span style="color: #d32f2f;">*</span></label>
+                    <input type="file" id="certification_files" name="certification_files[]" class="form-control" accept="image/*,.pdf" multiple required>
+                </div>
+
+                <div class="form-group">
+                    <label for="nutritionist_type" class="align-label-perfect">Type of Nutritionist <span style="color: #d32f2f;">*</span></label>
+                    <select id="nutritionist_type" name="nutritionist_type" class="form-control" required>
+                        <option value="">Select Type of Nutritionist</option>
+                        <option value="Clinical Nutritionist" <?php if($nutritionist_type == 'Clinical Nutritionist') echo 'selected'; ?>>Clinical Nutritionist</option>
+                        <option value="Sports Nutritionist" <?php if($nutritionist_type == 'Sports Nutritionist') echo 'selected'; ?>>Sports Nutritionist</option>
+                        <option value="Pediatric Nutritionist" <?php if($nutritionist_type == 'Pediatric Nutritionist') echo 'selected'; ?>>Pediatric Nutritionist</option>
+                        <option value="Holistic Nutritionist" <?php if($nutritionist_type == 'Holistic Nutritionist') echo 'selected'; ?>>Holistic Nutritionist</option>
+                        <option value="Public Health Nutritionist" <?php if($nutritionist_type == 'Public Health Nutritionist') echo 'selected'; ?>>Public Health Nutritionist</option>
+                        <option value="General Dietitian" <?php if($nutritionist_type == 'General Dietitian') echo 'selected'; ?>>General Dietitian</option>
+                    </select>
                 </div>
 
                 <div class="form-group full-width">
-                    <label for="certification">Certifications & Licenses</label>
-                    <textarea id="certification" name="certification" class="form-control" placeholder="List your professional licenses, degrees, or certifications..." required><?php echo htmlspecialchars($certification); ?></textarea>
-                </div>
-
-                <div class="form-group full-width">
-                    <label for="experience">Professional Experience</label>
+                    <label for="experience">Professional Experience <span style="color: #d32f2f;">*</span></label>
                     <textarea id="experience" name="experience" class="form-control" placeholder="Describe your relevant work history and areas of expertise..." required><?php echo htmlspecialchars($experience); ?></textarea>
                 </div>
 
@@ -527,7 +703,190 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </main>
 
+<!-- MAP MODAL WITH GPS AUTO-DETECTION AND CLICK-TO-PIN -->
+<div class="map-modal" id="mapModal">
+    <div class="map-modal-box">
+        <div class="map-modal-header">
+            <h3>Pin Your Exact Location</h3>
+            <button type="button" class="close-map-modal" onclick="closeMapModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div>
+            <div id="modal-map-container"></div>
+            
+            <div class="map-footer-card">
+                <div class="selected-address-info">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <div>
+                        <strong style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px;">Selected Address:</strong>
+                        <span id="modal-address-text">Click anywhere on the map to place a pin.</span>
+                    </div>
+                </div>
+                <button type="button" id="btnChooseAddress" class="btn-choose-address" onclick="confirmSelectedAddress()" style="opacity: 0.6; pointer-events: none;">
+                    <i class="fa-solid fa-check"></i> Choose Address
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <script>
+let mapInstance = null;
+let markerInstance = null;
+let debounceTimer = null;
+let tempLat = null;
+let tempLng = null;
+let tempAddressText = "";
+
+const addressInput = document.getElementById('address');
+const suggestionsBox = document.getElementById('address-suggestions');
+
+addressInput.addEventListener('input', function() {
+    const query = this.value.trim();
+    clearTimeout(debounceTimer);
+
+    if (query.length < 3) {
+        suggestionsBox.style.display = 'none';
+        suggestionsBox.innerHTML = '';
+        return;
+    }
+
+    debounceTimer = setTimeout(() => {
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ph&limit=5`, {
+            headers: { 'Accept-Language': 'en' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            suggestionsBox.innerHTML = '';
+            if (data && data.length > 0) {
+                suggestionsBox.style.display = 'block';
+                data.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.textContent = item.display_name;
+                    div.addEventListener('click', function() {
+                        addressInput.value = item.display_name;
+                        document.getElementById('longitude').value = item.lon;
+                        document.getElementById('latitude').value = item.lat;
+                        suggestionsBox.style.display = 'none';
+                    });
+                    suggestionsBox.appendChild(div);
+                });
+            } else {
+                suggestionsBox.style.display = 'none';
+            }
+        })
+        .catch(err => {
+            console.error('Autocomplete error:', err);
+            suggestionsBox.style.display = 'none';
+        });
+    }, 300);
+});
+
+document.addEventListener('click', function(e) {
+    if (!addressInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+        suggestionsBox.style.display = 'none';
+    }
+});
+
+function openMapModal() {
+    const modal = document.getElementById('mapModal');
+    modal.classList.add('active');
+
+    setTimeout(() => {
+        if (!mapInstance) {
+            mapInstance = L.map('modal-map-container').setView([14.3498, 121.0794], 14);
+
+            // MapTiler Streets tile layer (Google Maps style)
+            L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=ZkO2ll8wJho8o1zc1Sug', {
+                maxZoom: 19,
+                attribution: '&copy; MapTiler &copy; OpenStreetMap contributors'
+            }).addTo(mapInstance);
+
+            mapInstance.on('click', function(e) {
+                setPinPosition(e.latlng.lat, e.latlng.lng);
+            });
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const userLat = position.coords.latitude;
+                        const userLng = position.coords.longitude;
+                        mapInstance.setView([userLat, userLng], 15);
+                        setPinPosition(userLat, userLng);
+                    },
+                    (error) => { console.log("Geolocation unavailable.", error); },
+                    { timeout: 10000 }
+                );
+            }
+        }
+
+        mapInstance.invalidateSize();
+    }, 250);
+}
+
+function closeMapModal() {
+    document.getElementById('mapModal').classList.remove('active');
+}
+
+async function setPinPosition(lat, lng) {
+    tempLat = lat;
+    tempLng = lng;
+
+    const customIcon = L.divIcon({
+        className: 'custom-map-pin',
+        html: '<div style="background-color: #16a36a; width: 36px; height: 36px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 2px solid white;"><i class="fa-solid fa-location-dot" style="transform: rotate(45deg); color: white; font-size: 16px;"></i></div>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 36],
+        popupAnchor: [0, -36]
+    });
+
+    if (markerInstance) {
+        markerInstance.setLatLng([lat, lng]);
+    } else {
+        markerInstance = L.marker([lat, lng], { draggable: true, icon: customIcon }).addTo(mapInstance);
+        markerInstance.on('dragend', function() {
+            const pos = markerInstance.getLatLng();
+            setPinPosition(pos.lat, pos.lng);
+        });
+    }
+
+    mapInstance.panTo([lat, lng]);
+    document.getElementById('modal-address-text').textContent = "Fetching address...";
+
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const data = await response.json();
+        if (data && data.display_name) {
+            tempAddressText = data.display_name;
+            document.getElementById('modal-address-text').textContent = tempAddressText;
+        } else {
+            tempAddressText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            document.getElementById('modal-address-text').textContent = tempAddressText;
+        }
+    } catch (e) {
+        console.error("Geocoding error", e);
+        tempAddressText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        document.getElementById('modal-address-text').textContent = tempAddressText;
+    }
+
+    const chooseBtn = document.getElementById('btnChooseAddress');
+    chooseBtn.style.opacity = '1';
+    chooseBtn.style.pointerEvents = 'auto';
+}
+
+function confirmSelectedAddress() {
+    if (tempLat !== null && tempLng !== null) {
+        document.getElementById('latitude').value = tempLat;
+        document.getElementById('longitude').value = tempLng;
+        if (tempAddressText) {
+            document.getElementById('address').value = tempAddressText;
+        }
+        closeMapModal();
+    }
+}
+
 function togglePasswordVisibility(fieldId, iconElement) {
     const passwordInput = document.getElementById(fieldId);
     if (passwordInput.type === "password") {
@@ -539,6 +898,47 @@ function togglePasswordVisibility(fieldId, iconElement) {
         iconElement.classList.remove("fa-eye-slash");
         iconElement.classList.add("fa-eye");
     }
+}
+
+function checkPasswordStrength(password) {
+    let strength = 0;
+    const bars = [
+        document.getElementById('bar-1'),
+        document.getElementById('bar-2'),
+        document.getElementById('bar-3'),
+        document.getElementById('bar-4')
+    ];
+    const textEl = document.getElementById('strength-text');
+
+    if (password.length >= 8) strength++;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^a-zA-Z0-9]/.test(password)) strength++;
+
+    bars.forEach(bar => bar.style.backgroundColor = '#e2e8f0');
+
+    if (password.length === 0) {
+        textEl.textContent = 'Password strength';
+        textEl.style.color = 'var(--muted)';
+        return;
+    }
+
+    let color = '#ef4444'; 
+    let text = 'Weak';
+
+    if (strength === 2 || strength === 3) {
+        color = '#f59e0b'; 
+        text = 'Medium';
+    } else if (strength >= 4) {
+        color = '#10b981'; 
+        text = 'Strong';
+    }
+
+    for (let i = 0; i < strength; i++) {
+        bars[i].style.backgroundColor = color;
+    }
+    textEl.textContent = text;
+    textEl.style.color = color;
 }
 </script>
 

@@ -71,6 +71,7 @@ $averageCalories = $totalMeals > 0
     ? round($totalCalories / $totalMeals)
     : 0;
 
+$adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -215,6 +216,11 @@ body {
     font-size: 13px;
     font-weight: 600;
     transition: .2s;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
 }
 
 .sidebar-link i {
@@ -229,16 +235,47 @@ body {
 }
 
 .sidebar-link.active {
-    background: #1b356f;
+    background: rgba(37, 99, 235, .22);
     color: #93c5fd;
 }
 
-.sidebar-system {
-    margin-top: 28px;
+.sidebar-bottom {
+    margin-top: auto;
 }
 
-.sidebar-link.signout {
-    color: #cbd5e1;
+.admin-mini {
+    border-top: 1px solid #263244;
+    padding: 16px 8px 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.avatar {
+    width: 37px;
+    height: 37px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #60a5fa, #818cf8);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 13px;
+}
+
+.admin-mini strong {
+    color: #fff;
+    font-size: 12px;
+    display: block;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-mini span {
+    color: #64748b;
+    font-size: 10px;
 }
 
 .main-content {
@@ -1424,7 +1461,7 @@ select {
         <nav class="sidebar-nav">
 
             <a href="dashboard.php" class="sidebar-link">
-                <i class="fa-solid fa-grid-2"></i>
+                <i class="fa-solid fa-chart-pie"></i>
                 <span>Dashboard</span>
             </a>
 
@@ -1438,6 +1475,11 @@ select {
                 <span>Accounts</span>
             </a>
 
+            <a href="manage_reports.php" class="sidebar-link">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Reports</span>
+            </a>
+            
             <a href="activity_logs.php" class="sidebar-link">
                 <i class="fa-solid fa-clock-rotate-left"></i>
                 <span>Activity Logs</span>
@@ -1445,17 +1487,27 @@ select {
 
         </nav>
 
-        <div class="sidebar-system">
-            <div class="sidebar-section-title">
-                System
-            </div>
+        <div class="sidebar-section-title">
+            System
+        </div>
 
-            <nav class="sidebar-nav">
-                <a href="../auth/login.php" class="sidebar-link signout">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                    <span>Sign Out</span>
-                </a>
-            </nav>
+        <nav class="sidebar-nav">
+            <button type="button" class="sidebar-link" onclick="openLogoutModal()">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>Sign Out</span>
+            </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <div class="admin-mini">
+                <div class="avatar">
+                    <?= strtoupper(substr($adminName, 0, 1)) ?>
+                </div>
+                <div>
+                    <strong><?= htmlspecialchars($adminName) ?></strong>
+                    <span>System Administrator</span>
+                </div>
+            </div>
         </div>
 
     </aside>
@@ -2172,6 +2224,23 @@ select {
 
 </div>
 
+<!-- LOGOUT CONFIRMATION MODAL -->
+<div class="modal" id="actionConfirmModal">
+    <div class="modal-box" style="max-width: 420px; text-align: center; padding: 35px 25px; border-radius: 24px;">
+        <div class="modal-header" style="justify-content: center; margin-bottom: 15px;">
+            <div style="width: 65px; height: 65px; border-radius: 50%; background: #fef2f2; color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto;">
+                <i class="fa-solid fa-door-closed"></i>
+            </div>
+        </div>
+        <h3 style="font-size: 20px; font-weight: 800; color: #111827; margin-bottom: 8px;">Confirm Logout</h3>
+        <p style="font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 25px;">Are you sure you want to log out of your session?</p>
+        <div style="display: flex; gap: 12px;">
+            <button type="button" onclick="closeLogoutModal()" style="flex: 1; height: 44px; border-radius: 11px; font-weight: 700; font-size: 13px; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #1e293b;">Cancel</button>
+            <a href="../auth/login.php" style="flex: 1; height: 44px; border-radius: 11px; font-weight: 700; font-size: 13px; cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; background: #dc2626; color: white; text-decoration: none;">Yes, Logout</a>
+        </div>
+    </div>
+</div>
+
 
 
 <script>
@@ -2357,6 +2426,14 @@ function closeModal() {
 
 }
 
+function openLogoutModal() {
+    document.getElementById('actionConfirmModal').classList.add('active');
+}
+
+function closeLogoutModal() {
+    document.getElementById('actionConfirmModal').classList.remove('active');
+}
+
 
 /* ======================================================
    CLOSE MODAL WHEN CLICKING OUTSIDE
@@ -2379,6 +2456,17 @@ document.getElementById(
     }
 );
 
+document.getElementById(
+    'actionConfirmModal'
+).addEventListener(
+    'click',
+    function(event) {
+        if (event.target === this) {
+            closeLogoutModal();
+        }
+    }
+);
+
 
 /* ======================================================
    ESC KEY
@@ -2393,6 +2481,7 @@ document.addEventListener(
         ) {
 
             closeModal();
+            closeLogoutModal();
 
         }
 

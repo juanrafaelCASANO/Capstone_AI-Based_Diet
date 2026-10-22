@@ -1,20 +1,18 @@
 <?php
-
-
-
-$host = "localhost";
-$port = "5432";
-$dbname = "postgres"; // Pangalan ng database mo
-$user = "postgres";
-$password = "aibased"; // Password mo sa pgAdmin
+// Supabase Production & Local Fallback Configuration
+$host = getenv('DB_HOST') ?: "db.mbsjtesmrowfilvxcaqb.supabase.co";
+$port = getenv('DB_PORT') ?: "5432";
+$dbname = getenv('DB_NAME') ?: "postgres"; 
+$user = getenv('DB_USER') ?: "postgres";
+$password = getenv('DB_PASS') ?: "8-ps7u,_LDe,ppj"; // Ilagay dito ang iyong Supabase password
 
 try {
-    // Gumagamit ito ng PDO para pareho ng format sa MySQL niyo dati
-    $conn = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $user, $password);
+    // Koneksyon gamit ang PDO para sa PostgreSQL na may SSL mode para sa Supabase
+    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=require";
+
+    $conn = new PDO($dsn, $user, $password);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
-    // Pwede mo itong burahin kapag okay na
-    // echo "Connected na sa PostgreSQL gamit ang PDO!"; 
 } catch (PDOException $e) {
     die("Connection failed: " . $e->getMessage());
 }
@@ -23,7 +21,7 @@ try {
 // FIREBASE 2FA / AUTH CONFIGURATION
 // ============================================================
 
-define('FIREBASE_API_KEY', 'YOUR_FIREBASE_API_KEY');
+define('FIREBASE_API_KEY', getenv('FIREBASE_API_KEY') ?: 'YOUR_FIREBASE_API_KEY');
 define('FIREBASE_AUTH_DOMAIN', 'ai-based-diet.firebaseapp.com');
 define('FIREBASE_PROJECT_ID', 'ai-based-diet');
 define('FIREBASE_STORAGE_BUCKET', 'ai-based-diet.firebasestorage.app');
@@ -33,5 +31,5 @@ define('FIREBASE_APP_ID', '1:285856196933:web:4cce0bcbd56aa4c8bf762c');
 // ============================================================
 // TEXTBEE SMS API CONFIGURATION
 // ============================================================
-define('TEXTBEE_API_KEY', 'txb_3skNWW7LOoXe9MjSrRHXiC8WWUcXq806'); // Palitan ng iyong totoong TextBee API Key
+define('TEXTBEE_API_KEY', getenv('TEXTBEE_API_KEY') ?: 'txb_3fsPevHJvqEIoVVr9cR2QmVxKsB4wRm4');
 ?>

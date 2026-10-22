@@ -2,11 +2,71 @@
 require_once 'config.php'; 
 header("X-Frame-Options: SAMEORIGIN");
 header("X-Content-Type-Options: nosniff");
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:;");
-// Fetch approved nutritionists using PDO
-$sql = "SELECT id, fullname, certification, experience, profile_pic FROM nutritionist WHERE status = 'approved' LIMIT 10";
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:;");
+
+// Handle sign in submission directly from index if needed
+$login_error = "";
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['index_login'])) {
+    $email = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $terms_accepted = isset($_POST['terms_accepted']);
+
+    if (empty($email) || empty($password)) {
+        $login_error = "Mangyaring ilagay ang iyong email at password.";
+    } elseif (!$terms_accepted) {
+        $login_error = "Kailangan mong sumang-ayon sa Terms of Service at Privacy Policy.";
+    } else {
+        // Check users table first
+        $stmt = $conn->prepare("SELECT id, fullname, email, password, role FROM users WHERE email=? LIMIT 1");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+
+        if ($user && password_verify($password, $user['password'])) {
+            session_start();
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['fullname'] = $user['fullname'];
+            $_SESSION['role'] = $user['role'];
+            $redirect = ($user['role'] === 'admin') ? "admin/dashboard.php" : "user/dashboard.php";
+            header("Location: " . $redirect);
+            exit();
+        } else {
+            // Check nutritionist table
+            $stmt = $conn->prepare("SELECT id, fullname, email, password, status FROM nutritionist WHERE email=? LIMIT 1");
+            $stmt->execute([$email]);
+            $nutri = $stmt->fetch();
+
+            if ($nutri && password_verify($password, $nutri['password'])) {
+                $nutri_status = strtolower(trim($nutri['status'] ?? ''));
+                if ($nutri_status === 'approved' || $nutri_status === 'active' || empty($nutri['status'])) {
+                    session_start();
+                    $_SESSION['user_id'] = $nutri['id'];
+                    $_SESSION['fullname'] = $nutri['fullname'];
+                    $_SESSION['role'] = 'nutritionist';
+                    header("Location: nutritionist/dashboard.php");
+                    exit();
+                } else {
+                    $login_error = "Ang iyong nutritionist account ay kasalukuyang pending o hindi aprubado.";
+                }
+            } else {
+                $login_error = "Maling email o password. Pakisubukan muli.";
+            }
+        }
+    }
+}
+
+// Fetch available nutritionists using PDO
+$sql = "SELECT id, fullname, certification, experience, profile_pic FROM nutritionist WHERE status = 'active' OR status = 'approved' OR status IS NULL LIMIT 10";
 $stmt = $conn->query($sql);
 $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Function to get initials (e.g. "Juan Dela Cruz" -> "JC")
+function getInitials($name) {
+    $words = explode(' ', trim($name));
+    if (count($words) >= 2) {
+        return strtoupper(substr($words[0], 0, 1) . substr(end($words), 0, 1));
+    }
+    return strtoupper(substr($name, 0, 2));
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -17,10 +77,9 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#071a12">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
     <style>
-
-        
         :root{
             --bg:#f5f8f6;
             --surface:#ffffff;
@@ -36,6 +95,9 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             --shadow:0 24px 70px rgba(7,26,18,.10);
             --shadow-sm:0 12px 35px rgba(7,26,18,.08);
             --radius:28px;
+            --error-bg: #fff1f2;
+            --error-text: #9f1239;
+            --error-border: #fecdd3;
         }
 
         *{box-sizing:border-box;margin:0;padding:0}
@@ -52,7 +114,6 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
         button{font:inherit}
         img{max-width:100%;display:block}
 
-        /* Ambient background */
         body::before{
             content:"";
             position:fixed;
@@ -182,21 +243,11 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             min-height:calc(100vh - 78px);
             padding:20px clamp(20px,6vw,84px) clamp(48px,7vw,94px);
             display:grid;
-            grid-template-columns:minmax(0,1.03fr) minmax(360px,.97fr);
+            grid-template-columns:minmax(0,1.03fr) minmax(380px,.97fr);
             gap:clamp(35px,6vw,90px);
             align-items:center;
             position:relative;
             overflow:hidden;
-        }
-        .hero::after{
-            content:"";
-            position:absolute;
-            width:380px;height:380px;
-            right:5%;bottom:-240px;
-            background:rgba(22,163,106,.12);
-            filter:blur(10px);
-            border-radius:50%;
-            z-index:-1;
         }
         .hero-text{position:relative;z-index:2}
         .eyebrow{
@@ -253,6 +304,7 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             transform:translateY(-3px);
         }
 
+        /* HERO VISUAL WITH ORBIT AND SIGN IN CARD */
         .hero-visual{position:relative;min-height:510px;display:grid;place-items:center}
         .hero-orbit{
             position:absolute;
@@ -269,71 +321,153 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
         .hero-orbit::before{inset:9%}
         .hero-orbit::after{inset:19%}
-        .hero-card {
+
+        .hero-signin-card {
             position: relative;
-            width: min(470px, 88%);
-            padding: 18px;
+            width: min(440px, 88%);
+            padding: 38px 28px;
             border-radius: 34px;
-            background: rgba(255,255,255,.76);
-            border: 1px solid rgba(255,255,255,.9);
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.95);
             box-shadow: 0 35px 90px rgba(7,26,18,.16);
-            backdrop-filter: blur(15px);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
             z-index: 2;
-            animation: float 6s ease-in-out infinite;
-            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;
+            text-align: left;
         }
-
-        .hero-card::before {
-            content: "";
-            position: absolute;
-            inset: 12px;
-            border-radius: 25px;
-            background: linear-gradient(145deg, rgba(227,246,237,.7), rgba(255,255,255,.2));
-            z-index: -1;
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 14px;
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            font-size: 22px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
         }
-
-        .hero-card img {
+        .hero-signin-card h3 {
+            font-family: 'Manrope', sans-serif;
+            font-size: 24px;
+            letter-spacing: -0.5px;
+            margin-bottom: 4px;
+            color: var(--dark);
+            text-align: center;
+        }
+        .hero-signin-card p.card-subtitle {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 22px;
+            text-align: center;
+        }
+        .form-group {
+            text-align: left;
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--dark-2);
+            margin-bottom: 5px;
+        }
+        .password-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .password-header label {
+            margin-bottom: 0;
+        }
+        .forgot-link {
+            font-size: 12px;
+            color: var(--primary-dark);
+            font-weight: 700;
+            text-decoration: none;
+            transition: color 0.25s ease;
+        }
+        .forgot-link:hover {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+        .input-box { position: relative; }
+        .input-box i { 
+            position: absolute; 
+            top: 50%; 
+            left: 15px; 
+            transform: translateY(-50%); 
+            color: #9ba7a2; 
+            font-size: 14px;
+        }
+        .input-box input { 
+            width: 100%; 
+            padding: 12px 14px 12px 42px; 
+            border-radius: 12px; 
+            border: 1px solid var(--line); 
+            background: var(--surface-2); 
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--text);
+            transition: all 0.25s ease;
+        }
+        .input-box input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+            box-shadow: 0 0 0 4px var(--primary-soft);
+        }
+        .terms-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            text-align: left;
+            margin-bottom: 18px;
+        }
+        .terms-group input[type="checkbox"] {
+            margin-top: 2px;
+            width: 15px;
+            height: 15px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+        .terms-group label {
+            font-size: 11px;
+            color: var(--muted);
+            cursor: pointer;
+            line-height: 1.4;
+        }
+        .alert-mini {
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: var(--error-bg);
+            border: 1px solid var(--error-border);
+            color: var(--error-text);
+            font-size: 12px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .hero-signin-card .btn-primary {
             width: 100%;
-            border-radius: 25px;
-            object-fit: cover;
-            transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            min-height: 46px;
+            border: none;
         }
+        .signup-link {
+            margin-top: 16px;
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+        }
+        .signup-link a {
+            color: var(--primary-dark);
+            font-weight: 700;
+        }
+        .signup-link a:hover { text-decoration: underline; }
 
-        .hero-card:hover {
-            transform: translateY(-5px) scale(1.02);
-            box-shadow: 0 45px 110px rgba(7,26,18,.22);
-        }
-
-        .hero-card:hover img {
-            transform: scale(1.08);
-        }
-        .floating-card{
-            position:absolute;
-            z-index:4;
-            display:flex;
-            align-items:center;
-            gap:11px;
-            padding:13px 16px;
-            background:rgba(255,255,255,.92);
-            border:1px solid rgba(255,255,255,.9);
-            border-radius:17px;
-            box-shadow:var(--shadow-sm);
-            font-size:12px;
-            font-weight:700;
-            color:var(--dark);
-            backdrop-filter:blur(10px);
-        }
-        .floating-card .icon{
-            width:35px;height:35px;
-            display:grid;place-items:center;
-            border-radius:11px;
-            background:var(--primary-soft);
-            font-size:18px;
-        }
-        .float-one{top:12%;left:0}
-        .float-two{right:-3%;bottom:14%}
-        .float-three{left:8%;bottom:5%}
         @keyframes float{50%{transform:translateY(-10px)}}
+        .hero-signin-card{animation:float 6s ease-in-out infinite}
 
         /* SECTION BASE */
         .section{padding:clamp(60px,8vw,100px) clamp(20px,6vw,84px)}
@@ -372,7 +506,7 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
         .view-all-btn:hover{background:var(--primary-soft);transform:translateX(4px)}
 
-        /* NUTRITIONISTS */
+        /* NUTRITIONISTS - CENTERED CARD DESIGN */
         .features{
             background:var(--surface);
             border-top:1px solid var(--line);
@@ -402,6 +536,10 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             box-shadow:0 9px 28px rgba(7,26,18,.045);
             transition:.3s ease;
             overflow:hidden;
+            text-align: center; /* Naka-center na ang text */
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Naka-center ang alignment ng mga elemento sa loob */
         }
         .feature-box::after{
             content:"";
@@ -416,15 +554,25 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             box-shadow:0 22px 48px rgba(7,26,18,.11);
             border-color:rgba(22,163,106,.22);
         }
-        .expert-img{
-            width:82px;height:82px;
-            object-fit:cover;
-            border-radius:23px;
-            border:4px solid #fff;
-            box-shadow:0 10px 25px rgba(7,26,18,.12);
-            margin-bottom:18px;
-            position:relative;
-            z-index:1;
+        .expert-img, .expert-avatar {
+            width: 82px; height: 82px;
+            border-radius: 50%; /* Ginawa nang pabilog (circle) */
+            border: 4px solid #fff;
+            box-shadow: 0 10px 25px rgba(7,26,18,.12);
+            margin-bottom: 18px;
+            position: relative;
+            z-index: 1;
+        }
+        .expert-img {
+            object-fit: cover;
+        }
+        .expert-avatar {
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            display: grid;
+            place-items: center;
+            font-size: 22px;
+            font-weight: 800;
         }
         .expert-name{
             font-family:'Manrope',sans-serif;
@@ -575,7 +723,8 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
             .hero-text{display:flex;flex-direction:column;align-items:center}
             .hero p{max-width:680px}
-            .hero-visual{min-height:450px}
+            .hero-buttons{width:100%;flex-direction:column;align-items:center}
+            .hero-buttons a{width:100%;max-width:380px}
             .steps-container{grid-template-columns:1fr}
             .step-card{min-height:auto}
         }
@@ -583,17 +732,9 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
         @media(max-width:640px){
             .logo{font-size:16px}
             .logo-mark{width:36px;height:36px;border-radius:11px;font-size:19px}
-            .nav-links{top:76px}
             .hero{padding:42px 18px 55px;min-height:auto}
             .hero h1{font-size:43px;letter-spacing:-2.4px}
             .hero p{font-size:15px;line-height:1.65}
-            .hero-buttons{width:100%;flex-direction:column}
-            .hero-buttons a{width:100%}
-            .hero-visual{min-height:355px}
-            .hero-orbit{width:90%;opacity:.75}
-            .hero-card{width:91%;padding:10px;border-radius:25px}
-            .hero-card img{border-radius:18px}
-            .floating-card{display:none}
             .section{padding:58px 18px}
             .section-head{align-items:flex-start;margin-bottom:20px}
             .section h2{font-size:29px}
@@ -603,11 +744,6 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             .scroll-container{padding-bottom:17px}
             .section-header{margin-bottom:42px}
             .section-header h2{font-size:30px}
-        }
-
-        @media(prefers-reduced-motion:reduce){
-            html{scroll-behavior:auto}
-            *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
         }
     </style>
 </head>
@@ -648,23 +784,50 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="hero-visual reveal">
                     <div class="hero-orbit"></div>
 
-                    <div class="floating-card float-one">
-                        <span class="icon">✨</span>
-                        <span>Personalized<br>for you</span>
-                    </div>
+                    <!-- SIGN IN CARD IN THE CENTER -->
+                    <div class="hero-signin-card">
+                        <div class="card-icon"><i class="fa-solid fa-seedling"></i></div>
+                        <h3>Welcome Back</h3>
+                        <p class="card-subtitle">Sign in to your AI Diet Planner account</p>
 
-                    <div class="floating-card float-two">
-                        <span class="icon">🥗</span>
-                        <span>Smart meal<br>planning</span>
-                    </div>
+                        <?php if (!empty($login_error)): ?>
+                            <div class="alert-mini">
+                                <i class="fa-solid fa-circle-exclamation"></i>
+                                <span><?php echo htmlspecialchars($login_error); ?></span>
+                            </div>
+                        <?php endif; ?>
 
-                    <div class="floating-card float-three">
-                        <span class="icon">✓</span>
-                        <span>Expert guidance</span>
-                    </div>
+                        <form method="POST" action="index.php">
+                            <div class="form-group">
+                                <label for="email">Email Address</label>
+                                <div class="input-box">
+                                    <input type="email" id="email" name="email" placeholder="Enter your email" required>
+                                    <i class="fa-regular fa-envelope"></i>
+                                </div>
+                            </div>
 
-                    <div class="hero-card">
-                        <img src="uploads/updatedlogo.png" alt="AI Nutrition">
+                            <div class="form-group">
+                                <div class="password-header">
+                                    <label for="password">Password</label>
+                                    <a href="auth/forgot_password.php" class="forgot-link">Forgot Password?</a>
+                                </div>
+                                <div class="input-box">
+                                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                                    <i class="fa-solid fa-lock"></i>
+                                </div>
+                            </div>
+
+                            <div class="terms-group">
+                                <input type="checkbox" id="terms" name="terms_accepted" required>
+                                <label for="terms">I agree to the Terms of Service and Privacy Policy.</label>
+                            </div>
+
+                            <button type="submit" name="index_login" class="btn-primary">Sign In</button>
+                        </form>
+
+                        <div class="signup-link">
+                            Don't have an account yet? <a href="auth/register.php">Sign Up</a>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -686,10 +849,34 @@ $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="scroll-container" id="scrollContainer">
                         <?php if (!empty($nutritionists)): ?>
                             <?php foreach($nutritionists as $row): 
-                                $img = !empty($row['profile_pic']) ? "uploads/profile_pics/".$row['profile_pic'] : "uploads/default_avatar.jpg";
+                                $filename = trim($row['profile_pic'] ?? '');
+                                $has_valid_image = false;
+                                $img = "";
+
+                                if (!empty($filename) && $filename !== 'default_avatar.png') {
+                                    if (strpos($filename, 'http') === 0 || strpos($filename, '/') === 0) {
+                                        $img = $filename;
+                                        $has_valid_image = true;
+                                    } else {
+                                        if (file_exists("uploads/profile_pics/" . $filename)) {
+                                            $img = "uploads/profile_pics/" . $filename;
+                                            $has_valid_image = true;
+                                        } else if (file_exists($filename)) {
+                                            $img = $filename;
+                                            $has_valid_image = true;
+                                        }
+                                    }
+                                }
                             ?>
                                 <article class="feature-box">
-                                    <img src="<?= htmlspecialchars($img) ?>" class="expert-img" alt="<?= htmlspecialchars($row['fullname']) ?>">
+                                    <?php if ($has_valid_image): ?>
+                                        <img src="<?= htmlspecialchars($img) ?>" class="expert-img" alt="<?= htmlspecialchars($row['fullname']) ?>">
+                                    <?php else: ?>
+                                        <div class="expert-avatar">
+                                            <?= getInitials($row['fullname']) ?>
+                                        </div>
+                                    <?php endif; ?>
+
                                     <div class="expert-name"><?= htmlspecialchars($row['fullname']) ?></div>
                                     <div class="expert-specialty"><?= htmlspecialchars($row['certification']) ?></div>
                                     <div>

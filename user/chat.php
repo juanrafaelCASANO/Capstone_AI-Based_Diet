@@ -7,34 +7,108 @@ if(!isset($_SESSION['user_id'])){
     exit;
 }
 
-$user_id =$_SESSION['user_id'];
+$user_id = $_SESSION['user_id'];
+$nutritionist_id = isset($_GET['nutritionist_id']) ? (int)$_GET['nutritionist_id'] : 0;
 
-$sql = "SELECT n.id, n.fullname, n.email, n.profile_pic, 
-               n.experience, 
-               n.certification, 
-               n.document, 
-               p.specialty AS specialization 
-        FROM nutritionist n
-        LEFT JOIN nutritionists_profile p ON n.fullname = p.name
-        WHERE n.status = 'approved' OR n.status IS NULL";
+if ($nutritionist_id <= 0) {
+    header("Location: user_inbox.php");
+    exit;
+}
 
-$nutritionists =$conn->query($sql);$nutritionist_list = [];
+$report_msg = "";
+$report_error = "";
 
-if($nutritionists) {
-    while($row =$nutritionists->fetch(PDO::FETCH_ASSOC)) {
-        // Parse document JSON or string para maging array
-        $doc_raw = $row['document'] ?? '';$doc_list = [];
-        if (!empty($doc_raw)) {
-            $decoded = json_decode($doc_raw, true);
-            if (is_array($decoded)) {
-                $doc_list =$decoded;
-            } else {
-                $doc_list = [$doc_raw];
-            }
+// Handle Report Submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
+    $category = trim($_POST['category'] ?? '');
+    $reason = trim($_POST['reason'] ?? '');
+
+    if (empty($category) || empty($reason)) {
+        $report_error = "Please select a category and provide a reason for the report.";
+    } else {
+        try {
+            $rep_stmt = $conn->prepare("INSERT INTO nutritionist_reports (user_id, nutritionist_id, category, reason, status) VALUES (?, ?, ?, ?, 'pending')");
+            $rep_stmt->execute([$user_id, $nutritionist_id, $category, $reason]);
+            $report_msg = "Your report has been successfully submitted to the administrator for review.";
+        } catch (Exception $e) {
+            $report_error = "Failed to submit report. Please try again.";
         }
-        $row['doc_list'] =$doc_list;
-        $nutritionist_list[] =$row;
     }
+}
+
+// Get user latitude and longitude
+$user_lat = 14.3498;
+$user_lng = 121.0794;
+try {
+    $user_loc_stmt = $conn->prepare("SELECT latitude, longitude FROM users WHERE id = ? LIMIT 1");
+    $user_loc_stmt->execute([$user_id]);
+    $user_data = $user_loc_stmt->fetch(PDO::FETCH_ASSOC);
+    if ($user_data && !empty($user_data['latitude']) && !empty($user_data['longitude'])) {
+        $user_lat = floatval($user_data['latitude']);
+        $user_lng = floatval($user_data['longitude']);
+    }
+} catch (Exception $e) {
+    // Use default if error occurs
+}
+
+// Get specific nutritionist information including availability status
+$nutri_stmt = $conn->prepare("
+    SELECT n.id, n.fullname, n.email, n.profile_pic, 
+           n.experience, n.latitude, n.longitude, n.availability_status,
+           p.specialty AS specialization 
+    FROM nutritionist n
+    LEFT JOIN nutritionists_profile p ON n.fullname = p.name
+    WHERE n.id = ? AND (n.status = 'active' OR n.status = 'approved' OR n.status IS NULL)
+");
+$nutri_stmt->execute([$nutritionist_id]);
+$nutri = $nutri_stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$nutri) {
+    header("Location: user_inbox.php");
+    exit;
+}
+
+// Function to get initials (e.g. "Juan Dela Cruz" -> "JC")
+function getInitials($name) {
+    $words = explode(' ', trim($name));
+    if (count($words) >= 2) {
+        return strtoupper(substr($words[0], 0, 1) . substr(end($words), 0, 1));
+    }
+    return strtoupper(substr($name, 0, 2));
+}
+
+// Function using Haversine formula to calculate distance in kilometers
+function calculateDistance($lat1, $lon1, $lat2, $lon2) {
+    if (!$lat1 || !$lon1 || !$lat2 || !$lon2) return 999999; 
+    $earthRadius = 6371; 
+    $dLat = deg2rad($lat2 - $lat1);
+    $dLon = deg2rad($lon2 - $lon1);
+    $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon/2) * sin($dLon/2);
+    $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+    return $earthRadius * $c;
+}
+
+$distance_val = calculateDistance($user_lat, $user_lng, $nutri['latitude'], $nutri['longitude']);
+$dist_label = "";
+if ($distance_val < 999999) {
+    if ($distance_val < 1) {
+        $dist_label = round($distance_val * 1000) . " m away";
+    } else {
+        $dist_label = round($distance_val, 1) . " km away";
+    }
+}
+
+// Count total unread messages for sidebar badge
+$unread_count = 0;
+try {
+    $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
+    $count_stmt->execute([$user_id]);
+    $row = $count_stmt->fetch();
+    if ($row) {
+        $unread_count = (int)$row['total'];
+    }
+} catch (Exception $e) {
+    $unread_count = 0;
 }
 ?>
 <!DOCTYPE html>
@@ -44,8 +118,6 @@ if($nutritionists) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI-Based Diet & Nutritional Planner - Nutritionist Chat</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<!-- Font Awesome para sa mga icons -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
 <style>
@@ -61,6 +133,7 @@ if($nutritionists) {
   --border:#e3ebe6;
   --shadow:0 10px 30px rgba(27,61,48,.08);
   --radius:18px;
+  --danger:#dc2626;
 }
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
@@ -79,10 +152,20 @@ button{cursor:pointer}
 .brand strong{display:block;font-size:17px}.brand span{display:block;color:#b9d5ca;font-size:12px;margin-top:2px}
 .nav-label{padding:0 12px 8px;color:#9fc2b4;text-transform:uppercase;letter-spacing:.11em;font-size:10px;font-weight:800}
 .nav{display:grid;gap:6px}
-.nav a{display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px;border-radius:12px;color:#d9ebe4;font-size:14px;font-weight:650;transition:background .2s,transform .2s}
+.nav a{display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px;border-radius:12px;color:#d9ebe4;font-size:14px;font-weight:650;transition:background .2s,transform .2s;position:relative}
 .nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}
 .nav a.active{background:rgba(255,255,255,.14);color:#fff}
 .nav-icon{width:24px;text-align:center;font-size:17px}
+
+.nav-badge{
+  margin-left:auto;
+  background:var(--danger);
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  padding:2px 8px;
+  border-radius:999px;
+}
 
 .sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
 .sidebar-bottom a.logout{
@@ -91,7 +174,7 @@ button{cursor:pointer}
 }
 .sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
 
-/* LOGOUT MODAL STYLES */
+/* MODAL STYLES */
 .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -131,7 +214,7 @@ button{cursor:pointer}
 
 .profile{display:flex;align-items:center;gap:10px;padding:7px 11px 7px 7px;background:#fff;border:1px solid var(--border);border-radius:999px;text-decoration:none;transition:border-color .2s,box-shadow .2s}
 .profile:hover{border-color:#b9d5ca;box-shadow:0 4px 12px rgba(27,61,48,.06)}
-.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-weight:800}
+.avatar-top{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-weight:800}
 .profile-name{font-size:13px;font-weight:700}
 
 .chat-layout{
@@ -152,44 +235,16 @@ button{cursor:pointer}
 .chat-title{display:flex;align-items:center;gap:11px;min-width:0}
 .chat-title-icon{width:40px;height:40px;border-radius:12px;background:var(--green-soft);display:grid;place-items:center;font-size:19px}
 .chat-title strong{display:block;font-size:15px}.chat-title span{display:block;color:var(--muted);font-size:11px;margin-top:2px}
-.status{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-size:11px;font-weight:750;white-space:nowrap}
-.status-dot{width:7px;height:7px;border-radius:50%;background:#4aa66f}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:750;white-space:nowrap}
+.status-dot{width:7px;height:7px;border-radius:50%}
 
 .info-card{
   background:#fff;border:1px solid var(--border);border-radius:20px;padding:20px;height:max-content;
   box-shadow:0 5px 18px rgba(27,61,48,.04);display:flex;flex-direction:column;gap:16px;
 }
 .info-card h2{font-size:16px;margin:0 0 4px;font-weight:700}
-.select-wrapper label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px}
-#nutritionist{
-  width:100%;min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:11px;
-  background:#fff;color:var(--text);outline:none;font-size:14px;cursor:pointer
-}
-#nutritionist:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(59,143,99,.12)}
 
-.nutritionist-profile-display{
-  display:flex;flex-direction:column;align-items:center;text-align:center;
-  padding-top:12px;border-top:1px solid var(--border);
-}
-.profile-img-container{
-  width:96px;height:96px;border-radius:50%;overflow:hidden;
-  border:3px solid var(--green-soft);background:#e8f0ec;margin-bottom:12px;
-  display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,0.06);
-}
-.profile-img-container img{width:100%;height:100%;object-fit:cover}
-.profile-img-placeholder{font-size:42px}
-.nutritionist-name{font-size:16px;font-weight:700;color:var(--text);margin:0 0 4px}
-.nutritionist-spec{font-size:12px;font-weight:600;color:var(--green);background:var(--green-soft);padding:4px 12px;border-radius:99px;display:inline-block;margin-bottom:12px}
-
-.details-grid{
-  width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;text-align:left;
-}
-.detail-item{background:#f8faf8;border:1px solid var(--border);padding:8px 10px;border-radius:10px}
-.detail-item span{display:block;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase}
-.detail-item strong{display:block;font-size:12px;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-/* VIEW CREDENTIALS BUTTON STYLE */
-.view-credentials-btn {
+.back-inbox-btn, .report-nutri-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -197,27 +252,66 @@ button{cursor:pointer}
   width: 100%;
   padding: 10px 12px;
   border-radius: 11px;
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: .2s;
   text-decoration: none;
 }
-.view-credentials-btn:hover {
-  background: #dbeafe;
-  border-color: #93c5fd;
-  transform: translateY(-1px);
+.back-inbox-btn {
+  background: var(--green-soft);
+  color: var(--green);
+  border: 1px solid #c9ebd8;
+  margin-bottom: 2px;
 }
+.back-inbox-btn:hover { background: #d4f2e1; transform: translateY(-1px); }
+
+.report-nutri-btn {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  margin-top: 6px;
+}
+.report-nutri-btn:hover { background: #fee2e2; transform: translateY(-1px); }
+
+.nutritionist-profile-display{
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+  padding-top:4px;
+}
+.profile-img-container{
+  width:84px;height:84px;border-radius:50%;overflow:hidden;
+  border:3px solid var(--green-soft);background:var(--green-soft);color:var(--green);margin-bottom:10px;
+  display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,0.06);font-size:26px;font-weight:700;
+}
+.profile-img-container img{width:100%;height:100%;object-fit:cover}
+.nutritionist-name{font-size:16px;font-weight:700;color:var(--text);margin:0 0 10px}
+
+.distance-badge-profile {
+  font-size: 11px;
+  font-weight: 700;
+  background: #e2f0e9;
+  color: #08734a;
+  padding: 4px 10px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.details-grid{
+  width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;text-align:left;
+}
+.detail-item{background:#f8faf8;border:1px solid var(--border);padding:8px 10px;border-radius:10px}
+.detail-item span{display:block;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase}
+.detail-item strong{display:block;font-size:12px;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .chat-body{
   flex:1;min-height:0;padding:18px;overflow-y:auto;background:#f2f6f3;
   display:flex;flex-direction:column;gap:2px;scroll-behavior:smooth
 }
 .chat-body:empty:before{
-  content:"Start a conversation with your nutritionist.";
+  content:"No messages yet. Start a conversation below.";
   margin:auto;color:#83918b;font-size:13px;text-align:center
 }
 .message{
@@ -249,108 +343,43 @@ button{cursor:pointer}
 .chat-footer button:hover{transform:translateY(-1px);box-shadow:0 7px 16px rgba(59,143,99,.18)}
 .chat-footer button:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
 
+/* REPORT MODAL STYLING */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+  opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.modal-overlay.active { opacity: 1; visibility: visible; }
+.modal-card {
+  background: #ffffff; width: 90%; max-width: 480px; border-radius: 20px; padding: 28px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25); transform: scale(0.85);
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  text-align: left;
+}
+.modal-overlay.active .modal-card { transform: scale(1); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.modal-header h3 { font-size: 18px; font-weight: 800; color: var(--text); margin: 0; }
+.close-modal-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted); }
+
+.modal-form-group { margin-bottom: 14px; }
+.modal-form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+.modal-form-group select, .modal-form-group textarea {
+  width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px;
+  outline: none; font-size: 14px; color: var(--text); background: #f9fbfa;
+}
+.modal-form-group select:focus, .modal-form-group textarea:focus { border-color: var(--green); background: #fff; }
+.modal-form-group textarea { resize: vertical; min-height: 90px; }
+
+.btn-submit-report {
+  width: 100%; height: 46px; background: #dc2626; color: #fff; border: none; border-radius: 10px;
+  font-weight: 700; font-size: 14px; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 12px rgba(220,38,38,.2);
+}
+.btn-submit-report:hover { background: #b91c1c; }
+
+.alert-box-success { background: #dcfce7; color: #15803d; padding: 12px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; font-weight: 600; }
+.alert-box-error { background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; font-weight: 600; }
+
 .overlay{display:none}
-
-/* MODAL STYLING (katulad ng sa manage_account.php) */
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, .55);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  z-index: 1000;
-  backdrop-filter: blur(5px);
-  overflow-y: auto;
-}
-.modal.active {
-  display: flex;
-}
-.modal-box {
-  width: 100%;
-  max-width: 750px;
-  background: white;
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: 0 25px 70px rgba(15,23,42,.25);
-  animation: modalIn .25s ease;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-@keyframes modalIn {
-  from { opacity: 0; transform: translateY(15px) scale(.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-.modal-header h3 {
-  font-size: 20px;
-  color: #111827;
-  font-weight: 800;
-  margin: 0;
-}
-.close-modal {
-  width: 35px;
-  height: 35px;
-  border: none;
-  border-radius: 8px;
-  background: #f1f5f9;
-  cursor: pointer;
-  color: #475569;
-  font-size: 16px;
-  display: grid;
-  place-items: center;
-}
-.close-modal:hover { background: #e2e8f0; }
-
-/* Document Thumbnails Grid */
-.doc-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-}
-.doc-item {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #fff;
-  cursor: pointer;
-  text-align: center;
-  padding: 6px;
-  transition: .2s;
-}
-.doc-item:hover {
-  border-color: #2563eb;
-  box-shadow: 0 4px 12px rgba(37,99,235,.15);
-}
-.doc-item img, .doc-item .pdf-icon {
-  width: 100%;
-  height: 90px;
-  object-fit: cover;
-  border-radius: 6px;
-}
-.doc-item .pdf-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f1f5f9;
-  color: #dc2626;
-  font-size: 28px;
-}
-.doc-name {
-  font-size: 11px;
-  color: #475569;
-  margin-top: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 @media(max-width:900px){
   .sidebar{width:240px;flex-basis:240px}
@@ -390,7 +419,13 @@ button{cursor:pointer}
     <nav class="nav">
       <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="generate_weekly.php"><span class="nav-icon">▦</span>Weekly Meal Plan</a>
-      <a class="active" href="chat.php"><span class="nav-icon">◌</span>Nutritionist</a>
+      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+      <a href="user_inbox.php" class="active">
+        <span class="nav-icon">📥</span>Inbox
+        <?php if($unread_count > 0): ?>
+          <span class="nav-badge" id="sidebar-badge"><?php echo $unread_count; ?></span>
+        <?php endif; ?>
+      </a>
       <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
     </nav>
 
@@ -404,12 +439,12 @@ button{cursor:pointer}
       <div style="display:flex;align-items:center;gap:12px">
         <button class="menu-btn" id="menuBtn" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
         <div>
-          <div class="eyebrow">Nutrition support</div>
+          <div class="eyebrow">Nutrition Support</div>
           <h1>Nutritionist Chat</h1>
         </div>
       </div>
       <a class="profile" href="profile.php" title="View & Edit Profile">
-        <div class="avatar">💬</div>
+        <div class="avatar-top">💬</div>
         <span class="profile-name">Live Chat</span>
       </a>
     </header>
@@ -420,11 +455,29 @@ button{cursor:pointer}
           <div class="chat-title">
             <div class="chat-title-icon">💬</div>
             <div>
-              <strong>Chat with Nutritionist</strong>
-              <span id="active-nutritionist-label">Select a nutritionist to begin</span>
+              <strong>Chat with <?php echo htmlspecialchars($nutri['fullname']); ?></strong>
+              <span>Verified Nutritionist</span>
             </div>
           </div>
-          <div class="status"><span class="status-dot"></span>Connected</div>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <?php 
+              $nutri_status = $nutri['availability_status'] ?? 'available';
+              $status_text = "Connected";
+              $dot_color = "#10b981"; // Green
+              
+              if ($nutri_status === 'on_leave') {
+                  $status_text = "On Leave / Sick";
+                  $dot_color = "#f59e0b"; // Yellow
+              } elseif ($nutri_status === 'unavailable') {
+                  $status_text = "Unavailable";
+                  $dot_color = "#ef4444"; // Red
+              }
+            ?>
+            <div class="status">
+              <span class="status-dot" style="background: <?php echo $dot_color; ?>;"></span> 
+              <?php echo $status_text; ?>
+            </div>
+          </div>
         </header>
 
         <div class="chat-body" id="chat-box" aria-live="polite"></div>
@@ -436,54 +489,87 @@ button{cursor:pointer}
       </section>
 
       <aside class="info-card">
-        <div>
-          <h2>Select Nutritionist</h2>
-          <div class="select-wrapper">
-            <select id="nutritionist" aria-label="Select nutritionist">
-              <?php foreach($nutritionist_list as$nutri): ?>
-                <option 
-                  value="<?php echo $nutri['id']; ?>"
-                  data-fullname="<?php echo htmlspecialchars($nutri['fullname'] ?? ''); ?>"
-                  data-pic="<?php echo htmlspecialchars($nutri['profile_pic'] ?? ''); ?>"
-                  data-spec="<?php echo htmlspecialchars($nutri['specialization'] ?? 'Certified Nutritionist'); ?>"
-                  data-exp="<?php echo htmlspecialchars($nutri['experience'] ?? 'N/A'); ?>"
-                  data-cert="<?php echo htmlspecialchars($nutri['certification'] ?? 'Certified'); ?>"
-                  data-docs='<?php echo htmlspecialchars(json_encode($nutri['doc_list']), ENT_QUOTES, 'UTF-8'); ?>'>
-                  <?php echo htmlspecialchars($nutri['fullname']); ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-        </div>
+        <!-- Back to Inbox Button -->
+        <a href="user_inbox.php" class="back-inbox-btn">
+          <i class="fa-solid fa-arrow-left"></i> Back to Inbox
+        </a>
 
         <div class="nutritionist-profile-display">
           <div class="profile-img-container" id="display-pic-box">
-            <span class="profile-img-placeholder">🧑‍⚕️</span>
+            <?php if (!empty($nutri['profile_pic']) && $nutri['profile_pic'] !== 'default_avatar.png' && file_exists("../uploads/profile_pics/" . $nutri['profile_pic'])): ?>
+              <?php 
+                $filename = trim($nutri['profile_pic']);
+                $imgSrc = (strpos($filename, 'http') === 0 || strpos($filename, '/') === 0) ? $filename : '../uploads/profile_pics/' . $filename;
+              ?>
+              <img src="<?php echo htmlspecialchars($imgSrc); ?>" alt="<?php echo htmlspecialchars($nutri['fullname']); ?>">
+            <?php else: ?>
+              <?php echo getInitials($nutri['fullname']); ?>
+            <?php endif; ?>
           </div>
-          <h3 class="nutritionist-name" id="display-name">-</h3>
-          <span class="nutritionist-spec" id="display-spec">Certified Nutritionist</span>
+          <h3 class="nutritionist-name"><?php echo htmlspecialchars($nutri['fullname']); ?></h3>
+
+          <?php if (!empty($dist_label)): ?>
+            <div class="distance-badge-profile">
+              <i class="fa-solid fa-location-dot"></i> <?php echo $dist_label; ?>
+            </div>
+          <?php endif; ?>
 
           <div class="details-grid">
             <div class="detail-item">
               <span>Experience</span>
-              <strong id="display-exp">N/A</strong>
+              <strong><?php echo htmlspecialchars(!empty($nutri['experience']) ? $nutri['experience'] : 'N/A'); ?></strong>
             </div>
             <div class="detail-item">
-              <span>Certification</span>
-              <strong id="display-cert">Verified</strong>
+              <span>Specialization</span>
+              <strong><?php echo htmlspecialchars(!empty($nutri['specialization']) ? $nutri['specialization'] : 'Clinical Nutrition'); ?></strong>
             </div>
           </div>
-
-          <!-- View Credentials Button matching manage_account.php -->
-          <div style="width: 100%; margin-top: 4px;">
-            <button type="button" id="viewCredentialsBtn" class="view-credentials-btn">
-              <i class="fa-solid fa-file-shield"></i> View Credentials
-            </button>
-          </div>
         </div>
+
+        <!-- Report Nutritionist Button -->
+        <button type="button" class="report-nutri-btn" onclick="openReportModal()">
+          <i class="fa-solid fa-triangle-exclamation"></i> Report Nutritionist
+        </button>
       </aside>
     </section>
   </main>
+</div>
+
+<!-- REPORT MODAL -->
+<div id="reportModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Report Nutritionist</h3>
+      <button type="button" class="close-modal-btn" onclick="closeReportModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <?php if (!empty($report_msg)): ?>
+      <div class="alert-box-success"><i class="fa-solid fa-circle-check"></i> <?php echo htmlspecialchars($report_msg); ?></div>
+    <?php endif; ?>
+    <?php if (!empty($report_error)): ?>
+      <div class="alert-box-error"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo htmlspecialchars($report_error); ?></div>
+    <?php endif; ?>
+
+    <form method="POST">
+      <div class="modal-form-group">
+        <label>Violation Category</label>
+        <select name="category" required>
+          <option value="">Select a reason...</option>
+          <option value="Inappropriate behavior or language">Inappropriate behavior or language</option>
+          <option value="Medical misinformation or unsafe advice">Medical misinformation or unsafe advice</option>
+          <option value="Unprofessional conduct">Unprofessional conduct</option>
+          <option value="Others">Others</option>
+        </select>
+      </div>
+
+      <div class="modal-form-group">
+        <label>Detailed Explanation</label>
+        <textarea name="reason" placeholder="Describe the issue or violation in detail..." required></textarea>
+      </div>
+
+      <button type="submit" name="submit_report" class="btn-submit-report">Submit Report to Admin</button>
+    </form>
+  </div>
 </div>
 
 <!-- LOGOUT CONFIRMATION MODAL -->
@@ -499,56 +585,6 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- VIEW CREDENTIALS MODAL (galing sa manage_account.php) -->
-<div class="modal" id="credentialsModal">
-    <div class="modal-box" style="max-width: 750px;">
-        <div class="modal-header">
-            <h3 id="credModalTitle">Expert Credentials</h3>
-            <button type="button" class="close-modal" onclick="closeCredentialsModal()">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 16px;">
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px;">
-                    <i class="fa-solid fa-briefcase" style="color: #16a34a; margin-right: 4px;"></i> Professional Experience
-                </label>
-                <p id="credExpText" style="font-size: 14px; color: #1e293b; white-space: pre-wrap; line-height: 1.5; margin:0;"></p>
-            </div>
-
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px;">
-                    <i class="fa-solid fa-award" style="color: #2563eb; margin-right: 4px;"></i> Certifications & Licenses
-                </label>
-                <p id="credCertText" style="font-size: 14px; color: #1e293b; white-space: pre-wrap; line-height: 1.5; margin:0;"></p>
-            </div>
-
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px;">
-                    <i class="fa-solid fa-file-shield" style="color: #9333ea; margin-right: 4px;"></i> Verification Documents (Click to Preview)
-                </label>
-                <div id="docGridContainer" class="doc-grid"></div>
-                <div id="noDocText" style="display: none; color: #94a3b8; font-size: 13px;">No documents uploaded</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- SINGLE FILE PREVIEW SUB-MODAL -->
-<div class="modal" id="filePreviewModal" style="z-index: 1050;">
-    <div class="modal-box" style="max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
-        <div class="modal-header">
-            <h3>Document Preview</h3>
-            <button type="button" class="close-modal" onclick="document.getElementById('filePreviewModal').classList.remove('active')"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div style="flex: 1; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-            <iframe id="previewIframe" src="" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
-            <img id="previewImage" src="" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;">
-        </div>
-    </div>
-</div>
-
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 function showLogoutModal() {
@@ -559,121 +595,47 @@ function closeLogoutModal() {
   document.getElementById('logoutModal').classList.remove('active');
 }
 
+function openReportModal() {
+  document.getElementById('reportModal').classList.add('active');
+}
+
+function closeReportModal() {
+  document.getElementById('reportModal').classList.remove('active');
+}
+
+// Auto open modal if there's a response message/error
+<?php if (!empty($report_msg) || !empty($report_error)): ?>
+  window.addEventListener('DOMContentLoaded', (event) => {
+    openReportModal();
+  });
+<?php endif; ?>
+
 document.getElementById('logoutModal').addEventListener('click', function(e) {
   if (e.target === this) {
     closeLogoutModal();
   }
 });
 
-let user_id = <?php echo $user_id; ?>;
-let nutritionist_id = $('#nutritionist').val();
-
-function updateProfileCard() {
-  const selected = $('#nutritionist option:selected');
-  if(!selected.length) return;
-
-  const name = selected.data('fullname');
-  let pic = selected.data('pic');
-  const spec = selected.data('spec');
-  const exp = selected.data('exp');
-  const cert = selected.data('cert');
-  let docs = [];
-  try {
-    docs = selected.data('docs') || [];
-  } catch(e) {
-    docs = [];
+document.getElementById('reportModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeReportModal();
   }
-
-  $('#display-name').text(name);
-  $('#display-spec').text(spec);
-  $('#display-exp').text(exp !== '' ? exp : 'N/A');
-  $('#display-cert').text(cert !== '' ? cert : 'N/A');
-  $('#active-nutritionist-label').text('Talking to ' + name);
-
-  // Bind View Credentials Button click event
-  $('#viewCredentialsBtn').off('click').on('click', function() {
-    openCredentialsModal(docs, name, exp, cert);
-  });
-
-  // Handle Profile Picture
-  const $picBox =$('#display-pic-box');
-  $picBox.empty();
-
-  if (pic && pic.toString().trim() !== '') {
-    let filename = pic.toString().trim();
-    let imageSrc = (filename.startsWith('http') || filename.startsWith('/')) ? filename : '../uploads/profile_pics/' + filename;
-
-    const $img =$('<img>', { src: imageSrc, alt: name });
-    $img.on('error', function() {$picBox.html('<span class="profile-img-placeholder">🧑‍⚕️</span>');
-    });
-
-    $picBox.append($img);
-  } else {
-    $picBox.html('<span class="profile-img-placeholder">🧑‍⚕️️</span>');
-  }
-}
-
-// Credentials Modal Functions (galing sa manage_account.php)
-function openCredentialsModal(docList, expertName, experienceText, certificationText) {
-    const modal = document.getElementById('credentialsModal');
-    const title = document.getElementById('credModalTitle');
-    const certText = document.getElementById('credCertText');
-    const expText = document.getElementById('credExpText');
-    const gridContainer = document.getElementById('docGridContainer');
-    const noDocText = document.getElementById('noDocText');
-
-    title.textContent = "Credentials - " + expertName;
-    certText.textContent = certificationText || 'No certification provided';
-    expText.textContent = experienceText || 'No experience provided';
-    gridContainer.innerHTML = '';
-
-    if (docList && docList.length > 0) {
-        noDocText.style.display = 'none';
-        docList.forEach((doc, index) => {
-            const docUrl = '../uploads/nutritionists/' + doc;
-            const ext = doc.split('.').pop().toLowerCase();
-
-            const item = document.createElement('div');
-            item.className = 'doc-item';
-            
-            if (ext === 'pdf') {
-                item.innerHTML = `<div class="pdf-icon"><i class="fa-solid fa-file-pdf"></i></div><div class="doc-name">Document ${index + 1}</div>`;
-            } else {
-                item.innerHTML = `<img src="${docUrl}" alt="Doc"><div class="doc-name">Document ${index + 1}</div>`;
-            }
-
-            item.onclick = function() {
-                const iframe = document.getElementById('previewIframe');
-                const image = document.getElementById('previewImage');
-                if (ext === 'pdf') {
-                    iframe.src = docUrl;
-                    iframe.style.display = 'block';
-                    image.style.display = 'none';
-                } else {
-                    image.src = docUrl;
-                    image.style.display = 'block';
-                    iframe.style.display = 'none';
-                }
-                document.getElementById('filePreviewModal').classList.add('active');
-            };
-
-            gridContainer.appendChild(item);
-        });
-    } else {
-        noDocText.style.display = 'block';
-    }
-
-    modal.classList.add('active');
-}
-
-function closeCredentialsModal() {
-    const modal = document.getElementById('credentialsModal');
-    modal.classList.remove('active');
-}
-
-document.getElementById('credentialsModal').addEventListener('click', function(e) {
-    if (e.target === this) closeCredentialsModal();
 });
+
+let user_id = <?php echo $user_id; ?>;
+let nutritionist_id = <?php echo $nutritionist_id; ?>;
+
+function markMessagesAsRead() {
+  if (!nutritionist_id || !user_id) return;
+  $.post('mark_read_user.php', { nutritionist_id: nutritionist_id, user_id: user_id }, function(response) {
+    if (response.trim() === 'success') {
+      const badge = $('#sidebar-badge');
+      if (badge.length) {
+        badge.fadeOut(200, function() { $(this).remove(); });
+      }
+    }
+  });
+}
 
 function fetchMessages() {
   if(!nutritionist_id) return;
@@ -722,13 +684,6 @@ $('#message').keypress(function(e){
   }
 });
 
-$('#nutritionist').change(function(){
-  nutritionist_id = $(this).val();
-  updateProfileCard();
-  $('#chat-box').html('');
-  fetchMessages();
-});
-
 (function(){
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
@@ -758,7 +713,7 @@ $('#nutritionist').change(function(){
   });
 })();
 
-updateProfileCard();
+markMessagesAsRead();
 setInterval(fetchMessages, 2000);
 fetchMessages();
 </script>

@@ -84,7 +84,7 @@ if (!$profile) {
 // Fetch unread messages count for the sidebar badge
 $unread_count = 0; 
 try {
-    $stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND is_read = 0");
+    $stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
     $stmt->execute([$nutritionist_id]);
     $row = $stmt->fetch();
     if ($row) {
@@ -283,14 +283,21 @@ a { color: inherit; }
   width: 120px;
   height: 120px;
   margin: 0 auto 18px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--teal-soft);
+  display: grid;
+  place-items: center;
+  color: var(--teal-dark);
+  font-size: 40px;
+  font-weight: 800;
+  border: 4px solid #fff;
+  box-shadow: var(--shadow);
 }
 .avatar-large-wrap img {
   width: 100%;
   height: 100%;
-  border-radius: 50%;
   object-fit: cover;
-  border: 4px solid #fff;
-  box-shadow: var(--shadow);
 }
 .profile-sidebar-card h2 {
   font-size: 22px;
@@ -309,7 +316,8 @@ a { color: inherit; }
   text-transform: capitalize;
   margin-bottom: 20px;
 }
-.status-badge.approved { background: var(--success-bg); color: var(--success); }
+.status-badge.active { background: var(--success-bg); color: var(--success); }
+.status-badge.inactive { background: var(--danger-bg); color: var(--danger); }
 .status-badge.pending { background: var(--warning-bg); color: var(--warning); }
 
 /* DETAILS DATA GRID */
@@ -446,7 +454,7 @@ a { color: inherit; }
       </div>
       <a class="profile-link" href="profile.php" title="View Profile">
         <div class="avatar-small">
-          <?php if (!empty($profile['profile_pic'])): ?>
+          <?php if (!empty($profile['profile_pic']) && file_exists('../uploads/profile_pics/' . $profile['profile_pic'])): ?>
             <img src="../uploads/profile_pics/<?= htmlspecialchars($profile['profile_pic']); ?>" alt="Profile">
           <?php else: ?>
             <?php echo htmlspecialchars(strtoupper(substr($profile['fullname'] ?? 'N', 0, 1))); ?>
@@ -475,13 +483,20 @@ a { color: inherit; }
       <!-- LEFT PROFILE SUMMARY CARD -->
       <div class="card profile-sidebar-card">
         <div class="avatar-large-wrap">
-          <img src="../uploads/profile_pics/<?= htmlspecialchars($profile['profile_pic'] ?? 'default_profile.png'); ?>" alt="Profile Picture">
+          <?php if (!empty($profile['profile_pic']) && file_exists('../uploads/profile_pics/' . $profile['profile_pic'])): ?>
+            <img src="../uploads/profile_pics/<?= htmlspecialchars($profile['profile_pic']); ?>" alt="Profile Picture">
+          <?php else: ?>
+            <?= htmlspecialchars(strtoupper(substr($profile['fullname'] ?? 'N', 0, 1))); ?>
+          <?php endif; ?>
         </div>
         <h2><?= htmlspecialchars($profile['fullname']); ?></h2>
         
-        <?php $status = strtolower($profile['status'] ?? 'pending'); ?>
-        <div class="status-badge <?= $status === 'approved' ? 'approved' : 'pending'; ?>">
-          <span><?= $status === 'approved' ? '●' : '○'; ?></span>
+        <?php 
+          $status = strtolower($profile['status'] ?? 'active'); 
+          $status_class = ($status === 'active') ? 'active' : (($status === 'inactive') ? 'inactive' : 'pending');
+        ?>
+        <div class="status-badge <?= $status_class; ?>">
+          <span><?= ($status === 'active') ? '●' : '○'; ?></span>
           <?= ucfirst($status); ?>
         </div>
 
@@ -522,7 +537,7 @@ a { color: inherit; }
 
           <div class="info-item" style="grid-column: 1 / -1;">
             <label>Member Since</label>
-            <div><?= date("F d, Y", strtotime($profile['created_at'])); ?></div>
+            <div><?= isset($profile['created_at']) ? date("F d, Y", strtotime($profile['created_at'])) : 'N/A'; ?></div>
           </div>
         </div>
       </div>
@@ -533,7 +548,6 @@ a { color: inherit; }
           <h3>Edit Practitioner Information</h3>
         </div>
 
-        <!-- BAGO: enctype="multipart/form-data" ay mahalaga para gumana ang file upload -->
         <form method="POST" action="profile.php" enctype="multipart/form-data">
           <div class="form-grid">
             <div class="form-group full">
@@ -561,7 +575,6 @@ a { color: inherit; }
               <input type="text" name="certification" placeholder="e.g. RND, Sports Nutritionist" value="<?= htmlspecialchars($profile['certification'] ?? ''); ?>">
             </div>
 
-            <!-- BAGO: Profile Picture Upload Field -->
             <div class="form-group full">
               <label>Profile Picture</label>
               <input type="file" name="profile_pic" accept="image/png, image/jpeg, image/jpg, image/gif">
@@ -594,7 +607,6 @@ a { color: inherit; }
 </div>
 
 <script>
-// Toggle Edit Form Script
 document.getElementById('editProfileBtn').addEventListener('click', function() {
     document.getElementById('readOnlyProfile').style.display = 'none';
     document.getElementById('editProfileForm').style.display = 'block';
@@ -605,7 +617,6 @@ document.getElementById('cancelEditBtn').addEventListener('click', function() {
     document.getElementById('readOnlyProfile').style.display = 'block';
 });
 
-// Logout Modal Script
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
 }
@@ -620,7 +631,6 @@ document.getElementById('logoutModal').addEventListener('click', function(e) {
   }
 });
 
-// Mobile Sidebar Script
 (function(){
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');

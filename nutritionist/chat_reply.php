@@ -2,7 +2,6 @@
 session_start();
 require_once '../config.php';
 
-// Ibinalik natin sa 'user_id' dahil ito pala ang ginagamit ng system mo
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../auth/login.php");
     exit;
@@ -11,8 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 $nutri_id = $_SESSION['user_id'];
 $user_id = $_GET['user_id'] ?? 0;
 
-// Fetch nutritionist profile info (Nakatutok na sa 'nutritionist' table)
-$stmt = $conn->prepare("SELECT fullname FROM nutritionist WHERE id = ?");
+$stmt = $conn->prepare("SELECT fullname, latitude, longitude FROM nutritionist WHERE id = ?");
 $stmt->execute([$nutri_id]);
 $nutri = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -22,8 +20,11 @@ if (!$nutri) {
     exit;
 }
 
-// Fetch user/client details
-$user_stmt = $conn->prepare("SELECT fullname FROM users WHERE id = ?");
+$nutri_lat = floatval($nutri['latitude'] ?? 14.3498);
+$nutri_lng = floatval($nutri['longitude'] ?? 121.0794);
+
+// Kunin ang impormasyon ng user kasama ang body info kung mayroon man
+$user_stmt = $conn->prepare("SELECT fullname, email, address, latitude, longitude, age, gender, height, weight, goal FROM users WHERE id = ?");
 $user_stmt->execute([$user_id]);
 $user_data = $user_stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -31,14 +32,62 @@ if (!$user_data) {
     header("Location: inbox.php");
     exit;
 }
-// Mark messages from this user as read when the nutritionist opens the chat
+
+$client_name = $user_data['fullname'] ?? 'Client';
+$client_email = $user_data['email'] ?? '';
+$client_address = $user_data['address'] ?? 'No address provided yet';
+$client_lat = floatval($user_data['latitude'] ?? 14.3498); 
+$client_lng = floatval($user_data['longitude'] ?? 121.0794);
+
+// Body Info ng User
+$client_age = $user_data['age'] ?? 'N/A';
+$client_gender = $user_data['gender'] ?? 'N/A';
+$client_height = $user_data['height'] ?? 'N/A';
+$client_weight = $user_data['weight'] ?? 'N/A';
+$client_goal = $user_data['goal'] ?? 'N/A';
+
+// Function para sa Haversine distance calculation
+function calculateDistance($lat1, $lon1, $lat2, $lon2) {
+    if (!$lat1 || !$lon1 || !$lat2 || !$lon2) return 999999; 
+    $earthRadius = 6371; 
+    $dLat = deg2rad($lat2 - $lat1);
+    $dLon = deg2rad($lon2 - $lon1);
+    $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon/2) * sin($dLon/2);
+    $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+    return $earthRadius * $c;
+}
+
+$distance_val = calculateDistance($nutri_lat, $nutri_lng, $client_lat, $client_lng);
+$dist_label = "";
+if ($distance_val < 999999) {
+    if ($distance_val < 1) {
+        $dist_label = round($distance_val * 1000) . " m away";
+    } else {
+        $dist_label = round($distance_val, 1) . " km away";
+    }
+}
+
+// Suriin kung mayroon nang mensahe mula sa parehong panig
+$check_msg_stmt = $conn->prepare("
+    SELECT 
+        SUM(CASE WHEN sender_id = ? THEN 1 ELSE 0 END) as nutri_count,
+        SUM(CASE WHEN sender_id = ? THEN 1 ELSE 0 END) as client_count
+    FROM messages 
+    WHERE (sender_id = ? AND receiver_id = ?) 
+       OR (sender_id = ? AND receiver_id = ?)
+");
+$check_msg_stmt->execute([$nutri_id, $user_id, $nutri_id, $user_id, $user_id, $nutri_id]);
+$msg_counts = $check_msg_stmt->fetch(PDO::FETCH_ASSOC);
+
+$has_both_messaged = (($msg_counts['nutri_count'] ?? 0) > 0) && (($msg_counts['client_count'] ?? 0) > 0);
+
 try {
     $mark_read_stmt = $conn->prepare("
         UPDATE messages 
         SET status = 1 
         WHERE sender_id = ? AND receiver_id = ? AND status = 0
     ");
-    $mark_read_stmt->execute([$user_id, $nutri_id]);
+    $mark_read_stmt->execute([$user_id,$nutri_id]);
 } catch (Exception $e) {
     // Handle error if needed
 }
@@ -48,10 +97,12 @@ try {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consultation with <?php echo htmlspecialchars($user_data['fullname'] ?? ''); ?> | Nutritionist Portal</title>
+<title>Consultation with <?php echo htmlspecialchars($client_name); ?> | Nutritionist Portal</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🩺</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- Leaflet CSS para sa MapTiler -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
 
 <style>
 :root {
@@ -67,6 +118,7 @@ try {
   --border: #dbece5;
   --shadow: 0 10px 30px rgba(15,58,46,.08);
   --radius: 18px;
+  --danger: #dc2626;
 }
 
 * { box-sizing: border-box; }
@@ -82,10 +134,9 @@ a { color: inherit; text-decoration: none; }
 
 .app { min-height: 100vh; display: flex; }
 
-/* SIDEBAR STYLES */
 .sidebar {
-  width: 260px;
-  flex: 0 0 260px;
+  width: 280px;
+  flex: 0 0 280px;
   min-height: 100vh;
   position: sticky;
   top: 0;
@@ -146,7 +197,52 @@ a { color: inherit; text-decoration: none; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-bottom: 8px;
 }
+.client-distance-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(13, 148, 136, 0.3);
+  color: #99f6e4;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+.client-body-info {
+  font-size: 12px;
+  color: #dbece5;
+  margin-bottom: 12px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+.client-body-info div {
+  display: flex;
+  justify-content: space-between;
+}
+.client-body-info span {
+  color: #99f6e4;
+}
+
+.view-map-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--teal);
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s, transform .2s;
+}
+.view-map-btn:hover { background: var(--teal-dark); transform: translateY(-1px); }
 
 .sidebar-bottom { margin-top: auto; border-top: 1px solid rgba(255,255,255,.1); padding-top: 16px; }
 .sidebar-bottom a.logout {
@@ -156,7 +252,7 @@ a { color: inherit; text-decoration: none; }
 }
 .sidebar-bottom a.logout:hover { background: rgba(220,53,69,.2); transform: translateX(2px); }
 
-/* LOGOUT MODAL STYLES */
+/* MODAL STYLES */
 .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(15, 58, 46, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -187,6 +283,18 @@ a { color: inherit; text-decoration: none; }
   text-decoration: none; transition: background 0.2s, transform 0.2s;
 }
 .btn-modal-logout:hover { background: #b91c1c; transform: translateY(-1px); }
+.btn-modal-delete {
+  flex: 1; height: 44px; background: #dc2626; color: #ffffff; border: none; border-radius: 12px;
+  font-weight: 650; font-size: 14px; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.2s, transform 0.2s;
+}
+.btn-modal-delete:hover { background: #b91c1c; transform: translateY(-1px); }
+.btn-modal-ok {
+  flex: 1; height: 44px; background: var(--teal); color: #ffffff; border: none; border-radius: 12px;
+  font-weight: 650; font-size: 14px; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.2s, transform 0.2s;
+}
+.btn-modal-ok:hover { background: var(--teal-dark); transform: translateY(-1px); }
 
 .main { min-width: 0; flex: 1; padding: 26px clamp(18px, 4vw, 48px) 48px; display: flex; flex-direction: column; height: 100vh; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-shrink: 0; }
@@ -281,6 +389,15 @@ a { color: inherit; text-decoration: none; }
   border-bottom-right-radius: 4px !important;
 }
 
+.message, .message *, #chat-box .message *, #chat-box div {
+    overflow: visible !important;
+    max-height: none !important;
+    scrollbar-width: none !important;
+}
+.message::-webkit-scrollbar, #chat-box *::-webkit-scrollbar {
+    display: none !important;
+}
+
 .msg-meta {
   font-size: 10px;
   opacity: 0.75;
@@ -334,6 +451,28 @@ a { color: inherit; text-decoration: none; }
   transform: translateY(-1px);
 }
 
+.modal {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, .55);
+  display: none; align-items: center; justify-content: center; padding: 20px; z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+.modal.active { display: flex; }
+.modal-box {
+  width: 100%; max-width: 650px; background: white; border-radius: 20px; padding: 25px;
+  box-shadow: 0 25px 70px rgba(15,23,42,.25); animation: modalIn .25s ease;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(15px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.modal-header h3 { margin: 0; font-size: 18px; color: #112d25; }
+.close-modal {
+  width: 35px; height: 35px; border: none; border-radius: 8px; background: #f1f5f9;
+  cursor: pointer; color: #475569; font-size: 16px; display: grid; place-items: center;
+}
+.close-modal:hover { background: #e2e8f0; }
+
 .overlay { display: none; }
 @media(max-width: 900px) {
   .sidebar { width: 240px; flex-basis: 240px; }
@@ -373,9 +512,27 @@ a { color: inherit; text-decoration: none; }
       <i class="fa-solid fa-arrow-left"></i> Back to Inbox
     </a>
 
+    <!-- ACTIVE CLIENT CARD NA MAY DISTANSYA AT BODY INFO -->
     <div class="client-card">
       <h4>Active Client</h4>
-      <div class="client-card-name"><?php echo htmlspecialchars($user_data['fullname'] ?? ''); ?></div>
+      <div class="client-card-name"><?php echo htmlspecialchars($client_name); ?></div>
+      <?php if (!empty($dist_label)): ?>
+        <div class="client-distance-badge">
+          <i class="fa-solid fa-location-dot"></i> <?php echo $dist_label; ?>
+        </div>
+      <?php endif; ?>
+
+      <div class="client-body-info">
+        <div><span>Age:</span> <strong><?php echo htmlspecialchars($client_age); ?></strong></div>
+        <div><span>Gender:</span> <strong><?php echo htmlspecialchars($client_gender); ?></strong></div>
+        <div><span>Height:</span> <strong><?php echo htmlspecialchars($client_height); ?> cm</strong></div>
+        <div><span>Weight:</span> <strong><?php echo htmlspecialchars($client_weight); ?> kg</strong></div>
+        <div><span>Goal:</span> <strong><?php echo htmlspecialchars($client_goal); ?></strong></div>
+      </div>
+
+      <button type="button" class="view-map-btn" onclick="openClientMap(<?php echo $client_lat; ?>, <?php echo$client_lng; ?>, '<?php echo htmlspecialchars(addslashes($client_name)); ?>', '<?php echo htmlspecialchars(addslashes($client_address)); ?>')">
+        <i class="fa-solid fa-location-dot" style="color: #99f6e4; margin-right: 4px;"></i> View Location Map
+      </button>
     </div>
 
     <div class="nav-label" style="margin-top:20px;">Menu</div>
@@ -412,13 +569,19 @@ a { color: inherit; text-decoration: none; }
       <div class="chat-header">
         <div class="chat-client-info">
           <div class="chat-client-avatar">
-            <?php echo htmlspecialchars(strtoupper(substr($user_data['fullname'] ?? 'U', 0, 1))); ?>
+            <?php echo htmlspecialchars(strtoupper(substr($client_name, 0, 1))); ?>
           </div>
           <div class="chat-client-details">
-            <strong><?php echo htmlspecialchars($user_data['fullname'] ?? ''); ?></strong>
+            <strong><?php echo htmlspecialchars($client_name); ?></strong>
             <span>Active Consultation</span>
           </div>
         </div>
+
+        <?php if ($has_both_messaged): ?>
+          <button type="button" onclick="showClearChatModal()" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 7px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s;">
+            <i class="fa-solid fa-broom"></i> Clear Chat
+          </button>
+        <?php endif; ?>
       </div>
 
       <div id="chat-box"></div>
@@ -444,6 +607,46 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
+<!-- CLEAR CHAT CONFIRMATION MODAL -->
+<div id="clearChatModal" class="logout-modal-overlay">
+  <div class="logout-modal-card">
+    <div class="logout-modal-icon" style="background: #fef2f2; color: #dc2626;">⚠️</div>
+    <h3>Clear Conversation</h3>
+    <p>Are you sure you want to clear this entire conversation? This action cannot be undone.</p>
+    <div class="logout-modal-actions">
+      <button class="btn-modal-cancel" onclick="closeClearChatModal();">Cancel</button>
+      <button class="btn-modal-delete" onclick="confirmClearChat();">Yes, Clear Chat</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP ALERT CARD MODAL -->
+<div id="appAlertModal" class="logout-modal-overlay">
+  <div class="logout-modal-card">
+    <div class="logout-modal-icon" id="appAlertIcon" style="background: #e6fffa; color: var(--teal);">ℹ️</div>
+    <h3 id="appAlertTitle">Notice</h3>
+    <p id="appAlertMessage">Message goes here...</p>
+    <div class="logout-modal-actions">
+      <button class="btn-modal-ok" onclick="closeAppAlert();">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAP MODAL PARA SA MAPTILER -->
+<div class="modal" id="mapModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="mapModalTitle">Client Location</h3>
+            <button type="button" class="close-modal" onclick="closeClientMap()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div>
+            <div id="map" style="width: 100%; height: 350px; border-radius: 12px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <script>
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
@@ -459,19 +662,160 @@ document.getElementById('logoutModal').addEventListener('click', function(e) {
   }
 });
 
+function showAlertCard(title, message, isError = false) {
+  document.getElementById('appAlertTitle').textContent = title;
+  document.getElementById('appAlertMessage').textContent = message;
+  const iconDiv = document.getElementById('appAlertIcon');
+  if (isError) {
+    iconDiv.style.background = '#fef2f2';
+    iconDiv.style.color = '#dc2626';
+    iconDiv.innerHTML = '⚠️';
+  } else {
+    iconDiv.style.background = '#e6fffa';
+    iconDiv.style.color = 'var(--teal)';
+    iconDiv.innerHTML = '✓';
+  }
+  document.getElementById('appAlertModal').classList.add('active');
+}
+
+function closeAppAlert() {
+  document.getElementById('appAlertModal').classList.remove('active');
+}
+
+document.getElementById('appAlertModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeAppAlert();
+  }
+});
+
+function showClearChatModal() {
+  document.getElementById('clearChatModal').classList.add('active');
+}
+
+function closeClearChatModal() {
+  document.getElementById('clearChatModal').classList.remove('active');
+}
+
+document.getElementById('clearChatModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeClearChatModal();
+  }
+});
+
+function confirmClearChat() {
+  $.post('delete_conversation.php', {
+    user_id: user_id,
+    nutritionist_id: nutri_id
+  }, function(response) {
+    closeClearChatModal();
+    if (response.trim() === 'success') {
+      window.location.href = 'inbox.php';
+    } else {
+      showAlertCard('Error', 'Failed to clear chat: ' + response, true);
+    }
+  }).fail(function(xhr, status, error) {
+    closeClearChatModal();
+    showAlertCard('Error', 'Request Failed: ' + error, true);
+  });
+}
+
 let user_id = <?php echo json_encode($user_id); ?>;
 let nutri_id = <?php echo json_encode($nutri_id); ?>;
 
+let clientMap = null;
+
+function openClientMap(lat, lng, name, address) {
+    document.getElementById('mapModal').classList.add('active');
+    document.getElementById('mapModalTitle').innerText = `${name}'s Location`;
+    
+    let latitude = lat ? lat : 14.3498;
+    let longitude = lng ? lng : 121.0794;
+
+    setTimeout(() => {
+        if (!clientMap) {
+            clientMap = L.map('map').setView([latitude, longitude], 14);
+            
+            L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=ZkO2ll8wJho8o1zc1Sug', {
+                attribution: '&copy; MapTiler &copy; OpenStreetMap contributors',
+                tileSize: 512,
+                zoomOffset: -1
+            }).addTo(clientMap);
+        } else {
+            clientMap.setView([latitude, longitude], 14);
+            clientMap.invalidateSize();
+        }
+
+        clientMap.eachLayer((layer) => {
+            if (layer instanceof L.Marker) {
+                clientMap.removeLayer(layer);
+            }
+        });
+
+        // Custom Pin Icon para sa Leaflet Map
+        const customPinIcon = L.divIcon({
+            className: 'custom-map-pin',
+            html: `<div style="
+                background-color: #0d9488; 
+                width: 32px; 
+                height: 32px; 
+                border-radius: 50% 50% 50% 0; 
+                transform: rotate(-45deg); 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+                border: 2px solid #ffffff;">
+                    <i class="fa-solid fa-user" style="transform: rotate(45deg); color: white; font-size: 14px;"></i>
+               </div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+
+        L.marker([latitude, longitude], { icon: customPinIcon }).addTo(clientMap)
+          .bindPopup(`<b>${name}</b><br>${address ? address : 'Address not specified'}`)
+          .openPopup();
+    }, 200);
+}
+
+function closeClientMap() {
+    document.getElementById('mapModal').classList.remove('active');
+}
+
 function fetchMessages() {
     if (!user_id || !nutri_id) return;
+
+    const box = $('#chat-box');
+    const scrollableCards = box.find('div[style*="overflow-y: auto"]');
+    const cardScrollPositions = [];
+    scrollableCards.each(function(index) {
+        cardScrollPositions.push({
+            index: index,
+            scrollTop: this.scrollTop
+        });
+    });
+
     $.post('fetch_messages_nutritionist.php', {
         user_id: user_id, 
         nutritionist_id: nutri_id
     }, function(data){
-        const box = $('#chat-box');
         const wasNearBottom = box[0].scrollHeight - box.scrollTop() - box.outerHeight() < 80;
-        box.html(data);
-        if (wasNearBottom) box.scrollTop(box[0].scrollHeight);
+        
+        if (box.html() !== data) {
+            box.html(data);
+            
+            const newScrollableCards = box.find('div[style*="overflow-y: auto"]');
+            newScrollableCards.each(function(index) {
+                const saved = cardScrollPositions.find(item => item.index === index);
+                if (saved) {
+                    this.scrollTop = saved.scrollTop;
+                }
+            });
+
+            if (wasNearBottom) {
+                box.scrollTop(box[0].scrollHeight);
+            }
+        }
     });
 }
 
@@ -487,11 +831,14 @@ function sendMessage() {
             if (response.trim() === 'success') {
                 $('#message').val('');
                 fetchMessages();
+                if (!<?php echo $has_both_messaged ? 'true' : 'false'; ?>) {
+                    setTimeout(() => { window.location.reload(); }, 500);
+                }
             } else {
-                alert('Server returned: ' + response);
+                showAlertCard('Error', 'Server returned: ' + response, true);
             }
         }).fail(function(xhr, status, error) {
-            alert('Request Failed: ' + error);
+            showAlertCard('Error', 'Request Failed: ' + error, true);
         }).always(function(){
             $('#send').prop('disabled', false);
             $('#message').focus();

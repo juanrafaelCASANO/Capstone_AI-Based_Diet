@@ -23,10 +23,17 @@ $stmt = $conn->prepare($query);
 $stmt->execute([$user_id, $nutri_id, $nutri_id, $user_id]);
 
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    // If sent by user -> user-msg (Right)
-    // If sent by nutritionist -> nutritionist-msg (Left)
     $class = ($row['sender_id'] == $user_id) ? 'user-msg' : 'nutritionist-msg';
-    $message_content = nl2br(htmlspecialchars($row['message'], ENT_QUOTES, 'UTF-8'));
+    
+    $raw_message = htmlspecialchars_decode($row['message'], ENT_QUOTES);
+
+    // KUNG ANG USER ANG NAGBASA NG CHAT: Alisin ang "Edit Plan" button sa HTML card para hindi niya ito makita o ma-edit
+    if ($row['sender_id'] == $user_id) {
+        // Tinatanggal ang link patungo sa nutritionist_edit_plan.php para sa panig ng client
+        $raw_message = preg_replace('/<a\s+href="nutritionist_edit_plan\.php[^>]*>.*?<\/a>/i', '', $raw_message);
+    }
+
+    $message_content = nl2br($raw_message);
     $time_formatted = date('g:i A', strtotime($row['created_at']));
 
     echo '<div class="message ' . $class . '">';

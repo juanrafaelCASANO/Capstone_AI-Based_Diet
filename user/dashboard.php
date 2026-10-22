@@ -2,7 +2,7 @@
 session_start();
 require_once '../config.php';
 
-if (!isset($_SESSION['user_id'])) {
+if(!isset($_SESSION['user_id'])){
     header("Location: ../auth/login.php");
     exit;
 }
@@ -18,14 +18,42 @@ if (!$user) {
     header("Location: ../auth/login.php?error=user_not_found");
     exit;
 }
+
+$unread_count = 0;
+$latest_message = null;
+
+try {
+    // Count unread messages received by this user
+    $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
+    $count_stmt->execute([$user_id]);
+    $row = $count_stmt->fetch();
+    if ($row) {
+        $unread_count = (int)$row['total'];
+    }
+
+    // Fetch the most recent message for the notification toast
+    $msg_stmt = $conn->prepare("
+        SELECT m.*, n.fullname as sender_name 
+        FROM messages m 
+        JOIN nutritionist n ON m.sender_id = n.id 
+        WHERE m.receiver_id = ? 
+        ORDER BY m.created_at DESC 
+        LIMIT 1
+    ");
+    $msg_stmt->execute([$user_id]);
+    $latest_message = $msg_stmt->fetch();
+} catch (Exception $e) {
+    $unread_count = 0;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI-Based Diet & Nutritional Planner</title>
+<title>AI-Based Diet & Nutritional Planner - Dashboard</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
 <style>
 :root{
@@ -40,6 +68,7 @@ if (!$user) {
   --border:#e3ebe6;
   --shadow:0 10px 30px rgba(27,61,48,.08);
   --radius:18px;
+  --danger:#dc2626;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -51,7 +80,7 @@ body{
 }
 button,a{font:inherit}
 a{color:inherit}
-.app{min-height:100vh;display:flex}
+.app{min-height:100vh;display:flex;position:relative;}
 .sidebar{
   width:260px;
   flex:0 0 260px;
@@ -76,7 +105,7 @@ a{color:inherit}
   display:grid;place-items:center;background:rgba(255,255,255,.12);
   font-size:23px;
 }
-.brand strong{display:block;font-size:17px;letter-spacing:-.2px}
+.brand strong{display:block;font-size:17px}
 .brand span{display:block;color:#b9d5ca;font-size:12px;margin-top:2px}
 .nav-label{
   padding:0 12px 8px;color:#9fc2b4;
@@ -88,10 +117,21 @@ a{color:inherit}
   text-decoration:none;padding:13px 12px;border-radius:12px;
   color:#d9ebe4;font-size:14px;font-weight:650;
   transition:background .2s,transform .2s;
+  position:relative;
 }
 .nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}
 .nav a.active{background:rgba(255,255,255,.14);color:#fff}
 .nav-icon{width:24px;text-align:center;font-size:17px}
+
+.nav-badge{
+  margin-left:auto;
+  background:var(--danger);
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  padding:2px 8px;
+  border-radius:999px;
+}
 
 .sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
 .sidebar-bottom a.logout{
@@ -203,6 +243,113 @@ a{color:inherit}
 .quick b{font-size:14px}
 .quick span{display:block;color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5}
 
+/* LOWER-RIGHT NOTIFICATION TOAST */
+.bottom-right-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 320px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 35px rgba(27, 61, 48, 0.15);
+  padding: 16px;
+  z-index: 998;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: slideUpToast 0.3s ease-out;
+}
+
+@keyframes slideUpToast {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toast-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toast-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--green-soft);
+  color: var(--green);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+
+.toast-title-group strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.toast-close:hover {
+  color: var(--text);
+}
+
+.toast-body {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.toast-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.toast-btn {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toast-btn-primary {
+  background: var(--green);
+  color: #fff;
+}
+.toast-btn-primary:hover {
+  background: #2e714e;
+}
+
 .overlay{display:none}
 @media(max-width:900px){
   .sidebar{width:240px;flex-basis:240px}
@@ -229,6 +376,7 @@ a{color:inherit}
   .hero h2{font-size:29px}
   .hero-stat{display:none}
   .section-title{align-items:flex-start;flex-direction:column;gap:4px}
+  .bottom-right-toast { right: 15px; left: 15px; width: auto; }
 }
 @media(max-width:420px){
   .actions .btn{width:100%}
@@ -254,7 +402,13 @@ a{color:inherit}
     <nav class="nav">
       <a class="active" href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="generate_weekly.php"><span class="nav-icon">▦</span>Weekly Meal Plan</a>
-      <a href="chat.php"><span class="nav-icon">◌</span>Nutritionist</a>
+      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+      <a href="user_inbox.php">
+        <span class="nav-icon">📥</span>Inbox
+        <?php if($unread_count > 0): ?>
+          <span class="nav-badge"><?php echo $unread_count; ?></span>
+        <?php endif; ?>
+      </a>
       <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
     </nav>
 
@@ -287,7 +441,7 @@ a{color:inherit}
         <p>Generate a weekly diet plan and use your nutritionist chat to make practical adjustments along the way.</p>
         <div class="actions">
           <a class="btn btn-primary" href="generate_weekly.php">🍽️ Generate Weekly Plan</a>
-          <a class="btn btn-secondary" href="chat.php">💬 Talk to Nutritionist</a>
+          <a class="btn btn-secondary" href="user_inbox.php">📥 View Inbox</a>
         </div>
       </div>
       <div class="hero-stat">
@@ -316,11 +470,11 @@ a{color:inherit}
 
       <article class="card">
         <div class="card-top">
-          <div class="card-icon">💬</div>
+          <div class="card-icon">📥</div>
         </div>
-        <h3>Consult a Nutritionist</h3>
-        <p>Open the nutritionist chat to discuss your plan and get guidance for improving your food choices.</p>
-        <a class="btn btn-secondary" href="chat.php">Open Chat <span>→</span></a>
+        <h3>Messages Inbox</h3>
+        <p>Check your messages and conversations with nutritionists to discuss your diet plans and guidance.</p>
+        <a class="btn btn-secondary" href="user_inbox.php">Open Inbox <span>→</span></a>
       </article>
     </section>
 
@@ -336,9 +490,9 @@ a{color:inherit}
         <b>📅 Weekly Meal Plan</b>
         <span>Create your next 7-day meal plan.</span>
       </a>
-      <a class="quick" href="chat.php">
-        <b>🧑‍⚕️ Nutritionist Chat</b>
-        <span>Get help refining your nutrition plan.</span>
+      <a class="quick" href="user_inbox.php">
+        <b>📥 Messages Inbox</b>
+        <span>View all nutritionist conversations.</span>
       </a>
       <a class="quick" href="profile.php">
         <b>👤 Edit Profile</b>
@@ -346,6 +500,26 @@ a{color:inherit}
       </a>
     </section>
   </main>
+
+  <!-- LOWER RIGHT NOTIFICATION BAR / TOAST -->
+  <?php if ($latest_message && $unread_count > 0): ?>
+  <div id="notificationToast" class="bottom-right-toast">
+    <div class="toast-header">
+      <div class="toast-title-group">
+        <div class="toast-icon">💬</div>
+        <strong>New Nutritionist Message</strong>
+      </div>
+      <button class="toast-close" onclick="closeToast()" aria-label="Close notification">&times;</button>
+    </div>
+    <p class="toast-body">
+      <b><?php echo htmlspecialchars($latest_message['sender_name'] ?? 'Nutritionist'); ?>:</b> 
+      <?php echo htmlspecialchars($latest_message['message'] ?? 'Sent you a message regarding your diet plan.'); ?>
+    </p>
+    <div class="toast-footer">
+      <a href="user_inbox.php" class="toast-btn toast-btn-primary">Open Inbox →</a>
+    </div>
+  </div>
+  <?php endif; ?>
 </div>
 
 <!-- LOGOUT CONFIRMATION MODAL -->
@@ -362,6 +536,16 @@ a{color:inherit}
 </div>
 
 <script>
+function closeToast() {
+  const toast = document.getElementById('notificationToast');
+  if (toast) {
+    toast.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    setTimeout(() => toast.remove(), 200);
+  }
+}
+
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
 }

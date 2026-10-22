@@ -1,8 +1,18 @@
 <?php
 require_once 'config.php';
 
-$type = isset($_GET['type']) ?$_GET['type'] : 'meals';
-$goal = isset($_GET['goal']) ? $_GET['goal'] : '';$specialty = isset($_GET['specialty']) ?$_GET['specialty'] : '';
+$type = isset($_GET['type']) ? $_GET['type'] : 'meals';
+$goal = isset($_GET['goal']) ? $_GET['goal'] : '';
+$specialty = isset($_GET['specialty']) ? $_GET['specialty'] : '';
+
+// Function to get initials (e.g. "Juan Dela Cruz" -> "JC")
+function getInitials($name) {
+    $words = explode(' ', trim($name));
+    if (count($words) >= 2) {
+        return strtoupper(substr($words[0], 0, 1) . substr(end($words), 0, 1));
+    }
+    return strtoupper(substr($name, 0, 2));
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -103,7 +113,6 @@ $goal = isset($_GET['goal']) ? $_GET['goal'] : '';$specialty = isset($_GET['spec
             background:var(--primary-soft);
             transform:translateY(-1px);
         }
-        /* The underline rules have been completely removed here */
         
         .btn-primary,.btn{
             border:0;
@@ -154,63 +163,7 @@ $goal = isset($_GET['goal']) ? $_GET['goal'] : '';$specialty = isset($_GET['spec
             margin:0 auto;
             padding:54px 0 90px;
         }
-        .page-hero{
-            min-height:245px;
-            position:relative;
-            display:flex;
-            align-items:center;
-            justify-content:space-between;
-            gap:35px;
-            overflow:hidden;
-            padding:42px clamp(26px,5vw,60px);
-            border:1px solid rgba(22,163,106,.10);
-            border-radius:32px;
-            background:
-                linear-gradient(135deg,rgba(255,255,255,.95),rgba(239,250,244,.91));
-            box-shadow:var(--shadow);
-        }
-        .hero-copy{position:relative;z-index:2}
-        .eyebrow{
-            display:inline-flex;
-            padding:7px 11px;
-            margin-bottom:13px;
-            border-radius:999px;
-            background:var(--primary-soft);
-            color:var(--primary-dark);
-            font-size:11px;
-            font-weight:800;
-            letter-spacing:1.2px;
-        }
-        .page-hero h1{
-            font-size:clamp(36px,5vw,58px);
-            line-height:1.03;
-            letter-spacing:-2.2px;
-            font-weight:800;
-        }
-        .page-hero h1 span{
-            color:var(--primary);
-            display:block;
-        }
-        .page-hero p{
-            max-width:620px;
-            margin-top:15px;
-            color:var(--muted);
-            font-size:16px;
-            line-height:1.7;
-        }
-        .hero-orb{
-            width:175px;height:175px;
-            flex:0 0 175px;
-            display:grid;
-            place-items:center;
-            border-radius:50%;
-            background:radial-gradient(circle at 35% 30%,#fff 0 12%,#d8f5e6 35%,#a7e7c5 100%);
-            box-shadow:inset 0 0 0 18px rgba(255,255,255,.38),0 25px 55px rgba(22,163,106,.15);
-            animation:float 5s ease-in-out infinite;
-        }
-        .hero-orb span{font-size:72px;filter:drop-shadow(0 12px 15px rgba(7,26,18,.12))}
-        @keyframes float{50%{transform:translateY(-9px) rotate(2deg)}}
-
+        
         .tabs{
             display:flex;
             gap:10px;
@@ -369,18 +322,31 @@ $goal = isset($_GET['goal']) ? $_GET['goal'] : '';$specialty = isset($_GET['spec
         .nutritionist-card{
             text-align:center;
             padding:28px 22px 22px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
-        .avatar{
+        .avatar, .avatar-initials{
             width:120px;height:120px;
-            object-fit:cover;
             display:block;
             margin:0 auto 16px;
             border-radius:50%;
             border:5px solid #e7f7ee;
             box-shadow:0 12px 28px rgba(7,26,18,.10);
             transition:.35s ease;
+            flex-shrink: 0;
         }
-        .nutritionist-card:hover .avatar{
+        .avatar{object-fit:cover;}
+        .avatar-initials{
+            background:var(--primary-soft);
+            color:var(--primary-dark);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:38px;
+            font-weight:800;
+        }
+        .nutritionist-card:hover .avatar, .nutritionist-card:hover .avatar-initials{
             transform:scale(1.06);
             border-color:#bdebd1;
         }
@@ -454,15 +420,6 @@ $goal = isset($_GET['goal']) ? $_GET['goal'] : '';$specialty = isset($_GET['spec
             .navbar{min-height:68px;padding:11px 17px}
             .logo{font-size:17px}
             .container{width:min(100% - 28px,560px);padding:26px 0 60px}
-            .page-hero{
-                min-height:auto;
-                padding:28px 23px;
-                border-radius:25px;
-            }
-            .page-hero h1{font-size:39px;letter-spacing:-1.5px}
-            .page-hero p{font-size:14px}
-            .hero-orb{width:88px;height:88px;flex-basis:88px;box-shadow:inset 0 0 0 9px rgba(255,255,255,.4),0 15px 35px rgba(22,163,106,.12)}
-            .hero-orb span{font-size:40px}
             .tabs{
                 width:100%;
                 overflow-x:auto;
@@ -481,26 +438,7 @@ $goal = isset($_GET['goal']) ? $_GET['goal'] : '';$specialty = isset($_GET['spec
             .meal-image{height:200px}
             .card{border-radius:21px}
         }
-
-        @media (max-width:420px){
-            .logo span{display:none}
-            .page-hero{display:block}
-            .hero-orb{position:absolute;right:-18px;bottom:-18px}
-            .page-hero h1{font-size:34px;max-width:260px}
-            .page-hero p{max-width:250px}
-        }
-
-        @media (prefers-reduced-motion:reduce){
-            html{scroll-behavior:auto}
-            *,*::before,*::after{
-                animation-duration:.01ms !important;
-                animation-iteration-count:1 !important;
-                transition-duration:.01ms !important;
-            }
-            .reveal{opacity:1;transform:none}
-        }
     </style>
-
 </head>
 <body>
     <header class="navbar">
@@ -536,19 +474,21 @@ $goal = isset($_GET['goal']) ? $_GET['goal'] : '';$specialty = isset($_GET['spec
 
         <div class="grid">
         <?php
-        if ($goal) {$sql = "SELECT * FROM meal_plans WHERE goal = ? ORDER BY id DESC";
+        if ($goal) {
+            $sql = "SELECT * FROM meal_plans WHERE goal = ? ORDER BY id DESC";
             $stmt = $conn->prepare($sql);
             $stmt->execute([$goal]);
         } else {
             $sql = "SELECT * FROM meal_plans ORDER BY id DESC";
-            $stmt =$conn->prepare($sql);$stmt->execute();
+            $stmt = $conn->prepare($sql);
+            $stmt->execute();
         }
 
-        $meals =$stmt->fetchAll(PDO::FETCH_ASSOC);
+        $meals = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         if(!empty($meals)):
-            foreach($meals as$row):
-                $img = (!empty($row['photo']) && file_exists($row['photo'])) ?$row['photo'] : 'uploads/default_meal.jpg';
+            foreach($meals as $row):
+                $img = (!empty($row['photo']) && file_exists($row['photo'])) ? $row['photo'] : 'uploads/default_meal.jpg';
         ?>
             <article class="card meal-card reveal">
                 <img src="<?= htmlspecialchars($img) ?>" alt="<?= htmlspecialchars($row['title']) ?>" class="meal-image">
@@ -570,27 +510,55 @@ $goal = isset($_GET['goal']) ? $_GET['goal'] : '';$specialty = isset($_GET['spec
 
         <div class="grid">
         <?php
-        if ($specialty) {$sql = "SELECT * FROM nutritionist WHERE certification=? AND status='approved' ORDER BY id DESC";
+        // Fixed SQL query to support active, approved, or null status nutritionists
+        if ($specialty) {
+            $sql = "SELECT * FROM nutritionist WHERE certification=? AND (status='approved' OR status='active' OR status IS NULL) ORDER BY id DESC";
             $stmt = $conn->prepare($sql);
             $stmt->execute([$specialty]);
         } else {
-            $sql = "SELECT * FROM nutritionist WHERE status='approved' ORDER BY id DESC";
-            $stmt =$conn->prepare($sql);$stmt->execute();
+            $sql = "SELECT * FROM nutritionist WHERE status='approved' OR status='active' OR status IS NULL ORDER BY id DESC";
+            $stmt = $conn->prepare($sql);
+            $stmt->execute();
         }
         
-        $nutritionists =$stmt->fetchAll(PDO::FETCH_ASSOC);
+        $nutritionists = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         if(!empty($nutritionists)):
-            foreach($nutritionists as $row):$profile_img = !empty($row['profile_pic']) ? 'uploads/profile_pics/'.$row['profile_pic'] : 'uploads/default_avatar.jpg';
+            foreach($nutritionists as $row):
+                $filename = trim($row['profile_pic'] ?? '');
+                $has_valid_image = false;
+                $profile_img = "";
+
+                if (!empty($filename) && $filename !== 'default_avatar.png') {
+                    if (strpos($filename, 'http') === 0 || strpos($filename, '/') === 0) {
+                        $profile_img = $filename;
+                        $has_valid_image = true;
+                    } else {
+                        if (file_exists("uploads/profile_pics/" . $filename)) {
+                            $profile_img = "uploads/profile_pics/" . $filename;
+                            $has_valid_image = true;
+                        } else if (file_exists($filename)) {
+                            $profile_img = $filename;
+                            $has_valid_image = true;
+                        }
+                    }
+                }
         ?>
             <article class="card nutritionist-card reveal">
-                <img src="<?= htmlspecialchars($profile_img) ?>" class="avatar" alt="Profile Picture"><br>
+                <?php if ($has_valid_image): ?>
+                    <img src="<?= htmlspecialchars($profile_img) ?>" class="avatar" alt="<?= htmlspecialchars($row['fullname']) ?>">
+                <?php else: ?>
+                    <div class="avatar-initials">
+                        <?= getInitials($row['fullname']) ?>
+                    </div>
+                <?php endif; ?>
+
                 <h3><?= htmlspecialchars($row['fullname']) ?></h3>
                 <p><?= htmlspecialchars($row['certification']) ?></p>
                 <div class="experience">
                     <?= (int)$row['experience'] ?> years experience
                 </div>
-                <a href="auth/login.php" class="btn">View Profile</a>
+                <a href="nutritionist_profile.php?id=<?= $row['id'] ?>" class="btn">View Profile</a>
             </article>
         <?php 
             endforeach; 

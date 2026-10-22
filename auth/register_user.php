@@ -6,7 +6,10 @@ require_once '../config.php'; // Database connection[cite: 3]
 $errors = [];
 $success = "";
 
-$fullname = "";
+$firstname = "";
+$middlename = "";
+$lastname = "";
+$address = "";
 $email = "";
 $phone = "";
 $age = "";
@@ -17,18 +20,21 @@ $goal = "";
 $activity = "";
 $diet_type = "";
 $allergies = "";
+$latitude = "14.3498";
+$longitude = "121.0794";
 
-// When form is submitted[cite: 3]
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    // BASIC INFO[cite: 3]
-    $fullname = trim($_POST['fullname']);
+    $firstname = trim($_POST['firstname']);
+    $middlename = trim($_POST['middlename']);
+    $lastname = trim($_POST['lastname']);
+    $address = trim($_POST['address']);
     $email = trim($_POST['email']);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
     $phone = trim($_POST['phone']);
+    $latitude = !empty($_POST['latitude']) ? floatval($_POST['latitude']) : 14.3498;
+    $longitude = !empty($_POST['longitude']) ? floatval($_POST['longitude']) : 121.0794;
 
-    // PROFILE INFO (AI INPUT)[cite: 3]
     $age = intval($_POST['age']);
     $gender = $_POST['gender'];
     $height = floatval($_POST['height']);
@@ -38,10 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $diet_type = trim($_POST['diet_type']);
     $allergies = trim($_POST['allergies']);
 
-    // Validation[cite: 3]
-    if (empty($fullname)) $errors[] = "Full name is required.";
+    if (empty($firstname)) $errors[] = "First name is required.";
+    if (empty($lastname)) $errors[] = "Last name is required.";
+    if (empty($address)) $errors[] = "Address is required.";
     
-    // Advanced Email Validation
     $email_domain = substr(strrchr($email, "@"), 1);
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = "Valid email format is required.";
@@ -49,8 +55,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "The email domain does not appear to be valid or able to receive emails.";
     }
 
-    if (empty($password) || strlen($password) < 12) $errors[] = "Password must be at least 12 characters.";
-    if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
+    if (empty($password)) {
+        $errors[] = "Password is required.";
+    } elseif (strlen($password) < 8) {
+        $errors[] = "Password must be at least 8 characters long.";
+    } elseif (!preg_match('/[A-Z]/', $password)) {
+        $errors[] = "Password must contain at least one uppercase letter (A-Z).";
+    } elseif (!preg_match('/[a-z]/', $password)) {
+        $errors[] = "Password must contain at least one lowercase letter (a-z).";
+    } elseif (!preg_match('/[0-9]/', $password)) {
+        $errors[] = "Password must contain at least one number (0-9).";
+    } elseif (!preg_match('/[^a-zA-Z0-9]/', $password)) {
+        $errors[] = "Password must contain at least one special character (e.g. @, #, $, !).";
+    }
+
+    if ($password !== $confirm_password) {
+        $errors[] = "Passwords do not match.";
+    }
 
     if (!preg_match('/^[0-9]{11}$/', $phone)) {
         $errors[] = "Phone number must be exactly 11 digits.";
@@ -60,7 +81,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($height <= 0) $errors[] = "Valid height is required.";
     if ($weight <= 0) $errors[] = "Valid weight is required.";
 
-    // Check if email already exists[cite: 3]
     if (empty($errors)) {
         $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
         $stmt->execute([$email]);
@@ -70,32 +90,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Insert into DB[cite: 3]
     if (empty($errors)) {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
         $role = 'user';
+        $fullname = trim($firstname . ' ' . (!empty($middlename) ? $middlename . ' ' : '') . $lastname);
 
         $stmt = $conn->prepare("
             INSERT INTO users
-            (fullname, email, phone, password, role, age, gender, height, weight, goal, activity, diet_type, allergies)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (fullname, email, phone, password, role, age, gender, height, weight, goal, activity, diet_type, allergies, address, latitude, longitude)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         try {
             $stmt->execute([
-                $fullname,
-                $email,
-                $phone,
-                $hashed_password,
-                $role,
-                $age,
-                $gender,
-                $height,
-                $weight,
-                $goal,
-                $activity,
-                $diet_type,
-                $allergies
+                $fullname, $email, $phone, $hashed_password, $role, $age, $gender, 
+                $height, $weight, $goal, $activity, $diet_type, $allergies, $address, $latitude, $longitude
             ]);
 
             $success = "Registration successful! You can now <a href='login.php' style='text-decoration: underline;'>Sign In</a>.";
@@ -116,9 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-
-    <!-- Google Identity Services -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
 
     <style>
         :root{
@@ -134,9 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             --dark:#071a12;
             --dark-2:#0d281d;
             --shadow:0 24px 70px rgba(7,26,18,.10);
-            --shadow-sm:0 12px 35px rgba(7,26,18,.08);
             --radius:28px;
-            
             --success-bg: #f0fdf4;
             --success-text: #166534;
             --success-border: #bbf7d0;
@@ -157,509 +163,229 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         a { text-decoration: none; color: inherit; }
 
-        /* Ambient background */
-        body::before {
-            content: "";
-            position: fixed;
-            width: 520px; height: 520px;
-            top: -230px; right: -180px;
-            background: rgba(22,163,106,.10);
-            filter: blur(20px);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: -1;
-        }
-        
-        body::after {
-            content: "";
-            position: fixed;
-            width: 400px; height: 400px;
-            bottom: -150px; left: -150px;
-            background: rgba(22,163,106,.07);
-            filter: blur(20px);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        /* HEADER */
         .header {
             padding: 24px clamp(20px, 5vw, 60px);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
+            display: flex; justify-content: space-between; align-items: center; width: 100%;
         }
 
         .logo {
-            display: inline-flex;
-            align-items: center;
-            gap: 11px;
-            font-family: 'Manrope', sans-serif;
-            font-size: 19px;
-            font-weight: 800;
-            letter-spacing: -.4px;
+            display: inline-flex; align-items: center; gap: 11px;
+            font-family: 'Manrope', sans-serif; font-size: 19px; font-weight: 800;
         }
         
         .logo-mark {
-            width: 40px; height: 40px;
-            display: grid; place-items: center;
-            border-radius: 13px;
-            background: linear-gradient(145deg,#20bd7a,#078452);
-            box-shadow: 0 9px 22px rgba(22,163,106,.24);
-            font-size: 21px;
-        }
-        
-        .logo span { color: var(--dark); }
-
-        .back-link {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--muted);
-            transition: .25s ease;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .back-link:hover {
-            color: var(--primary-dark);
-            transform: translateX(-4px);
+            width: 40px; height: 40px; display: grid; place-items: center;
+            border-radius: 13px; background: linear-gradient(145deg,#20bd7a,#078452); color: #fff; font-size: 21px;
         }
 
-        /* WRAPPER & CARD */
+        .back-link { font-size: 14px; font-weight: 700; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+        
         .wrapper {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 10px clamp(15px, 4vw, 40px) 60px;
+            flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: 10px clamp(15px, 4vw, 40px) 60px;
         }
 
         .card {
-            background: rgba(255,255,255,.85);
-            width: 100%;
-            max-width: 780px;
-            padding: clamp(30px, 5vw, 45px);
-            border-radius: var(--radius);
-            border: 1px solid rgba(255,255,255,.9);
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(15px);
-            animation: slideUp 0.6s ease-out forwards;
+            background: rgba(255,255,255,.85); width: 100%; max-width: 780px;
+            padding: clamp(30px, 5vw, 45px); border-radius: var(--radius); box-shadow: var(--shadow); backdrop-filter: blur(15px);
         }
 
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        .card-header { text-align: center; margin-bottom: 30px; }
+        .card-header h2 { font-family: 'Manrope', sans-serif; font-size: clamp(26px, 4vw, 32px); color: var(--dark); margin-bottom: 8px; }
+        .card-header p { color: var(--muted); font-size: 15px; }
 
-        .card-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .card-header h2 {
-            font-family: 'Manrope', sans-serif;
-            font-size: clamp(26px, 4vw, 32px);
-            letter-spacing: -0.5px;
-            color: var(--dark);
-            margin-bottom: 8px;
-        }
-
-        .card-header p {
-            color: var(--muted);
-            font-size: 15px;
-        }
-
-        /* SUCCESS ALERT */
         .alert-card-success { 
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 14px 18px;
-            border-radius: 14px;
-            margin-bottom: 24px;
-            font-size: 14px;
-            line-height: 1.5;
-            background: var(--success-bg); 
-            border: 1px solid var(--success-border); 
-            color: var(--success-text); 
-            animation: slideDown 0.4s ease-out forwards;
-        }
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .alert-card-success i { margin-top: 3px; font-size: 16px; }
-
-        /* FORM STYLES */
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px 24px;
+            display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-radius: 14px; margin-bottom: 24px;
+            font-size: 14px; background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); 
         }
 
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 24px; }
+        .form-group { display: flex; flex-direction: column; position: relative; }
         .form-group.full-width { grid-column: 1 / -1; }
 
         .section-divider {
-            grid-column: 1 / -1;
-            font-family: 'Manrope', sans-serif;
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--dark);
-            margin-top: 15px;
-            margin-bottom: 5px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid var(--line);
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            grid-column: 1 / -1; font-family: 'Manrope', sans-serif; font-size: 18px; font-weight: 700; color: var(--dark);
+            margin-top: 15px; margin-bottom: 5px; padding-bottom: 12px; border-bottom: 1px solid var(--line);
+            display: flex; align-items: center; gap: 10px;
         }
-        
-        .section-divider::before {
-            content: "";
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            background: var(--primary);
-        }
+        .section-divider::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
 
-        label {
-            font-weight: 600;
-            font-size: 14px;
-            color: var(--dark-2);
-            margin-bottom: 8px;
-        }
+        label { font-weight: 600; font-size: 14px; color: var(--dark-2); margin-bottom: 8px; display: flex; justify-content: space-between; }
 
         .form-control {
-            width: 100%;
-            padding: 14px 16px;
-            border-radius: 12px;
-            border: 1px solid var(--line);
-            background: var(--surface-2);
-            font-family: inherit;
-            font-size: 14.5px;
-            color: var(--text);
-            transition: all 0.25s ease;
+            width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line);
+            background: var(--surface-2); font-family: inherit; font-size: 14.5px; color: var(--text); transition: all 0.25s ease;
         }
-
-        .form-control:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: #fff;
-            box-shadow: 0 0 0 4px var(--primary-soft);
-        }
-
-        .form-control::placeholder { color: #9ba7a2; }
+        .form-control:focus { outline: none; border-color: var(--primary); background: #fff; box-shadow: 0 0 0 4px var(--primary-soft); }
 
         select.form-control {
-            cursor: pointer;
-            appearance: none;
+            cursor: pointer; appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2365736d'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 16px center;
-            background-size: 16px;
-            padding-right: 40px;
+            background-repeat: no-repeat; background-position: right 16px center; background-size: 16px; padding-right: 40px;
         }
-
         textarea.form-control { resize: vertical; min-height: 100px; }
 
-        /* PREMIUM PASSWORD UI STYLES */
-        .password-section {
+        .address-row { display: flex; gap: 10px; }
+        .btn-pick-map {
+            background: var(--primary-soft); color: var(--primary-dark); border: 1px solid #c9ebd8;
+            padding: 0 16px; border-radius: 12px; font-weight: 700; font-size: 13.5px;
+            cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; transition: .2s;
+        }
+        .btn-pick-map:hover { background: #d4f2e1; }
+
+        /* ADDRESS AUTOCOMPLETE SUGGESTIONS DROPDOWN */
+        #address-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 2px solid var(--primary);
+            border-top: none;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+            max-height: 220px;
+            overflow-y: auto;
+            z-index: 99999;
+            display: none;
+            margin-top: 2px;
+        }
+        .suggestion-item {
+            padding: 12px 16px;
+            font-size: 14px;
+            color: var(--text);
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.15s;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: var(--primary-soft); color: var(--primary-dark); font-weight: 600; }
+
+        /* MAP MODAL */
+        .map-modal {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, .6);
+            display: none; align-items: center; justify-content: center; padding: 20px; z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+        .map-modal.active { display: flex; }
+        .map-modal-box {
+            width: 100%; max-width: 680px; background: white; border-radius: 24px; padding: 25px;
+            box-shadow: 0 25px 70px rgba(15,23,42,.25);
+        }
+        .map-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .map-modal-header h3 { margin: 0; font-size: 18px; color: var(--dark); font-weight: 700; }
+        .close-map-modal {
+            width: 35px; height: 35px; border: none; border-radius: 8px; background: #f1f5f9;
+            cursor: pointer; color: #475569; font-size: 16px; display: grid; place-items: center;
+        }
+        .close-map-modal:hover { background: #e2e8f0; }
+
+        #modal-map-container {
+            width: 100%;
+            height: 340px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+        }
+
+        /* PINED ADDRESS CARD & CHOOSE BUTTON INSIDE MODAL */
+        .map-footer-card {
+            margin-top: 15px;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px 18px;
             display: flex;
             flex-direction: column;
             gap: 12px;
         }
-
-        .pwd-labels {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr;
-            align-items: center;
-            gap: 24px;
-        }
-
-        .pwd-labels label {
-            margin: 0;
+        .selected-address-info {
             display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 15px;
-            color: #1a202c;
-        }
-
-        .req-asterisk {
-            color: #d32f2f;
-        }
-
-        .help-icon {
-            color: #cbd5e1;
-            font-size: 12px;
-            cursor: help;
-        }
-
-        .show-pwd-toggle {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: #1e3a8a;
-            font-weight: 600;
+            align-items: flex-start;
+            gap: 10px;
             font-size: 13.5px;
-            cursor: pointer;
-            user-select: none;
-            transition: color 0.2s ease;
-        }
-
-        .show-pwd-toggle:hover {
-            color: var(--primary);
-        }
-
-        .pwd-inputs {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-        }
-
-        .pwd-inputs input:not(:placeholder-shown) {
-            letter-spacing: 3px;
-            font-family: monospace;
-            font-size: 18px;
-        }
-
-        .pwd-meter-row {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-top: 4px;
-        }
-
-        .meter-track {
-            flex: 1;
-            height: 8px;
-            background: #e2e8f0;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        .meter-fill {
-            height: 100%;
-            width: 0%;
-            background: transparent;
-            transition: width 0.4s ease, background 0.4s ease;
-            border-radius: 10px;
-        }
-
-        .meter-text {
-            font-weight: 700;
-            font-size: 13px;
             color: var(--dark);
-            min-width: 45px;
         }
-
-        .pwd-hint {
-            font-size: 13px;
-            color: #64748b;
-            line-height: 1.5;
+        .selected-address-info i {
+            color: var(--primary);
+            font-size: 16px;
+            margin-top: 2px;
         }
-
-        /* BUTTONS */
-        .btn-primary {
-            display: inline-flex;
+        .btn-choose-address {
+            background: linear-gradient(135deg,#19ad70,#078151);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            width: 100%;
-            min-height: 52px;
-            background: linear-gradient(135deg,#19ad70,#078151);
-            color: #fff;
-            border: none;
-            border-radius: 14px;
-            font-weight: 700;
-            font-size: 15px;
-            cursor: pointer;
-            margin-top: 15px;
-            box-shadow: 0 12px 26px rgba(8,129,81,.20);
-            transition: transform .25s ease, box-shadow .25s ease;
+            box-shadow: 0 8px 20px rgba(8,129,81,.2);
+            transition: transform 0.2s;
         }
-        
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 16px 32px rgba(8,129,81,.28);
-        }
-
-        /* FOOTER LINK */
-        .signup-link {
-            text-align: center;
-            margin-top: 24px;
-            font-size: 14.5px;
-            color: var(--muted);
-        }
-        
-        .signup-link a {
-            color: var(--primary-dark);
-            font-weight: 700;
-            transition: .25s ease;
-        }
-        
-        .signup-link a:hover {
-            color: var(--primary);
-            text-decoration: underline;
-        }
-
-        /* ERROR MODAL STYLES */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(7, 26, 18, 0.4);
-            backdrop-filter: blur(8px);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .modal-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .modal-card {
-            background: #ffffff;
-            width: 100%;
-            max-width: 440px;
-            border-radius: 28px;
-            padding: 40px 30px;
-            box-shadow: 0 30px 80px rgba(7, 26, 18, 0.15);
-            text-align: center;
-            transform: translateY(20px) scale(0.95);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        .modal-overlay.active .modal-card {
-            transform: translateY(0) scale(1);
-        }
-
-        .modal-icon {
-            width: 72px;
-            height: 72px;
-            background: #fff1f2;
-            color: #e11d48;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            margin: 0 auto 20px;
-            box-shadow: 0 10px 25px rgba(225, 29, 72, 0.15);
-        }
-
-        .modal-title {
-            font-family: 'Manrope', sans-serif;
-            font-size: 24px;
-            color: var(--dark);
-            margin-bottom: 12px;
-            letter-spacing: -0.5px;
-        }
-
-        .modal-desc {
-            color: var(--muted);
-            font-size: 14.5px;
-            margin-bottom: 24px;
-            line-height: 1.5;
-        }
-
-        .modal-errors {
-            background: var(--surface-2);
-            border-radius: 16px;
-            padding: 16px 20px;
-            text-align: left;
-            margin-bottom: 30px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .modal-errors ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .modal-errors li {
-            position: relative;
-            padding-left: 24px;
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: var(--text);
-            line-height: 1.4;
-        }
-        
-        .modal-errors li:last-child { margin-bottom: 0; }
-
-        .modal-errors li::before {
-            content: "\f071"; 
-            font-family: "Font Awesome 6 Free";
-            font-weight: 900;
-            position: absolute;
-            left: 0;
-            top: 2px;
-            color: #e11d48;
-            font-size: 12px;
-        }
-
-        .btn-modal {
-            background: var(--dark);
-            color: #fff;
-            border: none;
-            width: 100%;
-            padding: 16px;
-            border-radius: 14px;
-            font-weight: 700;
-            font-size: 15px;
-            cursor: pointer;
-            transition: all 0.25s ease;
-        }
-
-        .btn-modal:hover {
-            background: var(--dark-2);
+        .btn-choose-address:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 24px rgba(7, 26, 18, 0.2);
         }
 
-        /* RESPONSIVE */
-        @media (max-width: 768px) {
-            .form-grid { grid-template-columns: 1fr; gap: 18px; }
-            .section-divider { margin-top: 10px; }
-            .pwd-labels, .pwd-inputs { grid-template-columns: 1fr; gap: 12px; }
-            .show-pwd-toggle { justify-content: flex-start; margin-bottom: 8px; }
+        .password-box { position: relative; width: 100%; }
+        .password-box .form-control { padding-right: 48px; }
+        .toggle-password-icon {
+            position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+            cursor: pointer; color: #9ba7a2; font-size: 16px; background: none; border: none;
         }
 
-        @media (max-width: 480px) {
-            .header { padding: 20px 15px; }
-            .logo { font-size: 16px; }
-            .logo-mark { width: 36px; height: 36px; font-size: 19px; border-radius: 11px; }
-            .card { padding: 30px 20px; border-radius: 24px; }
-            .card-header h2 { font-size: 24px; }
+        .password-segments-container { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+        .segments-track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+        .segment { height: 6px; background-color: #e2e8f0; border-radius: 3px; }
+        .strength-text-label { font-size: 12px; font-weight: 700; text-align: right; min-height: 18px; }
+
+        .btn-primary {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; min-height: 52px; background: linear-gradient(135deg,#19ad70,#078151);
+            color: #fff; border: none; border-radius: 14px; font-weight: 700; font-size: 15px;
+            cursor: pointer; margin-top: 15px; box-shadow: 0 12px 26px rgba(8,129,81,.20);
         }
+        .btn-primary:hover { transform: translateY(-3px); }
+
+        .signup-link { text-align: center; margin-top: 24px; font-size: 14.5px; color: var(--muted); }
+        .signup-link a { color: var(--primary-dark); font-weight: 700; }
+
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(7, 26, 18, 0.4);
+            backdrop-filter: blur(8px); z-index: 9999; display: flex;
+            justify-content: center; align-items: center; padding: 20px;
+            opacity: 0; visibility: hidden; transition: all 0.3s ease;
+        }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal-card {
+            background: #ffffff; width: 100%; max-width: 440px; border-radius: 28px;
+            padding: 40px 30px; box-shadow: 0 30px 80px rgba(7, 26, 18, 0.15); text-align: center;
+        }
+        .modal-icon {
+            width: 72px; height: 72px; background: #fff1f2; color: #e11d48;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 32px; margin: 0 auto 20px;
+        }
+        .modal-title { font-family: 'Manrope', sans-serif; font-size: 24px; color: var(--dark); margin-bottom: 12px; }
+        .modal-desc { color: var(--muted); font-size: 14.5px; margin-bottom: 24px; }
+        .modal-errors { background: var(--surface-2); border-radius: 16px; padding: 16px 20px; text-align: left; margin-bottom: 30px; max-height: 200px; overflow-y: auto; }
+        .modal-errors ul { list-style: none; padding: 0; margin: 0; }
+        .modal-errors li { position: relative; padding-left: 24px; margin-bottom: 10px; font-size: 14px; color: var(--text); }
+        .btn-modal { background: var(--dark); color: #fff; border: none; width: 100%; padding: 16px; border-radius: 14px; font-weight: 700; cursor: pointer; }
+
+        @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; gap: 18px; } }
     </style>
 </head>
 <body>
 
-<!-- ERROR MODAL OVERLAY -->
 <div class="modal-overlay <?php echo !empty($errors) ? 'active' : ''; ?>" id="errorModal" style="<?php echo !empty($errors) ? 'display:flex;' : 'display:none;'; ?>">
     <div class="modal-card">
-        <div class="modal-icon">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
+        <div class="modal-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
         <h3 class="modal-title">Action Required</h3>
         <p class="modal-desc">Please complete the following required information to continue with your registration.</p>
-        
         <div class="modal-errors">
             <ul id="errorList">
                 <?php foreach ($errors as$err): ?>
@@ -667,13 +393,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endforeach; ?>
             </ul>
         </div>
-        
         <button type="button" class="btn-modal" onclick="closeErrorModal()">Got It, Let's Fix This</button>
     </div>
 </div>
 
 <header class="header">
-    <a href="../index.php" class="logo" aria-label="AI Diet Planner home">
+    <a href="../index.php" class="logo">
         <span class="logo-mark">🥗</span>
         <span>AI Diet Planner</span>
     </a>
@@ -694,64 +419,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         <?php endif; ?>
 
-        <form method="POST" id="registerForm" novalidate>
+        <form method="POST" id="registerForm">
             <div class="form-grid">
                 
                 <div class="section-divider">Account Credentials</div>
 
-                <div class="form-group full-width">
-                    <label for="fullname">Full Name</label>
-                    <input type="text" id="fullname" name="fullname" class="form-control" placeholder="Enter your full name" required value="<?php echo htmlspecialchars($fullname); ?>">
+                <div class="form-group">
+                    <label for="firstname">First Name <span style="color: #d32f2f;">*</span></label>
+                    <input type="text" id="firstname" name="firstname" class="form-control" placeholder="Enter first name" required value="<?php echo htmlspecialchars($firstname); ?>">
                 </div>
 
                 <div class="form-group">
-                    <label for="email">Email Address</label>
+                    <label for="middlename">Middle Name <span style="color: var(--muted); font-weight: 400;">(Optional)</span></label>
+                    <input type="text" id="middlename" name="middlename" class="form-control" placeholder="Enter middle name" value="<?php echo htmlspecialchars($middlename); ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="lastname">Last Name <span style="color: #d32f2f;">*</span></label>
+                    <input type="text" id="lastname" name="lastname" class="form-control" placeholder="Enter last name" required value="<?php echo htmlspecialchars($lastname); ?>">
+                </div>
+
+                <!-- ADDRESS FIELD WITH AUTOCOMPLETE & MAP PIN -->
+                <div class="form-group">
+                    <label for="address">Address <span style="color: #d32f2f;">*</span></label>
+                    <div class="address-row">
+                        <input type="text" id="address" name="address" class="form-control" placeholder="e.g. Biñan, Laguna" autocomplete="off" required value="<?php echo htmlspecialchars($address); ?>">
+                        <button type="button" class="btn-pick-map" onclick="openMapModal()">
+                            <i class="fa-solid fa-map-location-dot"></i> Pin Map
+                        </button>
+                    </div>
+                    <!-- Dropdown suggestions container -->
+                    <div id="address-suggestions"></div>
+
+                    <input type="hidden" id="latitude" name="latitude" value="<?php echo htmlspecialchars($latitude); ?>">
+                    <input type="hidden" id="longitude" name="longitude" value="<?php echo htmlspecialchars($longitude); ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address <span style="color: #d32f2f;">*</span></label>
                     <input type="email" id="email" name="email" class="form-control" placeholder="name@example.com" required value="<?php echo htmlspecialchars($email); ?>">
                 </div>
 
                 <div class="form-group">
-                    <label for="phone">Phone Number</label>
-                    <!-- Phone field restricted to 11 numbers max and numeric input only -->
+                    <label for="phone">Phone Number <span style="color: #d32f2f;">*</span></label>
                     <input type="text" id="phone" name="phone" class="form-control" placeholder="11 digits (e.g. 09123456789)" maxlength="11" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);" required value="<?php echo htmlspecialchars($phone); ?>">
                 </div>
 
-                <!-- PREMIUM PASSWORD SECTION -->
-                <div class="form-group full-width password-section">
-                    <div class="pwd-labels">
-                        <label for="password">Password <span class="req-asterisk">*</span> <i class="fa-regular fa-circle-question help-icon" title="Must be at least 12 characters long"></i></label>
-                        <div class="show-pwd-toggle" onclick="toggleGlobalPassword()">
-                            <i class="fa-regular fa-eye" id="global-eye"></i> <span id="global-eye-text">Show Password</span>
+                <div class="form-group">
+                    <label for="password">Password <span style="color: #d32f2f;">*</span></label>
+                    <div class="password-box">
+                        <input type="password" id="password" name="password" class="form-control" placeholder="••••••••••••" oninput="checkPasswordStrength(this.value)" required>
+                        <button type="button" class="toggle-password-icon" onclick="togglePasswordVisibility('password', this)" title="Show/Hide Password">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="password-segments-container">
+                        <div class="segments-track">
+                            <div class="segment" id="seg-1"></div>
+                            <div class="segment" id="seg-2"></div>
+                            <div class="segment" id="seg-3"></div>
+                            <div class="segment" id="seg-4"></div>
                         </div>
-                        <label for="confirm_password">Confirm Password <span class="req-asterisk">*</span> <i class="fa-regular fa-circle-question help-icon"></i></label>
-                    </div>
-
-                    <div class="pwd-inputs">
-                        <input type="password" id="password" name="password" class="form-control" placeholder="••••••••••••••••" required oninput="evaluatePasswordStrength()">
-                        <input type="password" id="confirm_password" name="confirm_password" class="form-control" placeholder="••••••••••••••••" required>
-                    </div>
-
-                    <div class="pwd-meter-row">
-                        <div class="meter-track">
-                            <div class="meter-fill" id="meter-fill"></div>
-                        </div>
-                        <div class="meter-text" id="meter-text"></div>
-                    </div>
-
-                    <div class="pwd-hint">
-                        Hint: The password should be at least twelve characters long. To make it stronger, use upper and lower case letters, numbers, and symbols like ! " ? $ % ^ & ).
+                        <div class="strength-text-label" id="strength-text" style="color: var(--muted);"></div>
                     </div>
                 </div>
-                <!-- END PREMIUM PASSWORD SECTION -->
+
+                <div class="form-group">
+                    <label for="confirm_password">Confirm Password <span style="color: #d32f2f;">*</span></label>
+                    <div class="password-box">
+                        <input type="password" id="confirm_password" name="confirm_password" class="form-control" placeholder="Re-enter password" required>
+                        <button type="button" class="toggle-password-icon" onclick="togglePasswordVisibility('confirm_password', this)" title="Show/Hide Password">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group full-width" style="font-size: 13px; color: var(--muted); margin-top: -10px;">
+                    Password must be at least 8 characters long and include an uppercase letter (A-Z), lowercase letter (a-z), a number (0-9), and a special symbol (e.g. @, #, $, !).
+                </div>
 
                 <div class="section-divider">Physical & Health Profile</div>
 
                 <div class="form-group">
-                    <label for="age">Age</label>
+                    <label for="age">Age <span style="color: #d32f2f;">*</span></label>
                     <input type="number" id="age" name="age" class="form-control" placeholder="e.g. 25" required value="<?php echo htmlspecialchars($age); ?>">
                 </div>
 
                 <div class="form-group">
-                    <label for="gender">Gender</label>
+                    <label for="gender">Gender <span style="color: #d32f2f;">*</span></label>
                     <select id="gender" name="gender" class="form-control" required>
                         <option value="">Select Gender</option>
                         <option value="male" <?php if($gender == 'male') echo 'selected'; ?>>Male</option>
@@ -760,17 +516,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <div class="form-group">
-                    <label for="height">Height (cm)</label>
+                    <label for="height">Height (cm) <span style="color: #d32f2f;">*</span></label>
                     <input type="number" step="0.1" id="height" name="height" class="form-control" placeholder="e.g. 170" required value="<?php echo htmlspecialchars($height); ?>">
                 </div>
 
                 <div class="form-group">
-                    <label for="weight">Weight (kg)</label>
+                    <label for="weight">Weight (kg) <span style="color: #d32f2f;">*</span></label>
                     <input type="number" step="0.1" id="weight" name="weight" class="form-control" placeholder="e.g. 65" required value="<?php echo htmlspecialchars($weight); ?>">
                 </div>
 
                 <div class="form-group">
-                    <label for="goal">Primary Fitness Goal</label>
+                    <label for="goal">Primary Fitness Goal <span style="color: #d32f2f;">*</span></label>
                     <select id="goal" name="goal" class="form-control" required>
                         <option value="">Select Goal</option>
                         <option value="lose" <?php if($goal == 'lose') echo 'selected'; ?>>Lose Weight</option>
@@ -780,7 +536,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <div class="form-group">
-                    <label for="activity">Daily Activity Level</label>
+                    <label for="activity">Daily Activity Level <span style="color: #d32f2f;">*</span></label>
                     <select id="activity" name="activity" class="form-control" required>
                         <option value="">Select Activity</option>
                         <option value="low" <?php if($activity == 'low') echo 'selected'; ?>>Low (Sedentary)</option>
@@ -796,7 +552,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="form-group full-width">
                     <label for="allergies">Food Allergies or Restrictions <span style="color: var(--muted); font-weight: 400;">(Optional)</span></label>
-                    <textarea id="allergies" name="allergies" class="form-control" placeholder="List any food allergies (e.g. Peanuts, Shellfish, Lactose)..."><?php echo htmlspecialchars($allergies); ?></textarea>
+                    <textarea id="allergies" name="allergies" class="form-control" placeholder="List any food allergies..."><?php echo htmlspecialchars($allergies); ?></textarea>
                 </div>
 
                 <div class="form-group full-width">
@@ -812,46 +568,199 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </main>
 
+<!-- MAP MODAL WITH GPS AUTO-DETECTION AND CLICK-TO-PIN -->
+<div class="map-modal" id="mapModal">
+    <div class="map-modal-box">
+        <div class="map-modal-header">
+            <h3>Set Your Location</h3>
+            <button type="button" class="close-map-modal" onclick="closeMapModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div>
+            <div id="modal-map-container"></div>
+            
+            <!-- Address preview card and Choose Address button -->
+            <div class="map-footer-card">
+                <div class="selected-address-info">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <div>
+                        <strong style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px;">Selected Address:</strong>
+                        <span id="modal-address-text">Click anywhere on the map to place a pin.</span>
+                    </div>
+                </div>
+                <button type="button" id="btnChooseAddress" class="btn-choose-address" onclick="confirmSelectedAddress()" style="opacity: 0.6; pointer-events: none;">
+                    <i class="fa-solid fa-check"></i> Choose Address
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <script>
-// --- Client-Side Form Validation Override ---
-document.getElementById('registerForm').addEventListener('submit', function(event) {
-    if (!this.checkValidity()) {
-        event.preventDefault(); // Stop normal submission
+let mapInstance = null;
+let markerInstance = null;
+let debounceTimer = null;
+let tempLat = null;
+let tempLng = null;
+let tempAddressText = "";
 
-        let errors = [];
-        const elements = this.elements;
-        
-        for (let i = 0; i < elements.length; i++) {
-            if (elements[i].willValidate && !elements[i].validity.valid) {
-                let label = document.querySelector(`label[for="${elements[i].id}"]`);
-                let fieldName = label ? label.innerText.replace(/ \*.*/, '').replace(/ \(.*\)/, '') : elements[i].name;
+const addressInput = document.getElementById('address');
+const suggestionsBox = document.getElementById('address-suggestions');
 
-                if (elements[i].validity.valueMissing) {
-                    errors.push(`${fieldName} is required.`);
-                } else if (elements[i].validity.typeMismatch || elements[i].validity.patternMismatch) {
-                    errors.push(`Please enter a valid ${fieldName}.`);
-                }
+addressInput.addEventListener('input', function() {
+    const query = this.value.trim();
+    clearTimeout(debounceTimer);
+
+    if (query.length < 3) {
+        suggestionsBox.style.display = 'none';
+        suggestionsBox.innerHTML = '';
+        return;
+    }
+
+    debounceTimer = setTimeout(() => {
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ph&limit=5`, {
+            headers: {
+                'Accept-Language': 'en'
             }
-        }
-        
-        // Populate and show the modal
-        const modal = document.getElementById('errorModal');
-        const errorList = document.getElementById('errorList');
-        
-        errorList.innerHTML = '';
-        
-        errors.forEach(err => {
-            const li = document.createElement('li');
-            li.textContent = err;
-            errorList.appendChild(li);
+        })
+        .then(response => response.json())
+        .then(data => {
+            suggestionsBox.innerHTML = '';
+            if (data && data.length > 0) {
+                suggestionsBox.style.display = 'block';
+                data.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.textContent = item.display_name;
+                    div.addEventListener('click', function() {
+                        addressInput.value = item.display_name;
+                        document.getElementById('longitude').value = item.lon;
+                        document.getElementById('latitude').value = item.lat;
+                        suggestionsBox.style.display = 'none';
+                    });
+                    suggestionsBox.appendChild(div);
+                });
+            } else {
+                suggestionsBox.style.display = 'none';
+            }
+        })
+        .catch(err => {
+            console.error('Autocomplete error:', err);
+            suggestionsBox.style.display = 'none';
         });
+    }, 300);
+});
 
-        modal.style.display = 'flex';
-        setTimeout(() => { modal.classList.add('active'); }, 10);
+document.addEventListener('click', function(e) {
+    if (!addressInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+        suggestionsBox.style.display = 'none';
     }
 });
 
-// --- Close Modal Function ---
+function openMapModal() {
+    const modal = document.getElementById('mapModal');
+    modal.classList.add('active');
+
+    setTimeout(() => {
+        if (!mapInstance) {
+            // Default center muna sa Pilipinas (Biñan/Manila area)
+            mapInstance = L.map('modal-map-container').setView([14.3498, 121.0794], 14);
+
+            // MapTiler Streets tile layer (Google Maps style)
+            L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=ZkO2ll8wJho8o1zc1Sug', {
+                maxZoom: 19,
+                attribution: '&copy; MapTiler &copy; OpenStreetMap contributors'
+            }).addTo(mapInstance);
+
+            mapInstance.on('click', function(e) {
+                setPinPosition(e.latlng.lat, e.latlng.lng);
+            });
+
+            // Subukang kunin ang GPS location ng device kung pinayagan sa settings
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const userLat = position.coords.latitude;
+                        const userLng = position.coords.longitude;
+                        mapInstance.setView([userLat, userLng], 15);
+                        // Optional: Awtomatikong i-set ang pin sa kasalukuyang GPS location
+                        setPinPosition(userLat, userLng);
+                    },
+                    (error) => {
+                        console.log("Geolocation permission denied or unavailable.", error);
+                    },
+                    { timeout: 10000 }
+                );
+            }
+        }
+
+        mapInstance.invalidateSize();
+    }, 250);
+}
+
+function closeMapModal() {
+    document.getElementById('mapModal').classList.remove('active');
+}
+
+async function setPinPosition(lat, lng) {
+    tempLat = lat;
+    tempLng = lng;
+
+    const customIcon = L.divIcon({
+        className: 'custom-map-pin',
+        html: '<div style="background-color: #16a36a; width: 36px; height: 36px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 2px solid white;"><i class="fa-solid fa-location-dot" style="transform: rotate(45deg); color: white; font-size: 16px;"></i></div>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 36],
+        popupAnchor: [0, -36]
+    });
+
+    if (markerInstance) {
+        markerInstance.setLatLng([lat, lng]);
+    } else {
+        markerInstance = L.marker([lat, lng], { draggable: true, icon: customIcon }).addTo(mapInstance);
+        markerInstance.on('dragend', function() {
+            const pos = markerInstance.getLatLng();
+            setPinPosition(pos.lat, pos.lng);
+        });
+    }
+
+    mapInstance.panTo([lat, lng]);
+    document.getElementById('modal-address-text').textContent = "Fetching address...";
+
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const data = await response.json();
+        if (data && data.display_name) {
+            tempAddressText = data.display_name;
+            document.getElementById('modal-address-text').textContent = tempAddressText;
+        } else {
+            tempAddressText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            document.getElementById('modal-address-text').textContent = tempAddressText;
+        }
+    } catch (e) {
+        console.error("Geocoding error", e);
+        tempAddressText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        document.getElementById('modal-address-text').textContent = tempAddressText;
+    }
+
+    // Enable ang "Choose Address" button kapag may pin na nakalagay
+    const chooseBtn = document.getElementById('btnChooseAddress');
+    chooseBtn.style.opacity = '1';
+    chooseBtn.style.pointerEvents = 'auto';
+}
+
+function confirmSelectedAddress() {
+    if (tempLat !== null && tempLng !== null) {
+        document.getElementById('latitude').value = tempLat;
+        document.getElementById('longitude').value = tempLng;
+        if (tempAddressText) {
+            document.getElementById('address').value = tempAddressText;
+        }
+        closeMapModal();
+    }
+}
+
 function closeErrorModal() {
     const modal = document.getElementById('errorModal');
     if (modal) {
@@ -860,70 +769,58 @@ function closeErrorModal() {
     }
 }
 
-// --- Password Functions ---
-function toggleGlobalPassword() {
-    const pwd = document.getElementById('password');
-    const cpwd = document.getElementById('confirm_password');
-    const icon = document.getElementById('global-eye');
-    const textSpan = document.getElementById('global-eye-text');
-    
-    if (pwd.type === 'password') {
-        pwd.type = 'text';
-        cpwd.type = 'text';
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
-        textSpan.innerText = 'Hide Password';
+function togglePasswordVisibility(fieldId, btnElement) {
+    const passwordInput = document.getElementById(fieldId);
+    const icon = btnElement.querySelector('i');
+    if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash");
     } else {
-        pwd.type = 'password';
-        cpwd.type = 'password';
-        icon.classList.remove('fa-eye-slash');
-        icon.classList.add('fa-eye');
-        textSpan.innerText = 'Show Password';
+        passwordInput.type = "password";
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
     }
 }
 
-function evaluatePasswordStrength() {
-    const val = document.getElementById('password').value;
-    const meterFill = document.getElementById('meter-fill');
-    const meterText = document.getElementById('meter-text');
-    
+function checkPasswordStrength(password) {
     let strength = 0;
-    
-    if (val.length > 0) strength += 1;
-    if (val.length >= 8) strength += 1;
-    if (val.length >= 12) strength += 1;
-    if (/[A-Z]/.test(val)) strength += 1;
-    if (/[0-9]/.test(val)) strength += 1;
-    if (/[^A-Za-z0-9]/.test(val)) strength += 1;
+    if (password.length >= 8) strength++;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^a-zA-Z0-9]/.test(password)) strength++;
 
-    let width = 0;
-    let color = 'transparent';
-    let text = '';
+    const seg1 = document.getElementById('seg-1');
+    const seg2 = document.getElementById('seg-2');
+    const seg3 = document.getElementById('seg-3');
+    const seg4 = document.getElementById('seg-4');
+    const textEl = document.getElementById('strength-text');
 
-    if (val.length === 0) {
-        width = 0;
-        text = '';
-    } else if (strength <= 2) {
-        width = 25;
-        color = '#ef4444'; 
-        text = 'Weak';
-    } else if (strength <= 4) {
-        width = 50;
-        color = '#f59e0b'; 
-        text = 'Medium';
-    } else if (strength === 5) {
-        width = 75;
-        color = '#84cc16'; 
-        text = 'Good';
-    } else {
-        width = 100;
-        color = 'linear-gradient(to right, #ef4444, #f59e0b, #eab308, #22c55e, #14532d)'; 
-        text = 'Strong';
+    [seg1, seg2, seg3, seg4].forEach(seg => {
+        seg.style.backgroundColor = '#e2e8f0';
+    });
+
+    if (password.length === 0) {
+        textEl.textContent = '';
+        return;
     }
 
-    meterFill.style.background = color;
-    meterFill.style.width = width + '%';
-    meterText.innerText = text;
+    let activeCount = strength;
+    if (activeCount > 4) activeCount = 4;
+
+    let color = '#ef4444';
+    let text = 'Weak';
+    if (strength === 2) { color = '#f97316'; text = 'Fair'; }
+    else if (strength === 3) { color = '#eab308'; text = 'Good'; }
+    else if (strength >= 4) { color = '#10b981'; text = 'Strong'; }
+
+    const segments = [seg1, seg2, seg3, seg4];
+    for (let i = 0; i < activeCount; i++) {
+        segments[i].style.backgroundColor = color;
+    }
+
+    textEl.textContent = text;
+    textEl.style.color = color;
 }
 </script>
 

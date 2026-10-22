@@ -67,6 +67,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
     header("Location: nutritionist_profile.php?id=" . $id);
     exit;
 }
+
+// Function to get initials (e.g. "Juan Dela Cruz" -> "JC")
+function getInitials($name) {
+    $words = explode(' ', trim($name));
+    if (count($words) >= 2) {
+        return strtoupper(substr($words[0], 0, 1) . substr(end($words), 0, 1));
+    }
+    return strtoupper(substr($name, 0, 2));
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -87,7 +96,12 @@ body{ margin:0; font-family:'Inter',sans-serif; background:#f4f7ff; color:#0f172
 .container{ max-width:1000px; margin:40px auto; padding:0 30px; }
 .profile-card{ background:#fff; border-radius:28px; padding:40px; box-shadow:0 30px 70px rgba(0,0,0,.1); }
 .profile-header{ display:flex; gap:30px; align-items:center; }
-.avatar{ width:130px; height:130px; border-radius:50%; object-fit:cover; border:6px solid #e0e7ff; }
+
+/* AVATAR & INITIALS STYLES */
+.avatar, .avatar-initials{ width:130px; height:130px; border-radius:50%; border:6px solid #e0e7ff; flex-shrink:0; }
+.avatar{ object-fit:cover; }
+.avatar-initials{ background:#e0e7ff; color:#2563eb; display:flex; align-items:center; justify-content:center; font-size:42px; font-weight:800; }
+
 .name{ font-size:34px; font-weight:800; }
 .specialty{ color:#2563eb; font-weight:600; margin:5px 0; }
 .badge{ display:inline-block; margin-top:8px; padding:6px 14px; background:#e0e7ff; color:#2563eb; border-radius:20px; font-size:13px; font-weight:600; }
@@ -121,9 +135,34 @@ input, textarea, select { width: 100%; padding: 12px; margin: 10px 0; border-rad
 
     <div class="profile-header">
         <?php 
-            $img_path = !empty($n['profile_pic']) ? "uploads/profile_pics/".$n['profile_pic'] : "uploads/default_avatar.jpg";
+            $filename = trim($n['profile_pic'] ?? '');
+            $has_valid_image = false;
+            $img_path = "";
+
+            if (!empty($filename) && $filename !== 'default_avatar.png') {
+                if (strpos($filename, 'http') === 0 || strpos($filename, '/') === 0) {
+                    $img_path = $filename;
+                    $has_valid_image = true;
+                } else {
+                    if (file_exists("uploads/profile_pics/" . $filename)) {
+                        $img_path = "uploads/profile_pics/" . $filename;
+                        $has_valid_image = true;
+                    } else if (file_exists($filename)) {
+                        $img_path = $filename;
+                        $has_valid_image = true;
+                    }
+                }
+            }
         ?>
-        <img src="<?= $img_path ?>" class="avatar">
+
+        <?php if ($has_valid_image): ?>
+            <img src="<?= htmlspecialchars($img_path) ?>" class="avatar" alt="<?= htmlspecialchars($n['fullname']) ?>">
+        <?php else: ?>
+            <div class="avatar-initials">
+                <?= getInitials($n['fullname']) ?>
+            </div>
+        <?php endif; ?>
+
         <div>
             <div class="name"><?= htmlspecialchars($n['fullname']) ?></div>
             <div class="specialty"><?= htmlspecialchars($n['certification']) ?></div>
@@ -198,8 +237,10 @@ input, textarea, select { width: 100%; padding: 12px; margin: 10px 0; border-rad
 
     <div class="section">
         <h3>Credentials</h3>
-        <?php if ($n['document']): ?>
+        <?php if (!empty($n['document'])): ?>
             <a href="uploads/nutritionists/<?= htmlspecialchars($n['document']) ?>" target="_blank" class="btn-outline">View Certificate</a>
+        <?php else: ?>
+            <p style="color:#64748b">No document provided.</p>
         <?php endif; ?>
     </div>
 

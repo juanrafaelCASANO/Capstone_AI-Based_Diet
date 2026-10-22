@@ -319,9 +319,9 @@
                     <div class="icon-box">
                         <i class="fa-solid fa-user"></i>
                     </div>
-                    <h3>Standard User</h3>
+                    <h3>Dietary Client</h3>
                     <p>Get personalized AI dietary plans, tracking tools, and nutrition recommendations tailored to your unique goals.</p>
-                    <div class="btn-select">Register as User <span>→</span></div>
+                    <div class="btn-select">Register as Client <span>→</span></div>
                 </a>
 
                 <!-- Nutritionist Registration Card -->

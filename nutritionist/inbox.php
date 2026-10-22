@@ -59,8 +59,6 @@ $inbox_sql = "
 $inbox_stmt = $conn->prepare($inbox_sql);
 $inbox_stmt->execute(['nutri_id' => $nutri_id]);
 $conversations = $inbox_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -205,7 +203,6 @@ a { color: inherit; text-decoration: none; }
     <div class="inbox-list">
       <?php if (count($conversations) > 0): ?>
         <?php foreach ($conversations as $chat): ?>
-          <!-- Tandaan: Pinalitan ko ito ng chat_reply.php. Kung ibang pangalan ang file ng reply mo (hal. view_chat.php), palitan mo lang dito -->
           <a href="chat_reply.php?user_id=<?php echo $chat['client_id']; ?>" class="inbox-card">
             <div class="client-info">
               <div class="avatar">
@@ -217,7 +214,14 @@ a { color: inherit; text-decoration: none; }
                   <?php if ($chat['last_sender_id'] == $nutri_id): ?>
                     <span style="color:var(--teal);">You: </span>
                   <?php endif; ?>
-                  <?php echo htmlspecialchars($chat['last_message']); ?>
+                  
+                  <?php 
+                    if (strpos($chat['last_message'], 'Weekly Meal Plan') !== false) {
+                        echo '🥗 Shared a Weekly Meal Plan';
+                    } else {
+                        echo htmlspecialchars($chat['last_message']);
+                    }
+                  ?>
                 </p>
               </div>
             </div>
