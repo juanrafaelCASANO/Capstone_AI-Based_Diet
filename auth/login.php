@@ -30,7 +30,7 @@ function sendTextBeeSMS($phoneNumber, $message) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
-        'x-api-key: ' . $apiKey
+        'TEXTBEE_API_KEY: ' . $textbeeKey
     ]);
 
     $response = curl_exec($ch);
