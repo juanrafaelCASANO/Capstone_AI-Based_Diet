@@ -15,14 +15,16 @@ $errors = [];$success = "";
 // ======================================================
 // TEXTBEE SMS HELPER FUNCTION
 // ======================================================
-function sendTextBeeSMS($phoneNumber, $message) {$textbeeKey = getenv('TEXTBEE_API_KEY');
+function sendTextBeeSMS($phoneNumber, $message) {
+    $textbeeKey = getenv('TEXTBEE_API_KEY') ?: (defined('TEXTBEE_API_KEY') ? TEXTBEE_API_KEY : 'txb_3fsPevHJvqEIoVVr9cR2QmVxKsB4wRm4');
     
     $phoneNumber = trim($phoneNumber);
     if (strpos($phoneNumber, '09') === 0) {
         $phoneNumber = '+63' . substr($phoneNumber, 1);
     }
 
-    $url = 'https://api.textbee.dev/api/v1/gateway/send-sms';$data = [
+    $url = 'https://api.textbee.dev/api/v1/gateway/send-sms';
+    $data = [
         'recipients' => [$phoneNumber],
         'message' => $message
     ];
@@ -33,7 +35,7 @@ function sendTextBeeSMS($phoneNumber, $message) {$textbeeKey = getenv('TEXTBEE_A
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
-        'x-api-key: ' . $apiKey
+        'x-api-key: ' . $textbeeKey // ITAMA ITO: Ginawang $textbeeKey
     ]);
 
     $response = curl_exec($ch);
