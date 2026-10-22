@@ -3,95 +3,145 @@
 session_start();
 require_once '../config.php';
 
-$errors = [];$success = "";
+$errors = [];
+$success = "";
 
-$firstname =$_POST['firstname'] ?? '';
-$middlename =$_POST['middlename'] ?? '';
-$lastname =$_POST['lastname'] ?? '';
-$address =$_POST['address'] ?? '';
-$email =$_POST['email'] ?? '';
-$phone =$_POST['phone'] ?? '';
-$nutritionist_type =$_POST['nutritionist_type'] ?? '';
-$experience =$_POST['experience'] ?? '';
-$latitude =$_POST['latitude'] ?? '14.3498';
-$longitude =$_POST['longitude'] ?? '121.0794';
+$firstname = $_POST['firstname'] ?? '';
+$middlename = $_POST['middlename'] ?? '';
+$lastname = $_POST['lastname'] ?? '';
+$address = $_POST['address'] ?? '';
+$email = $_POST['email'] ?? '';
+$phone = $_POST['phone'] ?? '';
+$nutritionist_type = $_POST['nutritionist_type'] ?? '';
+$experience = $_POST['experience'] ?? '';
+$latitude = $_POST['latitude'] ?? '14.3498';
+$longitude = $_POST['longitude'] ?? '121.0794';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {$firstname = trim($_POST['firstname']);$middlename = trim($_POST['middlename']);$lastname = trim($_POST['lastname']);$address = trim($_POST['address']);$email = trim($_POST['email']);$password = $_POST['password'];$confirm_password = $_POST['confirm_password'];$phone = trim($_POST['phone']);$nutritionist_type = $_POST['nutritionist_type'];$experience = trim($_POST['experience']);$latitude = !empty($_POST['latitude']) ? floatval($_POST['latitude']) : 14.3498;
+// ======================================================
+// SUPABASE STORAGE UPLOAD HELPER FUNCTION
+// ======================================================
+function uploadToSupabaseStorage($fileTmpPath, $fileName, $bucketName) {
+    $projectRef = "mbsjtesmrowfilvxcaqb"; 
+    $supabaseKey = getenv('SUPABASE_KEY') ?: 'YOUR_SUPABASE_SERVICE_ROLE_KEY';
+    
+    $fileData = file_get_contents($fileTmpPath);
+    $url = "https://$projectRef.supabase.co/storage/v1/object/$bucketName/$fileName";
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $fileData);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $supabaseKey,
+        'Content-Type: application/octet-stream',
+        'x-upsert: true'
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode >= 200 && $httpCode < 300) {
+        return "https://$projectRef.supabase.co/storage/v1/object/public/$bucketName/$fileName";
+    }
+    return false;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $firstname = trim($_POST['firstname']);
+    $middlename = trim($_POST['middlename']);
+    $lastname = trim($_POST['lastname']);
+    $address = trim($_POST['address']);
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'];
+    $phone = trim($_POST['phone']);
+    $nutritionist_type = $_POST['nutritionist_type'];
+    $experience = trim($_POST['experience']);
+    $latitude = !empty($_POST['latitude']) ? floatval($_POST['latitude']) : 14.3498;
     $longitude = !empty($_POST['longitude']) ? floatval($_POST['longitude']) : 121.0794;
 
-    if (empty($firstname))$errors[] = "First name is required.";
-    if (empty($lastname))$errors[] = "Last name is required.";
-    if (empty($address))$errors[] = "Address is required.";
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL))$errors[] = "Valid email is required.";
-    if (empty($nutritionist_type))$errors[] = "Type of Nutritionist is required.";
+    if (empty($firstname)) $errors[] = "First name is required.";
+    if (empty($lastname)) $errors[] = "Last name is required.";
+    if (empty($address)) $errors[] = "Address is required.";
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required.";
+    if (empty($nutritionist_type)) $errors[] = "Type of Nutritionist is required.";
     
     // Strict Password Requirements
-    if (empty($password)) {$errors[] = "Password is required.";
-    } elseif (strlen($password) < 8) {$errors[] = "Password must be at least 8 characters long.";
-    } elseif (!preg_match('/[A-Z]/', $password)) {$errors[] = "Password must contain at least one uppercase letter (A-Z).";
-    } elseif (!preg_match('/[a-z]/', $password)) {$errors[] = "Password must contain at least one lowercase letter (a-z).";
-    } elseif (!preg_match('/[0-9]/', $password)) {$errors[] = "Password must contain at least one number (0-9).";
-    } elseif (!preg_match('/[^a-zA-Z0-9]/', $password)) {$errors[] = "Password must contain at least one special character (e.g. @, #, $, !).";
+    if (empty($password)) {
+        $errors[] = "Password is required.";
+    } elseif (strlen($password) < 8) {
+        $errors[] = "Password must be at least 8 characters long.";
+    } elseif (!preg_match('/[A-Z]/', $password)) {
+        $errors[] = "Password must contain at least one uppercase letter (A-Z).";
+    } elseif (!preg_match('/[a-z]/', $password)) {
+        $errors[] = "Password must contain at least one lowercase letter (a-z).";
+    } elseif (!preg_match('/[0-9]/', $password)) {
+        $errors[] = "Password must contain at least one number (0-9).";
+    } elseif (!preg_match('/[^a-zA-Z0-9]/', $password)) {
+        $errors[] = "Password must contain at least one special character (e.g. @, #, $, !).";
     }
 
-    if ($password !== $confirm_password)$errors[] = "Passwords do not match.";
-    if (empty($_FILES['resume']['name']))$errors[] = "Resume or CV file is required.";
-    if (empty($_FILES['certification_files']['name'][0]))$errors[] = "At least one certification document file is required.";
+    if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
+    if (empty($_FILES['resume']['name'])) $errors[] = "Resume or CV file is required.";
+    if (empty($_FILES['certification_files']['name'][0])) $errors[] = "At least one certification document file is required.";
 
     if (empty($errors)) {
-        // Pinag-isa ang folder para sa lahat ng Documents (Resume at Certs)
-        $doc_dir = "../uploads/nutritionists/";
-        $pic_dir = "../uploads/profile_pics/";
-
-        if (!is_dir($doc_dir)) mkdir($doc_dir, 0755, true);
-        if (!is_dir($pic_dir)) mkdir($pic_dir, 0755, true);
+        $bucketName = "nutritionist-files";
 
         // Profile Picture Handling
-        $pic_filename = "default_avatar.png";
-        if (!empty($_FILES['profile_pic']['name']) &&$_FILES['profile_pic']['error'] === UPLOAD_ERR_OK) {
+        $pic_url = "default_avatar.png";
+        if (!empty($_FILES['profile_pic']['name']) && $_FILES['profile_pic']['error'] === UPLOAD_ERR_OK) {
             $pic_filename = time() . "_pic_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["profile_pic"]["name"]));
-            move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $pic_dir .$pic_filename);
-        }
-
-        $uploaded_docs = []; // Dito ilalagay ang LAHAT ng documents
-
-        // Upload Resume / CV at isama sa array
-        $resume_uploaded = false;
-        if (!empty($_FILES['resume']['name']) &&$_FILES['resume']['error'] === UPLOAD_ERR_OK) {
-            $resume_filename = time() . "_resume_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["resume"]["name"]));
-            $resume_uploaded = move_uploaded_file($_FILES['resume']['tmp_name'], $doc_dir .$resume_filename);
-            
-            if ($resume_uploaded) {
-                $uploaded_docs[] =$resume_filename; // Idagdag ang resume sa database list
+            $uploaded_url = uploadToSupabaseStorage($_FILES["profile_pic"]["tmp_name"], $pic_filename, $bucketName);
+            if ($uploaded_url) {
+                $pic_url = $uploaded_url;
             }
         }
 
-        // Upload Certification Files at isama din sa array
-        foreach ($_FILES['certification_files']['name'] as $key =>$name) {
-            if ($_FILES['certification_files']['error'][$key] === UPLOAD_ERR_OK) {$doc_filename = time() . "_cert_" . $key . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
-                if (move_uploaded_file($_FILES['certification_files']['tmp_name'][$key], $doc_dir .$doc_filename)) {
-                    $uploaded_docs[] =$doc_filename; // Idagdag ang certs sa database list
+        $uploaded_docs = []; 
+        $resume_uploaded = false;
+
+        // Upload Resume / CV to Supabase Storage
+        if (!empty($_FILES['resume']['name']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
+            $resume_filename = time() . "_resume_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["resume"]["name"]));
+            $uploaded_url = uploadToSupabaseStorage($_FILES['resume']['tmp_name'], $resume_filename, $bucketName);
+            
+            if ($uploaded_url) {
+                $resume_uploaded = true;
+                $uploaded_docs[] = $uploaded_url; 
+            }
+        }
+
+        // Upload Certification Files to Supabase Storage
+        foreach ($_FILES['certification_files']['name'] as $key => $name) {
+            if ($_FILES['certification_files']['error'][$key] === UPLOAD_ERR_OK) {
+                $doc_filename = time() . "_cert_" . $key . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
+                $uploaded_url = uploadToSupabaseStorage($_FILES['certification_files']['tmp_name'][$key], $doc_filename, $bucketName);
+                if ($uploaded_url) {
+                    $uploaded_docs[] = $uploaded_url; 
                 }
             }
         }
 
-        if ($resume_uploaded && count($uploaded_docs) > 1) { // Dapat may Resume + at least 1 Cert
+        if ($resume_uploaded && count($uploaded_docs) > 1) { 
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             $documents_json = json_encode($uploaded_docs);
 
-            $fullname = trim($firstname . ' ' . (!empty($middlename) ? $middlename . ' ' : '') .$lastname);
+            $fullname = trim($firstname . ' ' . (!empty($middlename) ? $middlename . ' ' : '') . $lastname);
 
-            $stmt =$conn->prepare("INSERT INTO nutritionist (fullname, profile_pic, email, phone, password, address, latitude, longitude, certification, experience, document, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+            $stmt = $conn->prepare("INSERT INTO nutritionist (fullname, profile_pic, email, phone, password, address, latitude, longitude, certification, experience, document, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
             
             $cert_data = "Type: " . $nutritionist_type;
 
-            if ($stmt->execute([$fullname,$pic_filename, $email,$phone, $hashed_password,$address, $latitude,$longitude, $cert_data,$experience, $documents_json])) {$success = "Registration successful! We will review your info soon.";
+            if ($stmt->execute([$fullname, $pic_url, $email, $phone, $hashed_password, $address, $latitude, $longitude, $cert_data, $experience, $documents_json])) {
+                $success = "Registration successful! We will review your info soon.";
                 $firstname = ""; $middlename = ""; $lastname = ""; $address = ""; $email = ""; $phone = ""; $nutritionist_type = ""; $experience = "";
             } else {
                 $errors[] = "Database Error occurred.";
             }
         } else {
-            $errors[] = "File upload failed. Please check folder permissions and required fields.";
+            $errors[] = "File upload to cloud failed. Please check Supabase Storage bucket and API key settings.";
         }
     }
 }
@@ -798,7 +848,6 @@ function openMapModal() {
         if (!mapInstance) {
             mapInstance = L.map('modal-map-container').setView([14.3498, 121.0794], 14);
 
-            // MapTiler Streets tile layer (Google Maps style)
             L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=ZkO2ll8wJho8o1zc1Sug', {
                 maxZoom: 19,
                 attribution: '&copy; MapTiler &copy; OpenStreetMap contributors'
