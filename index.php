@@ -4,56 +4,6 @@ header("X-Frame-Options: SAMEORIGIN");
 header("X-Content-Type-Options: nosniff");
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:;");
 
-// Handle sign in submission directly from index if needed
-$login_error = "";
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['index_login'])) {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $terms_accepted = isset($_POST['terms_accepted']);
-
-    if (empty($email) || empty($password)) {
-        $login_error = "Mangyaring ilagay ang iyong email at password.";
-    } elseif (!$terms_accepted) {
-        $login_error = "Kailangan mong sumang-ayon sa Terms of Service at Privacy Policy.";
-    } else {
-        // Check users table first
-        $stmt = $conn->prepare("SELECT id, fullname, email, password, role FROM users WHERE email=? LIMIT 1");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
-
-        if ($user && password_verify($password, $user['password'])) {
-            session_start();
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['fullname'] = $user['fullname'];
-            $_SESSION['role'] = $user['role'];
-            $redirect = ($user['role'] === 'admin') ? "admin/dashboard.php" : "user/dashboard.php";
-            header("Location: " . $redirect);
-            exit();
-        } else {
-            // Check nutritionist table
-            $stmt = $conn->prepare("SELECT id, fullname, email, password, status FROM nutritionist WHERE email=? LIMIT 1");
-            $stmt->execute([$email]);
-            $nutri = $stmt->fetch();
-
-            if ($nutri && password_verify($password, $nutri['password'])) {
-                $nutri_status = strtolower(trim($nutri['status'] ?? ''));
-                if ($nutri_status === 'approved' || $nutri_status === 'active' || empty($nutri['status'])) {
-                    session_start();
-                    $_SESSION['user_id'] = $nutri['id'];
-                    $_SESSION['fullname'] = $nutri['fullname'];
-                    $_SESSION['role'] = 'nutritionist';
-                    header("Location: nutritionist/dashboard.php");
-                    exit();
-                } else {
-                    $login_error = "Ang iyong nutritionist account ay kasalukuyang pending o hindi aprubado.";
-                }
-            } else {
-                $login_error = "Maling email o password. Pakisubukan muli.";
-            }
-        }
-    }
-}
-
 // Fetch available nutritionists using PDO
 $sql = "SELECT id, fullname, certification, experience, profile_pic FROM nutritionist WHERE status = 'active' OR status = 'approved' OR status IS NULL LIMIT 10";
 $stmt = $conn->query($sql);
@@ -437,18 +387,6 @@ function getInitials($name) {
             cursor: pointer;
             line-height: 1.4;
         }
-        .alert-mini {
-            padding: 8px 10px;
-            border-radius: 10px;
-            background: var(--error-bg);
-            border: 1px solid var(--error-border);
-            color: var(--error-text);
-            font-size: 12px;
-            margin-bottom: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
         .hero-signin-card .btn-primary {
             width: 100%;
             min-height: 46px;
@@ -536,10 +474,10 @@ function getInitials($name) {
             box-shadow:0 9px 28px rgba(7,26,18,.045);
             transition:.3s ease;
             overflow:hidden;
-            text-align: center; /* Naka-center na ang text */
+            text-align: center;
             display: flex;
             flex-direction: column;
-            align-items: center; /* Naka-center ang alignment ng mga elemento sa loob */
+            align-items: center;
         }
         .feature-box::after{
             content:"";
@@ -556,7 +494,7 @@ function getInitials($name) {
         }
         .expert-img, .expert-avatar {
             width: 82px; height: 82px;
-            border-radius: 50%; /* Ginawa nang pabilog (circle) */
+            border-radius: 50%;
             border: 4px solid #fff;
             box-shadow: 0 10px 25px rgba(7,26,18,.12);
             margin-bottom: 18px;
@@ -784,20 +722,13 @@ function getInitials($name) {
                 <div class="hero-visual reveal">
                     <div class="hero-orbit"></div>
 
-                    <!-- SIGN IN CARD IN THE CENTER -->
+                    <!-- SIGN IN CARD IN THE CENTER (POSTS DIRECTLY TO auth/login.php FOR 2FA SUPPORT) -->
                     <div class="hero-signin-card">
                         <div class="card-icon"><i class="fa-solid fa-seedling"></i></div>
                         <h3>Welcome Back</h3>
                         <p class="card-subtitle">Sign in to your AI Diet Planner account</p>
 
-                        <?php if (!empty($login_error)): ?>
-                            <div class="alert-mini">
-                                <i class="fa-solid fa-circle-exclamation"></i>
-                                <span><?php echo htmlspecialchars($login_error); ?></span>
-                            </div>
-                        <?php endif; ?>
-
-                        <form method="POST" action="index.php">
+                        <form method="POST" action="auth/login.php">
                             <div class="form-group">
                                 <label for="email">Email Address</label>
                                 <div class="input-box">
@@ -822,7 +753,7 @@ function getInitials($name) {
                                 <label for="terms">I agree to the Terms of Service and Privacy Policy.</label>
                             </div>
 
-                            <button type="submit" name="index_login" class="btn-primary">Sign In</button>
+                            <button type="submit" name="login" class="btn-primary">Sign In</button>
                         </form>
 
                         <div class="signup-link">
