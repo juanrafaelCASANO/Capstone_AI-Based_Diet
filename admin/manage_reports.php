@@ -7,7 +7,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-function sendTextBeeSMS($phoneNumber, $message) {$apiKey = 'txb_3fsPevHJvqEIoVVr9cR2QmVxKsB4wRm4';
+function sendTextBeeSMS($phoneNumber, $message) {$textbeeKey = getenv('TEXTBEE_API_KEY');
     $phoneNumber = trim($phoneNumber);
     if (strpos($phoneNumber, '09') === 0) {
         $phoneNumber = '+63' . substr($phoneNumber, 1);

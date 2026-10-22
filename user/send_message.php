@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
 
             // 4. Tawagin ang OpenAI API
            $url = 'https://api.openai.com/v1/chat/completions';
-$apiKey = getenv('OPENAI_API_KEY');
+$apiKey = getenv('MESSAGING_OPENAI_KEY');
             $data = [
                 'model' => 'gpt-3.5-turbo',
                 'messages' => [
