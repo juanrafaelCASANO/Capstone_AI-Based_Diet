@@ -12,30 +12,54 @@ $nutri_id = $_SESSION['user_id'];
 $success_msg = "";
 $error_msg = "";
 
-// Handle Status Change Request Submission with File Upload
+// Handle Status Change Request Submission with Supabase Storage File Upload
 if (isset($_POST['request_status_change'])) {
     $requested_status = $_POST['requested_status'] ?? '';
     $reason = trim($_POST['reason'] ?? '');
     
-    // File Upload Handling
+    // File Upload Handling via Supabase Storage Bucket
     $cert_filename = null;
     if (isset($_FILES['certificate_file']) && $_FILES['certificate_file']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = '../uploads/certificates/';
-        
-        // Create directory if it doesn't exist
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
-        }
-        
-        $file_extension = pathinfo($_FILES['certificate_file']['name'], PATHINFO_EXTENSION);
-        // Generate unique filename
-        $cert_filename = 'cert_' . $nutri_id . '_' . time() . '.' . $file_extension;
-        $target_file = $upload_dir . $cert_filename;
+        $fileTmpPath = $_FILES['certificate_file']['tmp_name'];
+        $fileName = $_FILES['certificate_file']['name'];
+        $fileType = $_FILES['certificate_file']['type'];
+        $file_extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
         
         $allowed_types = ['pdf', 'jpg', 'jpeg', 'png'];
-        if (in_array(strtolower($file_extension), $allowed_types)) {
-            if (!move_uploaded_file($_FILES['certificate_file']['tmp_name'], $target_file)) {
-                $cert_filename = null; // Failed to upload
+        if (in_array($file_extension, $allowed_types)) {
+            // Generate unique filename
+            $remote_filename = 'cert_' . $nutri_id . '_' . time() . '.' . $file_extension;
+            
+            // Supabase Credentials (Awtomatikong babasahin ang SUPABASE_SERVICE_KEY o SUPABASE_KEY)
+            $supabaseUrl = getenv('SUPABASE_URL') ?: 'YOUR_SUPABASE_URL';
+            $supabaseKey = getenv('SUPABASE_SERVICE_KEY') ?: (getenv('SUPABASE_KEY') ?: 'YOUR_SUPABASE_KEY');
+            $bucketName = 'nutritionist-files'; // Ang iyong bucket sa Supabase[cite: 13]
+            
+            $url = rtrim($supabaseUrl, '/') . "/storage/v1/object/$bucketName/$remote_filename";
+            
+            $fileData = file_get_contents($fileTmpPath);
+            
+            $headers = [
+                "Authorization: Bearer $supabaseKey",
+                "Content-Type: $fileType",
+                "x-upsert: true"
+            ];
+            
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $fileData);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($httpCode === 200 || $httpCode === 201) {
+                $cert_filename = $remote_filename; // Tagumpay ang pag-upload sa Supabase bucket
+            } else {
+                $error_msg = "Failed to upload file to Supabase Storage. (HTTP Code: $httpCode)";
             }
         } else {
             $error_msg = "Invalid file format. Please upload PDF, JPG, or PNG only.";
@@ -45,14 +69,10 @@ if (isset($_POST['request_status_change'])) {
     if (empty($error_msg) && !empty($requested_status) && !empty($reason)) {
         if (in_array($requested_status, ['available', 'on_leave', 'unavailable'])) {
             try {
-                // ASSUMING YOU ADDED A COLUMN 'certificate_file' IN YOUR DATABASE
-                // If you don't have it yet, run this in phpMyAdmin:
-                // ALTER TABLE nutritionist_status_requests ADD COLUMN certificate_file VARCHAR(255) NULL AFTER reason;
                 $reqStmt = $conn->prepare("INSERT INTO nutritionist_status_requests (nutritionist_id, requested_status, reason, certificate_file, status) VALUES (?, ?, ?, ?, 'pending')");
                 $reqStmt->execute([$nutri_id, $requested_status, $reason, $cert_filename]);
                 $success_msg = "Your status change request has been successfully submitted to the administrator for approval.";
             } catch (Exception $e) {
-                // Fallback query if 'certificate_file' column doesn't exist yet
                 try {
                      $reqStmt = $conn->prepare("INSERT INTO nutritionist_status_requests (nutritionist_id, requested_status, reason, status) VALUES (?, ?, ?, 'pending')");
                      $reqStmt->execute([$nutri_id, $requested_status, $reason]);
@@ -151,7 +171,7 @@ a{color:inherit}
 
 .app{min-height:100vh;display:flex;position:relative;}
 
-/* SIDEBAR STYLES (Unchanged) */
+/* SIDEBAR STYLES */
 .sidebar{
   width:260px; flex:0 0 260px; height:100vh; position:sticky; top:0; align-self:flex-start;
   background:linear-gradient(180deg,var(--navy),#0a2820); color:#fff;
@@ -183,7 +203,7 @@ a{color:inherit}
 .avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--teal-soft);color:var(--teal-dark);font-weight:800}
 .profile-name{font-size:13px;font-weight:700;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* TOP DASHBOARD GRID (Hero + Status Widget side by side) */
+/* TOP DASHBOARD GRID */
 .dashboard-top-grid {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
@@ -207,7 +227,7 @@ a{color:inherit}
 .btn-primary{background:var(--teal);color:#fff;box-shadow:0 8px 18px rgba(13,148,136,.25)}
 .btn-secondary{background:#fff;color:var(--navy);border-color:var(--border)}
 
-/* AVAILABILITY WIDGET STYLES (Refined for Sidebar layout) */
+/* AVAILABILITY WIDGET */
 .availability-card {
   background: #ffffff;
   border: 1px solid var(--border);
@@ -269,7 +289,7 @@ a{color:inherit}
 .quick b{font-size:14px}
 .quick span{display:block;color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5}
 
-/* NOTIFICATION TOAST & MODAL STYLES UNCHANGED */
+/* NOTIFICATION TOAST & MODAL STYLES */
 .bottom-right-toast { position: fixed; bottom: 24px; right: 24px; width: 320px; background: #ffffff; border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 12px 35px rgba(15, 58, 46, 0.15); padding: 16px; z-index: 998; display: flex; flex-direction: column; gap: 10px; animation: slideUpToast 0.3s ease-out; }
 @keyframes slideUpToast { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 .toast-header { display: flex; align-items: center; justify-content: space-between; }
@@ -536,7 +556,6 @@ a{color:inherit}
 document.querySelector('.file-upload-input').addEventListener('change', function(e) {
     if(e.target.files.length > 0) {
         let fileName = e.target.files[0].name;
-        // Truncate if too long
         if(fileName.length > 25) fileName = fileName.substring(0, 22) + '...';
         
         const smallText = this.parentElement.nextElementSibling;
