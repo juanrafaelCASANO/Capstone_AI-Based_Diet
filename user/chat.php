@@ -560,7 +560,7 @@ button{cursor:pointer}
         <!-- RIVE MASCOT COMPANION KABI -->
         <div class="chat-mascot-box">
           <div class="chat-mascot-container">
-            <canvas id="kabiChatCanvas"></canvas>
+            <canvas id="kabiChatCanvas" width="130" height="130"></canvas>
           </div>
           <span style="font-size: 11px; color: var(--muted); display: block; margin-top: 4px; font-weight: 600;">Kabi • AI Companion</span>
         </div>
@@ -628,34 +628,26 @@ button{cursor:pointer}
 <script src="../assets/js/rive.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-// INITIALIZE RIVE MASCOT (KABI) IN CHAT WITH ABSOLUTE PATH & AUTO-PLAY
-try {
-  const kabiRive = new Rive({
-    src: "/Capstone_AI-Based_Diet/assets/rive/uploads/kabi.riv",
-    canvas: document.getElementById("kabiChatCanvas"),
-    autoplay: true,
-    onLoad: () => {
-      console.log("SUCCESS: Nag-load na si Kabi!");
-      kabiRive.resizeDrawingSurfaceToCanvas();
-      
-      // I-play ang unang State Machine o Animation kung mayroon
-      const sm = kabiRive.stateMachineNames;
-      if (sm && sm.length > 0) {
-        kabiRive.play(sm[0]);
-      } else {
-        const anims = kabiRive.animationNames;
-        if (anims && anims.length > 0) {
-          kabiRive.play(anims[0]);
-        }
+// INITIALIZE RIVE MASCOT (KABI) IN CHAT
+window.addEventListener('load', function() {
+  try {
+    const kabiRive = new Rive({
+      src: "../assets/rive/uploads/kabi.riv",
+      canvas: document.getElementById("kabiChatCanvas"),
+      autoplay: true,
+      stateMachines: "State Machine 1",
+      onLoad: () => {
+        console.log("SUCCESS: Nag-load na si Kabi!");
+        kabiRive.resizeDrawingSurfaceToCanvas();
+      },
+      onError: (err) => {
+        console.error("Rive load error:", err);
       }
-    },
-    onError: (err) => {
-      console.error("Rive load error:", err);
-    }
-  });
-} catch (err) {
-  console.error("Rive catch error:", err);
-}
+    });
+  } catch (err) {
+    console.error("Rive catch error:", err);
+  }
+});
 
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
