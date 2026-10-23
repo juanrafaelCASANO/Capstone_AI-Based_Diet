@@ -624,8 +624,8 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- RIVE RUNTIME SCRIPT LIBRARY -->
-<script src="https://unpkg.com/@rive-app/canvas@latest"></script>
+<!-- LOCAL RIVE RUNTIME SCRIPT -->
+<script src="../assets/js/rive.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 // INITIALIZE RIVE MASCOT (KABI) IN CHAT
