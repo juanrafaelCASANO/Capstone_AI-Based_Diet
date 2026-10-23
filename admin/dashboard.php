@@ -71,12 +71,26 @@ try { $nutri_on_leave = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE st
 try { $nutri_unavailable = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE status = 'active' AND availability_status = 'unavailable'")->fetchColumn(); } catch (Exception $e) {}
 try { $nutri_inactive = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE status != 'active'")->fetchColumn(); } catch (Exception $e) {}
 
-// Pending Action Items for Dashboard Widget
+// Pending Action Items para sa Dashboard Widget (Pinagsamang Status Requests at Reactivation Requests)
 $pending_status_reqs = [];
 try {
-    $psr_stmt = $conn->query("SELECT sr.id, sr.requested_status, sr.reason, sr.created_at, n.fullname FROM nutritionist_status_requests sr JOIN nutritionist n ON sr.nutritionist_id = n.id WHERE sr.status = 'pending' ORDER BY sr.created_at DESC LIMIT 3");
-    if ($psr_stmt) { $pending_status_reqs = $psr_stmt->fetchAll(PDO::FETCH_ASSOC); }
+    $psr_stmt = $conn->query("SELECT sr.id, 'status_request' as req_type, sr.requested_status as subtitle, sr.reason, sr.created_at, n.fullname FROM nutritionist_status_requests sr JOIN nutritionist n ON sr.nutritionist_id = n.id WHERE sr.status = 'pending'");
+    if ($psr_stmt) { 
+        $pending_status_reqs = array_merge($pending_status_reqs, $psr_stmt->fetchAll(PDO::FETCH_ASSOC)); 
+    }
 } catch (Exception $e) {}
+
+try {
+    $pr_stmt = $conn->query("SELECT r.id, 'reactivation_request' as req_type, 'Reactivation Appeal' as subtitle, r.reason, r.created_at, n.fullname FROM reactivation_requests r JOIN nutritionist n ON r.nutritionist_id = n.id WHERE r.status = 'pending'");
+    if ($pr_stmt) { 
+        $pending_status_reqs = array_merge($pending_status_reqs, $pr_stmt->fetchAll(PDO::FETCH_ASSOC)); 
+    }
+} catch (Exception $e) {}
+
+usort($pending_status_reqs, function($a, $b) {
+    return strtotime($b['created_at']) - strtotime($a['created_at']);
+});
+$pending_status_reqs = array_slice($pending_status_reqs, 0, 3);
 
 $recent_logs = [];
 try {
@@ -219,7 +233,6 @@ try {
                     <p>Monitor and manage your AI Diet Planner system.</p>
                 </div>
                 
-                <!-- Nakaayos na ang posisyon ng Refresh at Notification buttons sa kanang bahagi, tinanggal na ang Sign Out button -->
                 <div class="header-actions">
                     <button onclick="location.reload();" class="action-icon-btn" title="Refresh Site">
                         <i class="fa-solid fa-rotate"></i>
@@ -324,16 +337,21 @@ try {
 
                     <?php if (!empty($pending_status_reqs)): ?>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
-                            <?php foreach ($pending_status_reqs as $freq): ?>
-                                <div style="display: flex; align-items: center; justify-content: between; gap: 10px; padding: 12px; border-radius: 12px; background: #fffbf0; border: 1px solid #fde68a;">
+                            <?php foreach ($pending_status_reqs as $freq): 
+                                $isReactivation = ($freq['req_type'] === 'reactivation_request');
+                                $badgeBg = $isReactivation ? '#dcfce7' : '#fef3c7';
+                                $badgeColor = $isReactivation ? '#15803d' : '#d97706';
+                                $badgeText = $isReactivation ? 'Reactivation Appeal' : str_replace('_', ' ', $freq['subtitle']);
+                            ?>
+                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border-radius: 12px; background: #fffbf0; border: 1px solid #fde68a;">
                                     <div style="flex: 1; min-width: 0;">
                                         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 3px;">
                                             <strong style="font-size: 13px; color: #1e293b;"><?= htmlspecialchars($freq['fullname']) ?></strong>
-                                            <span style="font-size: 10px; background: #fef3c7; color: #d97706; padding: 2px 8px; border-radius: 10px; font-weight: 700; text-transform: capitalize;"><?= str_replace('_', ' ', $freq['requested_status']) ?></span>
+                                            <span style="font-size: 10px; background: <?= $badgeBg ?>; color: <?= $badgeColor ?>; padding: 2px 8px; border-radius: 10px; font-weight: 700; text-transform: capitalize;"><?= $badgeText ?></span>
                                         </div>
                                         <p style="font-size: 11.5px; color: #64748b; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($freq['reason']) ?></p>
                                     </div>
-                                    <a href="manage_reports.php" style="padding: 6px 12px; background: #d97706; color: white; border-radius: 8px; font-size: 11.5px; font-weight: 700; flex-shrink: 0;">Review</a>
+                                    <a href="manage_reports.php" style="padding: 6px 12px; background: #d97706; color: white; border-radius: 8px; font-size: 11.5px; font-weight: 700; flex-shrink: 0; text-decoration: none;">Review</a>
                                 </div>
                             <?php endforeach; ?>
                         </div>
