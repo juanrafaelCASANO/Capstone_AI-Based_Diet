@@ -306,6 +306,24 @@ button{cursor:pointer}
 .detail-item span{display:block;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase}
 .detail-item strong{display:block;font-size:12px;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+/* RIVE MASCOT STYLING SA CHAT INFO CARD */
+.chat-mascot-box {
+  background: #f9fbfa;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  text-align: center;
+}
+.chat-mascot-container {
+  width: 130px;
+  height: 130px;
+  margin: 0 auto;
+}
+.chat-mascot-container canvas {
+  width: 100%;
+  height: 100%;
+}
+
 .chat-body{
   flex:1;min-height:0;padding:18px;overflow-y:auto;background:#f2f6f3;
   display:flex;flex-direction:column;gap:2px;scroll-behavior:smooth
@@ -539,6 +557,14 @@ button{cursor:pointer}
           </div>
         </div>
 
+        <!-- RIVE MASCOT COMPANION KABI -->
+        <div class="chat-mascot-box">
+          <div class="chat-mascot-container">
+            <canvas id="kabiChatCanvas"></canvas>
+          </div>
+          <span style="font-size: 11px; color: var(--muted); display: block; margin-top: 4px; font-weight: 600;">Kabi • AI Companion</span>
+        </div>
+
         <!-- Report Nutritionist Button -->
         <button type="button" class="report-nutri-btn" onclick="openReportModal()">
           <i class="fa-solid fa-triangle-exclamation"></i> Report Nutritionist
@@ -598,8 +624,24 @@ button{cursor:pointer}
   </div>
 </div>
 
+<!-- RIVE RUNTIME SCRIPT LIBRARY -->
+<script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+// INITIALIZE RIVE MASCOT (KABI) IN CHAT
+try {
+  const kabiRive = new Rive({
+    src: "../assets/rive/uploads/kabi.riv",
+    canvas: document.getElementById("kabiChatCanvas"),
+    autoplay: true,
+    onLoad: () => {
+      kabiRive.resizeDrawingSurfaceToCanvas();
+    }
+  });
+} catch (err) {
+  console.error("Rive chat mascot load error:", err);
+}
+
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
 }
