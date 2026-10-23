@@ -197,9 +197,6 @@ a{color:inherit}
   display:grid;grid-template-columns:minmax(0,1.3fr) minmax(220px,.7fr);
   gap:30px;align-items:center;overflow:hidden;position:relative;
 }
-.hero:after{
-  content:"🥗";position:absolute;right:5%;bottom:-20px;font-size:150px;opacity:.08;pointer-events:none;
-}
 .hero h2{font-size:clamp(25px,3.4vw,42px);line-height:1.08;letter-spacing:-1.2px;margin:8px 0 12px;max-width:650px}
 .hero p{color:var(--muted);max-width:600px;line-height:1.7;margin:0 0 22px}
 .actions{display:flex;flex-wrap:wrap;gap:10px}
@@ -212,10 +209,24 @@ a{color:inherit}
 .btn:hover{transform:translateY(-1px)}
 .btn-primary{background:var(--green);color:#fff;box-shadow:0 8px 18px rgba(59,143,99,.2)}
 .btn-secondary{background:#fff;color:var(--navy);border-color:var(--border)}
-.hero-stat{position:relative;z-index:1;background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px;box-shadow:var(--shadow)}
-.hero-stat .emoji{font-size:30px}
-.hero-stat strong{display:block;font-size:17px;margin-top:10px}
-.hero-stat span{display:block;color:var(--muted);font-size:13px;line-height:1.5;margin-top:5px}
+
+/* RIVE MASCOT STYLING SA HERO STAT */
+.hero-stat{
+  position:relative;z-index:1;background:#fff;border:1px solid var(--border);
+  border-radius:18px;padding:15px;box-shadow:var(--shadow);text-align:center;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.mascot-container {
+  width: 100%;
+  max-width: 180px;
+  height: 160px;
+  margin: 0 auto;
+}
+.mascot-container canvas {
+  width: 100%;
+  height: 100%;
+}
+.hero-stat span{display:block;color:var(--muted);font-size:12px;line-height:1.4;margin-top:2px}
 
 .section-title{display:flex;align-items:end;justify-content:space-between;gap:15px;margin:30px 0 14px}
 .section-title h3{margin:0;font-size:18px}
@@ -444,10 +455,13 @@ a{color:inherit}
           <a class="btn btn-secondary" href="user_inbox.php">📥 View Inbox</a>
         </div>
       </div>
+      
+      <!-- RIVE INTERACTIVE MASCOT INTEGRATION -->
       <div class="hero-stat">
-        <div class="emoji">🌱</div>
-        <strong>Personalized nutrition</strong>
-        <span>Build healthier routines with meal ideas designed to fit your planning needs.</span>
+        <div class="mascot-container">
+          <canvas id="mascotCanvas"></canvas>
+        </div>
+        <span>Your AI Nutrition Companion</span>
       </div>
     </section>
 
@@ -535,7 +549,21 @@ a{color:inherit}
   </div>
 </div>
 
+<!-- RIVE RUNTIME SCRIPT LIBRARY -->
+<script src="https://unpkg.com/@rive-app/canvas@latest"></script>
+
 <script>
+// INITIALIZE RIVE INTERACTIVE MASCOT
+const r = new Rive({
+  src: "../assets/rive/mascot.riv", // Tiyaking tugma ang path patungo sa iyong .riv file
+  canvas: document.getElementById("mascotCanvas"),
+  autoplay: true,
+  stateMachines: "State Machine 1", // Palitan kung iba ang pangalan ng State Machine sa Rive editor
+  onLoad: () => {
+    r.resizeDrawingSurfaceToCanvas();
+  }
+});
+
 function closeToast() {
   const toast = document.getElementById('notificationToast');
   if (toast) {
