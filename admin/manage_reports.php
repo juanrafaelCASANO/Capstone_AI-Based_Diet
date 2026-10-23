@@ -7,12 +7,16 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-function sendTextBeeSMS($phoneNumber, $message) {$textbeeKey = getenv('TEXTBEE_API_KEY');
+function sendTextBeeSMS($phoneNumber, $message) {
+    // Ayusin ang pagkuha ng API Key para hindi mag-ka-undefined variable warning
+    $apiKey = getenv('TEXTBEE_API_KEY') ?: (getenv('SUPABASE_KEY') ?: (getenv('SUPABASE_SERVICE_KEY') ?: ''));
+    
     $phoneNumber = trim($phoneNumber);
     if (strpos($phoneNumber, '09') === 0) {
         $phoneNumber = '+63' . substr($phoneNumber, 1);
     }
-    $url = 'https://api.textbee.dev/api/v1/gateway/send-sms';$data = [
+    $url = 'https://api.textbee.dev/api/v1/gateway/send-sms';
+    $data = [
         'recipients' => [$phoneNumber],
         'message' => $message
     ];
@@ -31,10 +35,10 @@ function sendTextBeeSMS($phoneNumber, $message) {$textbeeKey = getenv('TEXTBEE_A
 
 if (isset($_GET['update_status']) && isset($_GET['id'])) {
     $report_id = (int)$_GET['id'];
-    $new_status =$_GET['update_status'];
+    $new_status = $_GET['update_status'];
     if (in_array($new_status, ['pending', 'reviewed', 'resolved'])) {
-        $stmt =$conn->prepare("UPDATE nutritionist_reports SET status = ? WHERE id = ?");
-        $stmt->execute([$new_status,$report_id]);
+        $stmt = $conn->prepare("UPDATE nutritionist_reports SET status = ? WHERE id = ?");
+        $stmt->execute([$new_status, $report_id]);
     }
     header("Location: manage_reports.php?msg=status_updated");
     exit();
@@ -42,33 +46,33 @@ if (isset($_GET['update_status']) && isset($_GET['id'])) {
 
 if (isset($_GET['reactivate_id']) && isset($_GET['action'])) {
     $req_id = (int)$_GET['reactivate_id'];
-    $action =$_GET['action'];
+    $action = $_GET['action'];
 
-    $reqStmt =$conn->prepare("SELECT r.*, n.fullname, n.phone FROM reactivation_requests r JOIN nutritionist n ON r.nutritionist_id = n.id WHERE r.id = ?");
+    $reqStmt = $conn->prepare("SELECT r.*, n.fullname, n.phone FROM reactivation_requests r JOIN nutritionist n ON r.nutritionist_id = n.id WHERE r.id = ?");
     $reqStmt->execute([$req_id]);
-    $reqData =$reqStmt->fetch(PDO::FETCH_ASSOC);
+    $reqData = $reqStmt->fetch(PDO::FETCH_ASSOC);
 
     if ($reqData) {
-        $nutri_id =$reqData['nutritionist_id'];
-        $phone =$reqData['phone'];
-        $fullname =$reqData['fullname'];
+        $nutri_id = $reqData['nutritionist_id'];
+        $phone = $reqData['phone'];
+        $fullname = $reqData['fullname'];
 
         if ($action === 'approve') {
-            $upNutri =$conn->prepare("UPDATE nutritionist SET status = 'active' WHERE id = ?");
+            $upNutri = $conn->prepare("UPDATE nutritionist SET status = 'active' WHERE id = ?");
             $upNutri->execute([$nutri_id]);
 
-            $upReq =$conn->prepare("UPDATE reactivation_requests SET status = 'approved' WHERE id = ?");
+            $upReq = $conn->prepare("UPDATE reactivation_requests SET status = 'approved' WHERE id = ?");
             $upReq->execute([$req_id]);
 
             $message = "Hello " . $fullname . ", great news! Your reactivation request has been APPROVED by the admin. Your account is now active.";
-            sendTextBeeSMS($phone,$message);
+            sendTextBeeSMS($phone, $message);
 
         } elseif ($action === 'reject') {
-            $upReq =$conn->prepare("UPDATE reactivation_requests SET status = 'rejected' WHERE id = ?");
+            $upReq = $conn->prepare("UPDATE reactivation_requests SET status = 'rejected' WHERE id = ?");
             $upReq->execute([$req_id]);
 
             $message = "Hello " . $fullname . ", we regret to inform you that your reactivation request has been rejected by the admin.";
-            sendTextBeeSMS($phone,$message);
+            sendTextBeeSMS($phone, $message);
         }
     }
     header("Location: manage_reports.php?msg=reactivation_handled");
@@ -78,35 +82,35 @@ if (isset($_GET['reactivate_id']) && isset($_GET['action'])) {
 // Handle Nutritionist Status Requests (Approve / Reject with SMS notification)
 if (isset($_GET['status_req_id']) && isset($_GET['action'])) {
     $req_id = (int)$_GET['status_req_id'];
-    $action =$_GET['action'];
+    $action = $_GET['action'];
 
-    $rStmt =$conn->prepare("SELECT r.*, n.fullname, n.phone FROM nutritionist_status_requests r JOIN nutritionist n ON r.nutritionist_id = n.id WHERE r.id = ?");
+    $rStmt = $conn->prepare("SELECT r.*, n.fullname, n.phone FROM nutritionist_status_requests r JOIN nutritionist n ON r.nutritionist_id = n.id WHERE r.id = ?");
     $rStmt->execute([$req_id]);
-    $reqData =$rStmt->fetch(PDO::FETCH_ASSOC);
+    $reqData = $rStmt->fetch(PDO::FETCH_ASSOC);
 
     if ($reqData) {
-        $nutri_id =$reqData['nutritionist_id'];
-        $new_status =$reqData['requested_status'];
-        $phone =$reqData['phone'];
-        $fullname =$reqData['fullname'];
+        $nutri_id = $reqData['nutritionist_id'];
+        $new_status = $reqData['requested_status'];
+        $phone = $reqData['phone'];
+        $fullname = $reqData['fullname'];
 
         if ($action === 'approve') {
-            $upNutri =$conn->prepare("UPDATE nutritionist SET availability_status = ? WHERE id = ?");
-            $upNutri->execute([$new_status,$nutri_id]);
+            $upNutri = $conn->prepare("UPDATE nutritionist SET availability_status = ? WHERE id = ?");
+            $upNutri->execute([$new_status, $nutri_id]);
 
-            $upReq =$conn->prepare("UPDATE nutritionist_status_requests SET status = 'approved' WHERE id = ?");
+            $upReq = $conn->prepare("UPDATE nutritionist_status_requests SET status = 'approved' WHERE id = ?");
             $upReq->execute([$req_id]);
 
-            $statusText = str_replace('_', ' ',$new_status);
+            $statusText = str_replace('_', ' ', $new_status);
             $message = "Hello " . $fullname . ", your request to change your availability status to " . ucfirst($statusText) . " has been APPROVED by the admin.";
-            sendTextBeeSMS($phone,$message);
+            sendTextBeeSMS($phone, $message);
 
         } elseif ($action === 'reject') {
-            $upReq =$conn->prepare("UPDATE nutritionist_status_requests SET status = 'rejected' WHERE id = ?");
+            $upReq = $conn->prepare("UPDATE nutritionist_status_requests SET status = 'rejected' WHERE id = ?");
             $upReq->execute([$req_id]);
 
             $message = "Hello " . $fullname . ", your request to change your availability status has been rejected by the admin.";
-            sendTextBeeSMS($phone,$message);
+            sendTextBeeSMS($phone, $message);
         }
     }
     header("Location: manage_reports.php?msg=status_req_handled");
@@ -125,7 +129,7 @@ try {
         ORDER BY r.created_at DESC
     ";
     $stmt = $conn->query($sql);
-    $reports =$stmt->fetchAll(PDO::FETCH_ASSOC);
+    $reports = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {}
 
 $reactivations = [];
@@ -138,12 +142,11 @@ try {
         ORDER BY r.created_at DESC
     ";
     $reqStmt = $conn->query($reqSql);
-    $reactivations =$reqStmt->fetchAll(PDO::FETCH_ASSOC);
+    $reactivations = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {}
 
 $status_requests = [];
 try {
-    // Sinama na ang certificate_file sa pag-fetch
     $statusSql = "
         SELECT sr.id, sr.requested_status, sr.reason, sr.certificate_file, sr.status, sr.created_at,
                n.id AS nutritionist_id, n.fullname AS nutritionist_name, n.email AS nutritionist_email
@@ -152,7 +155,7 @@ try {
         ORDER BY sr.created_at DESC
     ";
     $statusStmt = $conn->query($statusSql);
-    $status_requests =$statusStmt->fetchAll(PDO::FETCH_ASSOC);
+    $status_requests = $statusStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {}
 
 $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
@@ -357,8 +360,8 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                         <td>
                                             <?php if ($sreq['status'] === 'pending'): ?>
                                                 <div style="display: flex; gap: 6px;">
-                                                    <button type="button" class="btn-action-link btn-approve" onclick="openStatusConfirmModal('approve', <?= $sreq['id'] ?>, '<?= htmlspecialchars($sreq['nutritionist_name'], ENT_QUOTES) ?>', '<?= str_replace('_', ' ',$sreq['requested_status']) ?>')"><i class="fa-solid fa-check"></i> Approve</button>
-                                                    <button type="button" class="btn-action-link btn-reject" onclick="openStatusConfirmModal('reject', <?= $sreq['id'] ?>, '<?= htmlspecialchars($sreq['nutritionist_name'], ENT_QUOTES) ?>', '<?= str_replace('_', ' ',$sreq['requested_status']) ?>')"><i class="fa-solid fa-xmark"></i> Reject</button>
+                                                    <button type="button" class="btn-action-link btn-approve" onclick="openStatusConfirmModal('approve', <?= $sreq['id'] ?>, '<?= htmlspecialchars($sreq['nutritionist_name'], ENT_QUOTES) ?>', '<?= str_replace('_', ' ', $sreq['requested_status']) ?>')"><i class="fa-solid fa-check"></i> Approve</button>
+                                                    <button type="button" class="btn-action-link btn-reject" onclick="openStatusConfirmModal('reject', <?= $sreq['id'] ?>, '<?= htmlspecialchars($sreq['nutritionist_name'], ENT_QUOTES) ?>', '<?= str_replace('_', ' ', $sreq['requested_status']) ?>')"><i class="fa-solid fa-xmark"></i> Reject</button>
                                                 </div>
                                             <?php else: ?>
                                                 <span style="font-size: 11px; color: #94a3b8; font-style: italic;">Processed</span>
@@ -483,7 +486,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                         </thead>
                         <tbody>
                             <?php if (!empty($reports)): ?>
-                                <?php foreach ($reports as$rep): ?>
+                                <?php foreach ($reports as $rep): ?>
                                     <tr>
                                         <td>
                                             <strong><?= htmlspecialchars($rep['user_name']) ?></strong>
