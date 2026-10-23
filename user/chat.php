@@ -628,16 +628,26 @@ button{cursor:pointer}
 <script src="../assets/js/rive.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-// INITIALIZE RIVE MASCOT (KABI) IN CHAT
+// INITIALIZE RIVE MASCOT (KABI) IN CHAT WITH ABSOLUTE PATH & AUTO-PLAY
 try {
   const kabiRive = new Rive({
-    src: "../assets/rive/uploads/kabi.riv",
+    src: "/Capstone_AI-Based_Diet/assets/rive/uploads/kabi.riv",
     canvas: document.getElementById("kabiChatCanvas"),
     autoplay: true,
-    stateMachines: "State Machine 1",
     onLoad: () => {
-      console.log("SUCCESS: Kabi loaded and rendered!");
+      console.log("SUCCESS: Nag-load na si Kabi!");
       kabiRive.resizeDrawingSurfaceToCanvas();
+      
+      // I-play ang unang State Machine o Animation kung mayroon
+      const sm = kabiRive.stateMachineNames;
+      if (sm && sm.length > 0) {
+        kabiRive.play(sm[0]);
+      } else {
+        const anims = kabiRive.animationNames;
+        if (anims && anims.length > 0) {
+          kabiRive.play(anims[0]);
+        }
+      }
     },
     onError: (err) => {
       console.error("Rive load error:", err);
