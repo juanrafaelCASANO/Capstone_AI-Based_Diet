@@ -8,7 +8,6 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 }
 
 function sendTextBeeSMS($phoneNumber, $message) {
-    // Ayusin ang pagkuha ng API Key para hindi mag-ka-undefined variable warning
     $apiKey = getenv('TEXTBEE_API_KEY') ?: (getenv('SUPABASE_KEY') ?: (getenv('SUPABASE_SERVICE_KEY') ?: ''));
     
     $phoneNumber = trim($phoneNumber);
@@ -79,7 +78,6 @@ if (isset($_GET['reactivate_id']) && isset($_GET['action'])) {
     exit();
 }
 
-// Handle Nutritionist Status Requests (Approve / Reject with SMS notification)
 if (isset($_GET['status_req_id']) && isset($_GET['action'])) {
     $req_id = (int)$_GET['status_req_id'];
     $action = $_GET['action'];
@@ -339,12 +337,10 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                                 </button>
                                             <?php endif; ?>
                                         </td>
-                                        <!-- COLUMN PARA SA ATTACHED FILE NG STATUS REQUEST -->
                                         <td>
                                             <?php if (!empty($sreq['certificate_file'])): ?>
                                                 <?php 
                                                     $certFile = $sreq['certificate_file'];
-                                                    // Kung hindi pa buong URL ang naka-save, buuin natin ang Supabase Public URL
                                                     if (strpos($certFile, 'http') !== 0) {
                                                         $supabaseUrl = getenv('SUPABASE_URL') ?: 'https://mbsjtesmrowfilvxcaqb.supabase.co';
                                                         $certFile = rtrim($supabaseUrl, '/') . '/storage/v1/object/public/nutritionist-files/' . $certFile;
@@ -428,9 +424,29 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                                 </button>
                                             <?php endif; ?>
                                         </td>
+                                        <!-- NAAYOS NA ANG LINK PARA SA REACTIVATION ATTACHED FILES (SUPABASE STORAGE) -->
                                         <td>
                                             <?php if (!empty($req['attachment'])): ?>
-                                                <a href="../uploads/reactivations/<?= htmlspecialchars($req['attachment']) ?>" target="_blank" class="btn-action-link btn-view" style="font-size:11px; padding: 4px 8px;"><i class="fa-solid fa-paperclip"></i> View File</a>
+                                                <?php 
+                                                    $attachments = json_decode($req['attachment'], true);
+                                                    if (!is_array($attachments)) {
+                                                        $attachments = [$req['attachment']];
+                                                    }
+                                                ?>
+                                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                                    <?php foreach ($attachments as $index => $file): 
+                                                        $file = trim($file);
+                                                        if (empty($file)) continue;
+                                                        
+                                                        $fileUrl = $file;
+                                                        if (strpos($fileUrl, 'http') !== 0) {
+                                                            $supabaseUrl = getenv('SUPABASE_URL') ?: 'https://mbsjtesmrowfilvxcaqb.supabase.co';
+                                                            $fileUrl = rtrim($supabaseUrl, '/') . '/storage/v1/object/public/nutritionist-files/' . $file;
+                                                        }
+                                                    ?>
+                                                        <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" class="btn-action-link btn-view" style="font-size:11px; padding: 4px 8px;"><i class="fa-solid fa-paperclip"></i> View File <?= count($attachments) > 1 ? ($index + 1) : '' ?></a>
+                                                    <?php endforeach; ?>
+                                                </div>
                                             <?php else: ?>
                                                 <span style="font-size: 11px; color: #94a3b8; font-style: italic;">No attachment</span>
                                             <?php endif; ?>
