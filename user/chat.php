@@ -441,7 +441,7 @@ button{cursor:pointer}
       <a href="user_inbox.php" class="active">
         <span class="nav-icon">📥</span>Inbox
         <?php if($unread_count > 0): ?>
-          <span class="nav-badge" id="sidebar-badge"><?php echo $unread_count; ?></span>
+          <span class="sidebar-badge" id="sidebar-badge"><?php echo $unread_count; ?></span>
         <?php endif; ?>
       </a>
       <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
@@ -631,10 +631,9 @@ button{cursor:pointer}
 window.addEventListener('DOMContentLoaded', () => {
   try {
     const kabiRive = new rive.Rive({
-      src: "../assets/rive/uploads/kabi.riv",
+      src: "/Capstone_AI-Based_Diet/assets/rive/uploads/kabi.riv",
       canvas: document.getElementById("kabiChatCanvas"),
       autoplay: true,
-      stateMachines: "State Machine 1",
       onLoad: () => {
         console.log("SUCCESS: Tagumpay na nag-load si Kabi!");
         kabiRive.resizeDrawingSurfaceToCanvas();
