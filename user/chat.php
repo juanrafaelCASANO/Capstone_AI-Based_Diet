@@ -441,7 +441,7 @@ button{cursor:pointer}
       <a href="user_inbox.php" class="active">
         <span class="nav-icon">📥</span>Inbox
         <?php if($unread_count > 0): ?>
-          <span class="sidebar-badge" id="sidebar-badge"><?php echo $unread_count; ?></span>
+          <span class="nav-badge" id="sidebar-badge"><?php echo $unread_count; ?></span>
         <?php endif; ?>
       </a>
       <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
@@ -624,7 +624,7 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- OPISYAL NA RIVE CDN AT JQUERY -->
+<!-- OPISYAL NA RIVE CDN AT JQUERY (TINAMA ANG ABSOLUTE PATH PARA MAWALA ANG 404 ERROR) -->
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
