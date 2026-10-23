@@ -342,7 +342,15 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                         <!-- COLUMN PARA SA ATTACHED FILE NG STATUS REQUEST -->
                                         <td>
                                             <?php if (!empty($sreq['certificate_file'])): ?>
-                                                <a href="../uploads/certificates/<?= htmlspecialchars($sreq['certificate_file']) ?>" target="_blank" class="btn-action-link btn-view" style="font-size:11px; padding: 4px 8px;"><i class="fa-solid fa-paperclip"></i> View File</a>
+                                                <?php 
+                                                    $certFile = $sreq['certificate_file'];
+                                                    // Kung hindi pa buong URL ang naka-save, buuin natin ang Supabase Public URL
+                                                    if (strpos($certFile, 'http') !== 0) {
+                                                        $supabaseUrl = getenv('SUPABASE_URL') ?: 'https://mbsjtesmrowfilvxcaqb.supabase.co';
+                                                        $certFile = rtrim($supabaseUrl, '/') . '/storage/v1/object/public/nutritionist-files/' . $certFile;
+                                                    }
+                                                ?>
+                                                <a href="<?= htmlspecialchars($certFile) ?>" target="_blank" class="btn-action-link btn-view" style="font-size:11px; padding: 4px 8px;"><i class="fa-solid fa-paperclip"></i> View File</a>
                                             <?php else: ?>
                                                 <span style="font-size: 11px; color: #94a3b8; font-style: italic;">No attachment</span>
                                             <?php endif; ?>
