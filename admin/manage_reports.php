@@ -424,7 +424,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                                 </button>
                                             <?php endif; ?>
                                         </td>
-                                        <!-- NAAYOS NA ANG LINK PARA SA REACTIVATION ATTACHED FILES (SUPABASE STORAGE) -->
+                                        <!-- BINAGO: GINAMITAN NG MODAL VIEW BUTTON PARA SA MULTIPLE FILES -->
                                         <td>
                                             <?php if (!empty($req['attachment'])): ?>
                                                 <?php 
@@ -433,20 +433,9 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                                         $attachments = [$req['attachment']];
                                                     }
                                                 ?>
-                                                <div style="display: flex; flex-direction: column; gap: 4px;">
-                                                    <?php foreach ($attachments as $index => $file): 
-                                                        $file = trim($file);
-                                                        if (empty($file)) continue;
-                                                        
-                                                        $fileUrl = $file;
-                                                        if (strpos($fileUrl, 'http') !== 0) {
-                                                            $supabaseUrl = getenv('SUPABASE_URL') ?: 'https://mbsjtesmrowfilvxcaqb.supabase.co';
-                                                            $fileUrl = rtrim($supabaseUrl, '/') . '/storage/v1/object/public/nutritionist-files/' . $file;
-                                                        }
-                                                    ?>
-                                                        <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" class="btn-action-link btn-view" style="font-size:11px; padding: 4px 8px;"><i class="fa-solid fa-paperclip"></i> View File <?= count($attachments) > 1 ? ($index + 1) : '' ?></a>
-                                                    <?php endforeach; ?>
-                                                </div>
+                                                <button type="button" class="btn-action-link btn-view" onclick='openReactivationDocsModal(<?= json_encode($attachments) ?>, <?= json_encode($req['nutritionist_name']) ?>)'>
+                                                    <i class="fa-solid fa-folder-open"></i> View Files (<?= count($attachments) ?>)
+                                                </button>
                                             <?php else: ?>
                                                 <span style="font-size: 11px; color: #94a3b8; font-style: italic;">No attachment</span>
                                             <?php endif; ?>
@@ -601,6 +590,21 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
     </div>
 </div>
 
+<!-- REACTIVATION DOCUMENTS MODAL VIEWER -->
+<div class="modal" id="reactivationDocsModal">
+    <div class="confirm-modal-box" style="max-width: 550px;">
+        <div class="confirm-icon-frame confirm-icon-info"><i class="fa-solid fa-folder-open"></i></div>
+        <h3 id="reactivModalTitle">Reactivation Documents</h3>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+            <div id="reactivDocGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;"></div>
+            <div id="reactivNoDocText" style="display: none; color: #94a3b8; font-size: 13px; text-align: center; padding: 20px;">No documents found</div>
+        </div>
+        <div class="confirm-modal-actions">
+            <button type="button" class="confirm-btn-action confirm-btn-primary" onclick="closeReactivationDocsModal()">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
 function openConfirmModal(actionType, requestId, nutritionistName) {
     const modal = document.getElementById('actionConfirmModal');
@@ -664,6 +668,54 @@ function openStatusConfirmModal(actionType, requestId, nutritionistName, request
     modal.classList.add('active');
 }
 
+function openReactivationDocsModal(docList, expertName) {
+    const modal = document.getElementById('reactivationDocsModal');
+    const title = document.getElementById('reactivModalTitle');
+    const gridContainer = document.getElementById('reactivDocGridContainer');
+    const noDocText = document.getElementById('reactivNoDocText');
+
+    title.textContent = "Documents - " + expertName;
+    gridContainer.innerHTML = '';
+
+    if (docList && docList.length > 0) {
+        noDocText.style.display = 'none';
+        docList.forEach(function(doc, index) {
+            let fileUrl = doc.trim();
+            if (fileUrl.indexOf('http') !== 0) {
+                fileUrl = 'https://mbsjtesmrowfilvxcaqb.supabase.co/storage/v1/object/public/nutritionist-files/' + fileUrl;
+            }
+
+            const ext = fileUrl.split('.').pop().toLowerCase();
+            const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+            
+            const itemBox = document.createElement('div');
+            itemBox.style.cssText = 'border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; text-align: center; padding: 8px; cursor: pointer; transition: .2s;';
+            
+            if (ext === 'pdf') {
+                itemBox.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; background:#f1f5f9; color:#dc2626; height:75px; font-size:28px; border-radius:6px;"><i class="fa-solid fa-file-pdf"></i></div><div style="font-size:11px; color:#475569; margin-top:5px; font-weight:600;">PDF File ${index + 1}</div>`;
+            } else if (imageExts.includes(ext)) {
+                itemBox.innerHTML = `<img src="${encodeURI(fileUrl)}" alt="Doc" style="width:100%; height:75px; object-fit:cover; border-radius:6px;" onerror="this.src='https://via.placeholder.com/120x75?text=Image';"><div style="font-size:11px; color:#475569; margin-top:5px; font-weight:600;">Image ${index + 1}</div>`;
+            } else {
+                itemBox.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; background:#f1f5f9; color:#2563eb; height:75px; font-size:28px; border-radius:6px;"><i class="fa-solid fa-file-lines"></i></div><div style="font-size:11px; color:#475569; margin-top:5px; font-weight:600;">Document ${index + 1}</div>`;
+            }
+
+            itemBox.onclick = function() {
+                window.open(fileUrl, '_blank');
+            };
+
+            gridContainer.appendChild(itemBox);
+        });
+    } else {
+        noDocText.style.display = 'block';
+    }
+
+    modal.classList.add('active');
+}
+
+function closeReactivationDocsModal() {
+    document.getElementById('reactivationDocsModal').classList.remove('active');
+}
+
 function openLogoutModal() {
     const modal = document.getElementById('actionConfirmModal');
     const iconFrame = document.getElementById('confirmIconFrame');
@@ -700,8 +752,10 @@ function closeReasonModal() {
 window.addEventListener('click', function(e) {
     const confirmModal = document.getElementById('actionConfirmModal');
     const reasonModal = document.getElementById('reasonModal');
+    const reactivModal = document.getElementById('reactivationDocsModal');
     if (e.target === confirmModal) closeConfirmModal();
     if (e.target === reasonModal) closeReasonModal();
+    if (e.target === reactivModal) closeReactivationDocsModal();
 });
 </script>
 
