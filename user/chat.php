@@ -641,19 +641,31 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- OPISYAL NA RIVE CDN AT JQUERY (MAY SMART PHP PATH RESOLVER) -->
+<!-- INTERACTIVE RIVE SCRIPT (DUMUDUNGAW / NAKATUTOK HABANG NAGTI-TYPE AT NAG-CHAT) -->
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+let kabiRive = null;
+let typingInput = null;
+let sendTrigger = null;
+
 window.addEventListener('DOMContentLoaded', () => {
   try {
-    const kabiRive = new rive.Rive({
+    kabiRive = new rive.Rive({
       src: "<?php echo $resolved_riv_path; ?>",
       canvas: document.getElementById("kabiChatCanvas"),
       autoplay: true,
+      stateMachines: "State Machine 1", 
       onLoad: () => {
-        console.log("SUCCESS: Tagumpay na nag-load si Kabi mula sa:", "<?php echo $resolved_riv_path; ?>");
+        console.log("SUCCESS: Tagumpay na nag-load si Kabi at handa nang dumungaw sa chat!");
         kabiRive.resizeDrawingSurfaceToCanvas();
+
+        // Kunin ang State Machine Inputs kung meron mang 'isTyping' o 'Typing' o 'isLooking'
+        const inputs = kabiRive.stateMachineInputs("State Machine 1");
+        if (inputs) {
+          typingInput = inputs.find(i => i.name === 'isTyping' || i.name === 'Typing' || i.name === 'isLooking');
+          sendTrigger = inputs.find(i => i.name === 'send' || i.name === 'Trigger' || i.name === 'success');
+        }
       },
       onError: (err) => {
         console.error("Rive Load Error:", err);
@@ -663,6 +675,25 @@ window.addEventListener('DOMContentLoaded', () => {
     console.error("Rive Exception:", err);
   }
 });
+
+// Habang nagti-type ang user sa message box, dumudungaw o nakatutok si Kabi
+$('#message').on('input', function() {
+  if (typingInput) {
+    typingInput.value = $(this).val().trim().length > 0;
+  }
+});
+
+// Kapag may pumapasok na bagong mensahe o nagpapadala, pwede rin nating i-trigger ang reaksyon
+function triggerKabiReaction() {
+  if (sendTrigger) {
+    if (sendTrigger.type === 'trigger') {
+      sendTrigger.fire();
+    } else {
+      sendTrigger.value = true;
+      setTimeout(() => { sendTrigger.value = false; }, 800);
+    }
+  }
+}
 
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
@@ -680,7 +711,6 @@ function closeReportModal() {
   document.getElementById('reportModal').classList.remove('active');
 }
 
-// Auto open modal if there's a response message/error
 <?php if (!empty($report_msg) || !empty($report_error)): ?>
   window.addEventListener('DOMContentLoaded', (event) => {
     openReportModal();
@@ -731,6 +761,12 @@ function sendMessage() {
 
   if(msg.trim() !== '' && nutritionist_id){
     send.prop('disabled', true).text('Sending…');
+
+    // I-trigger ang reaksyon ni Kabi kapag nagpadala ng mensahe
+    triggerKabiReaction();
+    if (typingInput) {
+      typingInput.value = false;
+    }
 
     $.post('send_message.php', {
       user_id: user_id, 
