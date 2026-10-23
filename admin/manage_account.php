@@ -10,7 +10,7 @@ if (!isset($_SESSION['role'])) { header("Location: ../auth/login.php"); exit(); 
     exit();
 }
 
-$errors = [];$success = "";
+$errors = []; $success = "";
 
 // Kunin ang Admin ID mula sa session para sa activity logs
 $admin_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? 1;
@@ -59,12 +59,12 @@ if (isset($_POST['add_expert'])) {
     $certification = trim($_POST['certification'] ?? '');
     $experience = trim($_POST['experience'] ?? '');
 
-    if (empty($fullname))$errors[] = "Full name is required.";
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL))$errors[] = "Valid email is required.";
-    if (strlen($password) < 6)$errors[] = "Password must be at least 6 characters.";
-    if ($password !== $confirm_password)$errors[] = "Passwords do not match.";
-    if (empty($_FILES['profile_pic']['name']))$errors[] = "Profile picture is required.";
-    if (empty($_FILES['document']['name'][0]))$errors[] = "Verification documents are required.";
+    if (empty($fullname)) $errors[] = "Full name is required.";
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required.";
+    if (strlen($password) < 6) $errors[] = "Password must be at least 6 characters.";
+    if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
+    if (empty($_FILES['profile_pic']['name'])) $errors[] = "Profile picture is required.";
+    if (empty($_FILES['document']['name'][0])) $errors[] = "Verification documents are required.";
 
     if (empty($errors)) {
         $doc_dir = "../uploads/nutritionists/";
@@ -74,13 +74,13 @@ if (isset($_POST['add_expert'])) {
         if (!is_dir($pic_dir)) mkdir($pic_dir, 0755, true);
 
         $pic_filename = time() . "_pic_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES["profile_pic"]["name"]));
-        $pic_uploaded = move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $pic_dir .$pic_filename);
+        $pic_uploaded = move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $pic_dir . $pic_filename);
 
         $uploaded_docs = [];
         foreach ($_FILES['document']['name'] as $key => $name) {
             if ($_FILES['document']['error'][$key] === UPLOAD_ERR_OK) {
                 $doc_filename = time() . "_" . $key . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
-                if (move_uploaded_file($_FILES['document']['tmp_name'][$key], $doc_dir .$doc_filename)) {
+                if (move_uploaded_file($_FILES['document']['tmp_name'][$key], $doc_dir . $doc_filename)) {
                     $uploaded_docs[] = $doc_filename;
                 }
             }
@@ -148,7 +148,7 @@ if (isset($_GET['reject_id'])) {
     exit();
 }
 
-// Handle Deactivation with Reason & SMS Notification (NAAYOS ANG ACTOR_ID ERROR)
+// Handle Deactivation with Reason & SMS Notification (NAAYOS ANG ACTOR_ID AT ACTOR_ROLE ERROR)
 if (isset($_POST['confirm_deactivate'])) {
     $id = (int)$_POST['deactivate_id'];
     $category = trim($_POST['deactivation_reason_category'] ?? 'Policy Violation');
@@ -171,9 +171,9 @@ if (isset($_POST['confirm_deactivate'])) {
         }
 
         if (tableExists($conn, 'activity_logs')) {
-            // Isinama ang actor_id para masunod ang NOT NULL constraint ng database[cite: 14]
-            $logStmt = $conn->prepare("INSERT INTO activity_logs (actor_id, action, description, created_at) VALUES (?, ?, ?, NOW())");
-            $logStmt->execute([$admin_id, 'Deactivated Nutritionist', "Admin deactivated nutritionist {$nutri['fullname']}. Reason: {$category} - {$remarks}"]);
+            // Isinama ang actor_id at actor_role para masunod ang NOT NULL constraints ng database[cite: 14]
+            $logStmt = $conn->prepare("INSERT INTO activity_logs (actor_id, actor_role, action, description, created_at) VALUES (?, ?, ?, ?, NOW())");
+            $logStmt->execute([$admin_id, 'admin', 'Deactivated Nutritionist', "Admin deactivated nutritionist {$nutri['fullname']}. Reason: {$category} - {$remarks}"]);
         }
 
         $message = "Hello " . $nutri['fullname'] . ", your nutritionist account on AI Diet Planner has been DEACTIVATED.\nReason: " . $category . "\nDetails: " . $remarks . "\nYou may submit a reactivation request via the login page.";
