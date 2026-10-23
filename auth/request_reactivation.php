@@ -29,49 +29,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($checkPending->fetch()) {
                 $error = "You already have a pending reactivation request. Please wait for the administrator to review your active appeal.";
             } else {
-                $uploaded_docs = [];
+                $attachment_name = null;
+                if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+                    $upload_dir = "../uploads/reactivations/";
+                    if (!is_dir($upload_dir)) {
+                        mkdir($upload_dir, 0755, true);
+                    }
+                    $file_ext = strtolower(pathinfo($_FILES['attachment']['name'], PATHINFO_EXTENSION));
+                    $allowed_exts = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
 
-                if (!empty($_FILES['attachment']['name'][0])) {
-                    $supabaseUrl = getenv('SUPABASE_URL') ?: 'https://mbsjtesmrowfilvxcaqb.supabase.co';
-                    $serviceKey = getenv('SUPABASE_SERVICE_KEY') ?: getenv('SUPABASE_KEY') ?: '';
-                    $bucket = 'nutritionist-files';
-
-                    foreach ($_FILES['attachment']['name'] as $key => $name) {
-                        if ($_FILES['attachment']['error'][$key] === UPLOAD_ERR_OK) {
-                            $tmpName = $_FILES['attachment']['tmp_name'][$key];
-                            $safeName = time() . "_" . $key . "_reactivate_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
-                            
-                            $url = rtrim($supabaseUrl, '/') . '/storage/v1/object/' . $bucket . '/' . $safeName;
-                            $fileData = file_get_contents($tmpName);
-
-                            $ch = curl_init($url);
-                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-                            curl_setopt($ch, CURLOPT_POSTFIELDS, $fileData);
-                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                'Authorization: Bearer ' . $serviceKey,
-                                'Content-Type: application/octet-stream',
-                                'x-upsert: true'
-                            ]);
-                            
-                            $response = curl_exec($ch);
-                            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                            curl_close($ch);
-
-                            if ($httpCode >= 200 && $httpCode < 300) {
-                                $uploaded_docs[] = $safeName;
-                            }
-                        }
+                    if (in_array($file_ext, $allowed_exts)) {
+                        $attachment_name = time() . "_reactivate_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES['attachment']['name']));
+                        move_uploaded_file($_FILES['attachment']['tmp_name'], $upload_dir . $attachment_name);
+                    } else {
+                        $error = "Invalid file type. Allowed: Images, PDF, Word documents.";
                     }
                 }
 
-                if (empty($uploaded_docs)) {
-                    $error = "Please upload at least one valid document for reactivation.";
-                } else {
-                    $attachments_json = json_encode($uploaded_docs);
-
+                if (empty($error)) {
                     $ins = $conn->prepare("INSERT INTO reactivation_requests (nutritionist_id, email, reason, attachment, status) VALUES (?, ?, ?, ?, 'pending')");
-                    $ins->execute([$nutritionist_id, $email, $reason, $attachments_json]);
+                    $ins->execute([$nutritionist_id, $email, $reason, $attachment_name]);
                     
                     $message = "Your reactivation request has been successfully submitted. The administrator will review your appeal shortly.";
                 }
@@ -97,9 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             --text:#102019;
             --muted:#65736d;
             --line:rgba(16,32,25,.09);
-            --primary:#2563eb;
-            --primary-dark:#1d4ed8;
-            --primary-soft:#eff6ff;
+            --primary:#16a36a;
+            --primary-dark:#08734a;
+            --primary-soft:#e3f6ed;
             --dark:#071a12;
             --dark-2:#0d281d;
             --shadow:0 24px 70px rgba(7,26,18,.10);
@@ -134,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             position:fixed;
             width:520px;height:520px;
             top:-230px;right:-180px;
-            background:rgba(37,99,235,.08);
+            background:rgba(22,163,106,.10);
             filter:blur(20px);
             border-radius:50%;
             pointer-events:none;
@@ -162,8 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width:40px;height:40px;
             display:grid;place-items:center;
             border-radius:13px;
-            background:linear-gradient(145deg,#3b82f6,#1d4ed8);
-            box-shadow:0 9px 22px rgba(37,99,235,.24);
+            background:linear-gradient(145deg,#20bd7a,#078452);
+            box-shadow:0 9px 22px rgba(22,163,106,.24);
             font-size:21px;
         }
         .logo span{color:var(--dark)}
@@ -336,20 +313,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             justify-content: center;
             width: 100%;
             min-height: 50px;
-            background: linear-gradient(135deg,#3b82f6,#1d4ed8);
+            background: linear-gradient(135deg,#19ad70,#078151);
             color: #fff;
             border: none;
             border-radius: 14px;
             font-weight: 700;
             font-size: 15px;
             cursor: pointer;
-            box-shadow: 0 12px 26px rgba(37,99,235,.20);
+            box-shadow: 0 12px 26px rgba(8,129,81,.20);
             transition: transform .25s ease, box-shadow .25s ease;
             margin-top: 8px;
         }
         .btn-primary:hover {
             transform: translateY(-3px);
-            box-shadow: 0 16px 32px rgba(37,99,235,.28);
+            box-shadow: 0 16px 32px rgba(8,129,81,.28);
+        }
+
+        .signup-link { 
+            margin-top: 22px; 
+            font-size: 14px; 
+            color: var(--muted); 
+        }
+        .signup-link a {
+            color: var(--primary-dark);
+            font-weight: 700;
+            transition: .25s ease;
+        }
+        .signup-link a:hover {
+            color: var(--primary);
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -367,7 +359,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="card">
         <div class="card-icon"><i class="fa-solid fa-user-gear"></i></div>
         <h1>Account Reactivation</h1>
-        <p class="subtitle">Submit your appeal and supporting documents to restore your expert account access.</p>
+        <p class="subtitle">Submit your appeal and supporting proof to restore your expert account access.</p>
 
         <?php if (!empty($message)): ?>
             <div class="alert-card alert-card-success">
@@ -407,33 +399,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="form-group">
-                <label>Supporting Documents / Proof (Multiple files allowed)</label>
+                <label>Supporting Document / Proof (Optional)</label>
                 <div class="file-upload-box" onclick="document.getElementById('file-input').click()">
-                    <input type="file" id="file-input" name="attachment[]" accept="image/*,.pdf,.doc,.docx" multiple onchange="updateFileName(this)">
+                    <input type="file" id="file-input" name="attachment" accept="image/*,.pdf,.doc,.docx" onchange="updateFileName(this)">
                     <div class="file-upload-label" id="file-label">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> <span id="file-text">Choose files or drag here</span>
+                        <i class="fa-solid fa-cloud-arrow-up"></i> <span id="file-text">Choose file or drag here</span>
                     </div>
                 </div>
             </div>
 
             <button type="submit" class="btn-primary">Submit Reactivation Request</button>
         </form>
+
+
     </div>
 </div>
 
 <script>
     function updateFileName(input) {
         const fileText = document.getElementById('file-text');
-        if (input.files && input.files.length > 0) {
-            if (input.files.length === 1) {
-                fileText.textContent = input.files[0].name;
-            } else {
-                fileText.textContent = input.files.length + ' files selected';
-            }
+        if (input.files && input.files[0]) {
+            fileText.textContent = input.files[0].name;
             fileText.style.color = 'var(--primary-dark)';
             fileText.style.fontWeight = '700';
         } else {
-            fileText.textContent = 'Choose files or drag here';
+            fileText.textContent = 'Choose file or drag here';
             fileText.style.color = 'var(--muted)';
             fileText.style.fontWeight = '600';
         }
