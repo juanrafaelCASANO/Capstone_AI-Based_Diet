@@ -624,28 +624,27 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- LOCAL RIVE RUNTIME SCRIPT -->
-<script src="../assets/js/rive.js"></script>
+<!-- OPISYAL NA RIVE CDN AT JQUERY -->
+<script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-// INITIALIZE RIVE MASCOT (KABI) IN CHAT
-window.addEventListener('load', function() {
+window.addEventListener('DOMContentLoaded', () => {
   try {
-    const kabiRive = new Rive({
+    const kabiRive = new rive.Rive({
       src: "../assets/rive/uploads/kabi.riv",
       canvas: document.getElementById("kabiChatCanvas"),
       autoplay: true,
       stateMachines: "State Machine 1",
       onLoad: () => {
-        console.log("SUCCESS: Nag-load na si Kabi!");
+        console.log("SUCCESS: Tagumpay na nag-load si Kabi!");
         kabiRive.resizeDrawingSurfaceToCanvas();
       },
       onError: (err) => {
-        console.error("Rive load error:", err);
+        console.error("Rive Load Error:", err);
       }
     });
   } catch (err) {
-    console.error("Rive catch error:", err);
+    console.error("Rive Exception:", err);
   }
 });
 
