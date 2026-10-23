@@ -21,9 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
             ");
             $stmt->execute([$sender_id, $receiver_id, $message]);
 
-            // 2. Suriin ang availability o status ng Nutritionist
+            // 2. Suriin ang availability status at kung kailan siya huling aktibo (last_active_at)
             $nutriStatusStmt = $conn->prepare("
-                SELECT availability_status, status 
+                SELECT availability_status, status, last_active_at 
                 FROM nutritionist 
                 WHERE id = ? 
                 LIMIT 1
@@ -31,15 +31,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
             $nutriStatusStmt->execute([$receiver_id]);
             $nutriInfo = $nutriStatusStmt->fetch(PDO::FETCH_ASSOC);
 
-            // Alamin kung ang nutritionist ay naka-online o available
-            // Halimbawa: kung ang availability_status ay 'available' (o active), HINDI magrereply ang AI.
-            // Magrereply lamang ang AI kung sila ay 'on_leave', 'unavailable', o naka-log out/offline.
+            // Alamin kung ang nutritionist ay talagang online o active pa sa usapan
             $isNutritionistOnline = false;
             if ($nutriInfo) {
                 $avail = $nutriInfo['availability_status'] ?? 'available';
-                // Kung ang status ay available, ibig sabihin ay online/aktibo siya sa usapan
-                if ($avail === 'available') {
-                    $isNutritionistOnline = true;
+                $lastActive = $nutriInfo['last_active_at'] ?? null;
+                
+                // Magiging true lang kapag 'available' siya AT nag-update ang activity niya 
+                // sa loob ng huling 3 minuto (180 seconds). Kung lumampas na o offline, magiging false.
+                if ($avail === 'available' && $lastActive) {
+                    $timeDiff = time() - strtotime($lastActive);
+                    if ($timeDiff < 180) { 
+                        $isNutritionistOnline = true;
+                    }
                 }
             }
 
