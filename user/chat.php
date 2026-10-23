@@ -641,7 +641,7 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- INTERACTIVE RIVE SCRIPT (DUMUDUNGAW / NAKATUTOK HABANG NAGTI-TYPE AT NAG-CHAT) -->
+<!-- INTERACTIVE RIVE SCRIPT (TINANGGAL ANG MALING STATE MACHINE PARAM PARA HINDI MAG-404 O ERROR) -->
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
@@ -655,16 +655,19 @@ window.addEventListener('DOMContentLoaded', () => {
       src: "<?php echo $resolved_riv_path; ?>",
       canvas: document.getElementById("kabiChatCanvas"),
       autoplay: true,
-      stateMachines: "State Machine 1", 
       onLoad: () => {
-        console.log("SUCCESS: Tagumpay na nag-load si Kabi at handa nang dumungaw sa chat!");
+        console.log("SUCCESS: Tagumpay na nag-load si Kabi!");
         kabiRive.resizeDrawingSurfaceToCanvas();
 
-        // Kunin ang State Machine Inputs kung meron mang 'isTyping' o 'Typing' o 'isLooking'
-        const inputs = kabiRive.stateMachineInputs("State Machine 1");
-        if (inputs) {
-          typingInput = inputs.find(i => i.name === 'isTyping' || i.name === 'Typing' || i.name === 'isLooking');
-          sendTrigger = inputs.find(i => i.name === 'send' || i.name === 'Trigger' || i.name === 'success');
+        // Subukan nating kunin ang inputs kung available sa default state machine
+        try {
+          const inputs = kabiRive.stateMachineInputs(kabiRive.activeStateMachineName);
+          if (inputs) {
+            typingInput = inputs.find(i => i.name === 'isTyping' || i.name === 'Typing' || i.name === 'isLooking');
+            sendTrigger = inputs.find(i => i.name === 'send' || i.name === 'Trigger' || i.name === 'success');
+          }
+        } catch (e) {
+          console.log("Note: Walang custom inputs/state machine, default artboard animation ang ginagamit.");
         }
       },
       onError: (err) => {
@@ -676,14 +679,14 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Habang nagti-type ang user sa message box, dumudungaw o nakatutok si Kabi
+// Habang nagti-type ang user sa message box
 $('#message').on('input', function() {
   if (typingInput) {
     typingInput.value = $(this).val().trim().length > 0;
   }
 });
 
-// Kapag may pumapasok na bagong mensahe o nagpapadala, pwede rin nating i-trigger ang reaksyon
+// Kapag nagpadala ng mensahe
 function triggerKabiReaction() {
   if (sendTrigger) {
     if (sendTrigger.type === 'trigger') {
@@ -762,7 +765,6 @@ function sendMessage() {
   if(msg.trim() !== '' && nutritionist_id){
     send.prop('disabled', true).text('Sending…');
 
-    // I-trigger ang reaksyon ni Kabi kapag nagpadala ng mensahe
     triggerKabiReaction();
     if (typingInput) {
       typingInput.value = false;
