@@ -110,6 +110,23 @@ try {
 } catch (Exception $e) {
     $unread_count = 0;
 }
+
+// SMART RIVE PATH RESOLVER (Awtomatikong hinahanap kung nasaan ang kabi.riv)
+$possible_riv_paths = [
+    '../assets/rive/uploads/kabi.riv',
+    '../assets/uploads/kabi.riv',
+    '../uploads/kabi.riv',
+    '../../assets/rive/uploads/kabi.riv',
+    'assets/rive/uploads/kabi.riv',
+    'uploads/kabi.riv'
+];
+$resolved_riv_path = '../assets/rive/uploads/kabi.riv'; // default fallback
+foreach ($possible_riv_paths as $path) {
+    if (file_exists(__DIR__ . '/' . $path)) {
+        $resolved_riv_path = $path;
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -624,18 +641,18 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- OPISYAL NA RIVE CDN AT JQUERY (TINAMA ANG ABSOLUTE PATH PARA MAWALA ANG 404 ERROR) -->
+<!-- OPISYAL NA RIVE CDN AT JQUERY (MAY SMART PHP PATH RESOLVER) -->
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', () => {
   try {
     const kabiRive = new rive.Rive({
-      src: "/Capstone_AI-Based_Diet/assets/rive/uploads/kabi.riv",
+      src: "<?php echo $resolved_riv_path; ?>",
       canvas: document.getElementById("kabiChatCanvas"),
       autoplay: true,
       onLoad: () => {
-        console.log("SUCCESS: Tagumpay na nag-load si Kabi!");
+        console.log("SUCCESS: Tagumpay na nag-load si Kabi mula sa:", "<?php echo $resolved_riv_path; ?>");
         kabiRive.resizeDrawingSurfaceToCanvas();
       },
       onError: (err) => {
