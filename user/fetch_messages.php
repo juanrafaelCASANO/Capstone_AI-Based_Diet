@@ -23,12 +23,19 @@ $stmt = $conn->prepare($query);
 $stmt->execute([$user_id, $nutri_id, $nutri_id, $user_id]);
 
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $class = ($row['sender_id'] == $user_id) ? 'user-msg' : 'nutritionist-msg';
+    // Piliting ilagay sa kaliwa (nutritionist-msg) kung ang mensahe ay galing kay AI Assistant
+    $is_ai = (strpos($row['message'], 'AI Assistant') !== false || strpos($row['message'], '🤖') !== false);
+
+    if ($is_ai) {
+        $class = 'nutritionist-msg';
+    } else {
+        $class = ($row['sender_id'] == $user_id) ? 'user-msg' : 'nutritionist-msg';
+    }
     
     $raw_message = htmlspecialchars_decode($row['message'], ENT_QUOTES);
 
     // KUNG ANG USER ANG NAGBASA NG CHAT: Alisin ang "Edit Plan" button sa HTML card para hindi niya ito makita o ma-edit
-    if ($row['sender_id'] == $user_id) {
+    if ($row['sender_id'] == $user_id && !$is_ai) {
         // Tinatanggal ang link patungo sa nutritionist_edit_plan.php para sa panig ng client
         $raw_message = preg_replace('/<a\s+href="nutritionist_edit_plan\.php[^>]*>.*?<\/a>/i', '', $raw_message);
     }
