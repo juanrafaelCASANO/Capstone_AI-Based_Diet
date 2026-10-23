@@ -28,3 +28,4 @@ frame-ancestors 'self'"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 
 </IfModule>
+AddType application/octet-stream .riv
