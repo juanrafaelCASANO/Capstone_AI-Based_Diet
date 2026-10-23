@@ -51,10 +51,10 @@ try {
     // Use default if error occurs
 }
 
-// Get specific nutritionist information including availability status
+// Get specific nutritionist information including availability status and last_active_at
 $nutri_stmt = $conn->prepare("
     SELECT n.id, n.fullname, n.email, n.profile_pic, 
-           n.experience, n.latitude, n.longitude, n.availability_status,
+           n.experience, n.latitude, n.longitude, n.availability_status, n.last_active_at,
            p.specialty AS specialization 
     FROM nutritionist n
     LEFT JOIN nutritionists_profile p ON n.fullname = p.name
@@ -461,16 +461,29 @@ button{cursor:pointer}
           </div>
           <div style="display: flex; align-items: center; gap: 12px;">
             <?php 
-              $nutri_status = $nutri['availability_status'] ?? 'available';
-              $status_text = "Connected";
-              $dot_color = "#10b981"; // Green
-              
-              if ($nutri_status === 'on_leave') {
-                  $status_text = "On Leave / Sick";
-                  $dot_color = "#f59e0b"; // Yellow
-              } elseif ($nutri_status === 'unavailable') {
-                  $status_text = "Unavailable";
-                  $dot_color = "#ef4444"; // Red
+              // Dynamic Last Active calculation
+              $last_active = $nutri['last_active_at'] ?? null;
+              $status_text = "Offline";
+              $dot_color = "#94a3b8"; // Gray
+
+              if ($last_active) {
+                  $time_diff = time() - strtotime($last_active);
+                  if ($time_diff < 180) { // Wala pang 3 minuto
+                      $status_text = "Active";
+                      $dot_color = "#10b981"; // Green
+                  } else if ($time_diff < 3600) { // Wala pang 1 oras
+                      $mins = round($time_diff / 60);
+                      $status_text = "Active {$mins}m ago";
+                      $dot_color = "#f59e0b"; // Yellow
+                  } else if ($time_diff < 86400) { // Wala pang 1 araw
+                      $hours = round($time_diff / 3600);
+                      $status_text = "Active {$hours}h ago";
+                      $dot_color = "#94a3b8";
+                  } else {
+                      $days = round($time_diff / 86400);
+                      $status_text = "Active {$days}d ago";
+                      $dot_color = "#94a3b8";
+                  }
               }
             ?>
             <div class="status">
