@@ -2,55 +2,76 @@
 session_start();
 require_once '../config.php';
 
-$message = "";
 $error = "";
+$success = "";
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (isset($_POST['request_reactivation'])) {
     $email = trim($_POST['email'] ?? '');
     $reason = trim($_POST['reason'] ?? '');
 
     if (empty($email) || empty($reason)) {
-        $error = "Please fill in all required fields.";
+        $error = "Mangyaring punan ang lahat ng kinakailangang impormasyon.";
     } else {
-        $stmt = $conn->prepare("SELECT id, status FROM nutritionist WHERE email = ? LIMIT 1");
+        // Suriin kung ang nutritionist ay umiiral at inactive
+        $stmt = $conn->prepare("SELECT id, fullname, status FROM nutritionist WHERE email = ?");
         $stmt->execute([$email]);
         $nutri = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$nutri) {
-            $error = "No nutritionist account found with this email address.";
-        } elseif ($nutri['status'] !== 'inactive') {
-            $error = "This account is not inactive or does not require reactivation.";
+            $error = "Walang nahanap na nutritionist account gamit ang email na ito.";
         } else {
-            $nutritionist_id = $nutri['id'];
-            
-            $checkPending = $conn->prepare("SELECT id FROM reactivation_requests WHERE nutritionist_id = ? AND status = 'pending' LIMIT 1");
-            $checkPending->execute([$nutritionist_id]);
-            
-            if ($checkPending->fetch()) {
-                $error = "You already have a pending reactivation request. Please wait for the administrator to review your active appeal.";
-            } else {
-                $attachment_name = null;
-                if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
-                    $upload_dir = "../uploads/reactivations/";
-                    if (!is_dir($upload_dir)) {
-                        mkdir($upload_dir, 0755, true);
-                    }
-                    $file_ext = strtolower(pathinfo($_FILES['attachment']['name'], PATHINFO_EXTENSION));
-                    $allowed_exts = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+            $uploaded_docs = [];
 
-                    if (in_array($file_ext, $allowed_exts)) {
-                        $attachment_name = time() . "_reactivate_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES['attachment']['name']));
-                        move_uploaded_file($_FILES['attachment']['tmp_name'], $upload_dir . $attachment_name);
-                    } else {
-                        $error = "Invalid file type. Allowed: Images, PDF, Word documents.";
+            // I-handle ang Multiple File Upload papuntang Supabase Storage
+            if (!empty($_FILES['document']['name'][0])) {
+                $supabaseUrl = getenv('SUPABASE_URL') ?: 'https://mbsjtesmrowfilvxcaqb.supabase.co';
+                // Kunin ang Supabase Service Key o Anon Key mula sa environment variables
+                $serviceKey = getenv('SUPABASE_SERVICE_KEY') ?: getenv('SUPABASE_KEY') ?: '';
+                $bucket = 'nutritionist-files';
+
+                foreach ($_FILES['document']['name'] as $key => $name) {
+                    if ($_FILES['document']['error'][$key] === UPLOAD_ERR_OK) {
+                        $tmpName = $_FILES['document']['tmp_name'][$key];
+                        $safeName = time() . "_" . $key . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
+                        
+                        $url = rtrim($supabaseUrl, '/') . '/storage/v1/object/' . $bucket . '/' . $safeName;
+                        $fileData = file_get_contents($tmpName);
+
+                        $ch = curl_init($url);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, $fileData);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Authorization: Bearer ' . $serviceKey,
+                            'Content-Type: application/octet-stream',
+                            'x-upsert: true'
+                        ]);
+                        
+                        $response = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+
+                        if ($httpCode >= 200 && $httpCode < 300) {
+                            $uploaded_docs[] = $safeName;
+                        }
                     }
                 }
+            }
 
-                if (empty($error)) {
-                    $ins = $conn->prepare("INSERT INTO reactivation_requests (nutritionist_id, email, reason, attachment, status) VALUES (?, ?, ?, ?, 'pending')");
-                    $ins->execute([$nutritionist_id, $email, $reason, $attachment_name]);
-                    
-                    $message = "Your reactivation request has been successfully submitted. The administrator will review your appeal shortly.";
+            if (empty($uploaded_docs)) {
+                $error = "Kinakailangan na mag-upload ng kahit isang valid na dokumento para sa reactivation.";
+            } else {
+                $documents_json = json_encode($uploaded_docs);
+
+                // I-save ang kahilingan sa database (Maaaring i-adjust ang table ayon sa iyong schema)
+                try {
+                    // Halimbawa: I-update ang status o mag-insert sa reactivation requests table
+                    $updateStmt = $conn->prepare("UPDATE nutritionist SET certification = CONCAT(certification, '\nReactivation Request: ', ?), document = ? WHERE id = ?");
+                    $updateStmt->execute([$reason, $documents_json, $nutri['id']]);
+
+                    $success = "Matagumpay na naipadala ang iyong kahilingan sa pag-reactivate ng account. Mag-aabang ang admin sa iyong mga dokumento.";
+                } catch (Exception $e) {
+                    $error = "Nagkaroon ng error sa database: " . $e->getMessage();
                 }
             }
         }
@@ -62,373 +83,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Request Account Reactivation - AI Diet Planner</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <title>Request Account Reactivation | AI Diet Planner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
-        :root{
-            --bg:#f5f8f6;
-            --surface:#ffffff;
-            --surface-2:#f0f6f2;
-            --text:#102019;
-            --muted:#65736d;
-            --line:rgba(16,32,25,.09);
-            --primary:#16a36a;
-            --primary-dark:#08734a;
-            --primary-soft:#e3f6ed;
-            --dark:#071a12;
-            --dark-2:#0d281d;
-            --shadow:0 24px 70px rgba(7,26,18,.10);
-            --radius:28px;
-            
-            --error-bg: #fff1f2;
-            --error-text: #9f1239;
-            --error-border: #fecdd3;
-            
-            --success-bg: #f0fdf4;
-            --success-text: #166534;
-            --success-border: #bbf7d0;
-        }
-
-        *{box-sizing:border-box;margin:0;padding:0}
-        
-        body{
-            font-family:'DM Sans',sans-serif;
-            background:var(--bg);
-            color:var(--text);
-            overflow-x:hidden;
-            line-height:1.5;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        a{text-decoration:none;color:inherit}
-
-        body::before{
-            content:"";
-            position:fixed;
-            width:520px;height:520px;
-            top:-230px;right:-180px;
-            background:rgba(22,163,106,.10);
-            filter:blur(20px);
-            border-radius:50%;
-            pointer-events:none;
-            z-index:-1;
-        }
-
-        .header {
-            padding: 24px clamp(20px, 5vw, 60px);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-        }
-
-        .logo{
-            display:inline-flex;
-            align-items:center;
-            gap:11px;
-            font-family:'Manrope',sans-serif;
-            font-size:19px;
-            font-weight:800;
-            letter-spacing:-.4px;
-        }
-        .logo-mark{
-            width:40px;height:40px;
-            display:grid;place-items:center;
-            border-radius:13px;
-            background:linear-gradient(145deg,#20bd7a,#078452);
-            box-shadow:0 9px 22px rgba(22,163,106,.24);
-            font-size:21px;
-        }
-        .logo span{color:var(--dark)}
-
-        .back-link {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--muted);
-            transition: .25s ease;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .back-link:hover {
-            color: var(--primary-dark);
-            transform: translateX(-4px);
-        }
-
-        .wrapper { 
-            flex: 1;
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            padding: 20px;
-        }
-
-        .card { 
-            background: rgba(255,255,255,.85); 
-            width: 100%; 
-            max-width: 500px; 
-            padding: clamp(30px, 5vw, 45px); 
-            border-radius: var(--radius); 
-            border: 1px solid rgba(255,255,255,.9);
-            box-shadow: var(--shadow); 
-            backdrop-filter: blur(15px);
-            text-align: center; 
-            animation: slideUp 0.6s ease-out forwards;
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .card-icon {
-            width: 64px;
-            height: 64px;
-            margin: 0 auto 20px;
-            background: var(--primary-soft);
-            color: var(--primary-dark);
-            font-size: 26px;
-            border-radius: 18px;
-            display: grid;
-            place-items: center;
-        }
-
-        .card h1 { 
-            font-family: 'Manrope', sans-serif;
-            font-size: 26px;
-            letter-spacing: -0.5px;
-            margin-bottom: 6px;
-            color: var(--dark);
-        }
-        .card p.subtitle { 
-            color: var(--muted); 
-            margin-bottom: 28px; 
-            font-size: 14.5px;
-        }
-
-        .alert-card { 
-            display: flex; 
-            align-items: flex-start; 
-            gap: 12px; 
-            padding: 14px 16px; 
-            border-radius: 14px; 
-            margin-bottom: 20px; 
-            text-align: left; 
-            font-size: 13px;
-            line-height: 1.5;
-        }
-        .alert-card-danger { 
-            background: var(--error-bg); 
-            border: 1px solid var(--error-border); 
-            color: var(--error-text); 
-        }
-        .alert-card-success { 
-            background: var(--success-bg); 
-            border: 1px solid var(--success-border); 
-            color: var(--success-text); 
-        }
-        .alert-card i { margin-top: 3px; font-size: 16px; }
-        .alert-card strong { font-family: 'Manrope', sans-serif; font-size: 14px; display: block; margin-bottom: 2px; }
-
-        .form-group { 
-            text-align: left; 
-            margin-bottom: 18px; 
-        }
-        .form-group label { 
-            display: block;
-            font-weight: 600; 
-            font-size: 13px; 
-            color: var(--dark-2);
-            margin-bottom: 8px;
-        }
-
-        .input-box { position: relative; }
-        .input-box i.field-icon { 
-            position: absolute; 
-            top: 50%; 
-            left: 18px; 
-            transform: translateY(-50%); 
-            color: #9ba7a2; 
-            font-size: 15px;
-        }
-        .input-box input, .input-box textarea { 
-            width: 100%; 
-            padding: 14px 18px 14px 48px; 
-            border-radius: 14px; 
-            border: 1px solid var(--line); 
-            background: var(--surface-2); 
-            font-family: inherit;
-            font-size: 14.5px;
-            color: var(--text);
-            transition: all 0.25s ease;
-        }
-        .input-box textarea {
-            padding-left: 48px;
-            padding-top: 14px;
-            resize: vertical;
-            min-height: 110px;
-        }
-        .input-box input:focus, .input-box textarea:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: #fff;
-            box-shadow: 0 0 0 4px var(--primary-soft);
-        }
-
-        .file-upload-box {
-            border: 2px dashed var(--line);
-            background: var(--surface-2);
-            padding: 16px;
-            border-radius: 14px;
-            text-align: center;
-            cursor: pointer;
-            transition: .25s ease;
-        }
-        .file-upload-box:hover {
-            border-color: var(--primary);
-            background: var(--primary-soft);
-        }
-        .file-upload-box input[type="file"] {
-            display: none;
-        }
-        .file-upload-label {
-            font-size: 13px;
-            color: var(--muted);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            font-weight: 600;
-        }
-        .file-upload-label i { color: var(--primary-dark); font-size: 16px; }
-
-        .btn-primary {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            min-height: 50px;
-            background: linear-gradient(135deg,#19ad70,#078151);
-            color: #fff;
-            border: none;
-            border-radius: 14px;
-            font-weight: 700;
-            font-size: 15px;
-            cursor: pointer;
-            box-shadow: 0 12px 26px rgba(8,129,81,.20);
-            transition: transform .25s ease, box-shadow .25s ease;
-            margin-top: 8px;
-        }
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 16px 32px rgba(8,129,81,.28);
-        }
-
-        .signup-link { 
-            margin-top: 22px; 
-            font-size: 14px; 
-            color: var(--muted); 
-        }
-        .signup-link a {
-            color: var(--primary-dark);
-            font-weight: 700;
-            transition: .25s ease;
-        }
-        .signup-link a:hover {
-            color: var(--primary);
-            text-decoration: underline;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #f4f7ff 0%, #eef3ff 50%, #f8fafc 100%); color: #172033; min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+        .card { width: 100%; max-width: 500px; background: white; border-radius: 20px; padding: 35px; box-shadow: 0 10px 35px rgba(15,23,42,.08); border: 1px solid #e2e8f0; }
+        .brand { text-align: center; margin-bottom: 25px; }
+        .brand-icon { width: 55px; height: 55px; margin: 0 auto 12px; border-radius: 15px; background: linear-gradient(135deg, #2563eb, #4f46e5); color: white; display: grid; place-items: center; font-size: 22px; box-shadow: 0 8px 20px rgba(37,99,235,.25); }
+        .brand h2 { font-size: 22px; font-weight: 800; color: #111827; }
+        .brand p { font-size: 13px; color: #64748b; margin-top: 4px; }
+        .form-group { margin-bottom: 16px; display: flex; flex-direction: column; }
+        .form-group label { font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; }
+        .form-group input, .form-group textarea { width: 100%; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 10px; outline: none; font-size: 14px; color: #1e293b; transition: .2s; }
+        .form-group input:focus, .form-group textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+        .form-group textarea { resize: vertical; min-height: 90px; }
+        .file-box { border: 2px dashed #cbd5e1; border-radius: 10px; padding: 12px; background: #f8fafc; text-align: center; cursor: pointer; }
+        .file-box input { cursor: pointer; }
+        .submit-btn { width: 100%; height: 46px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 6px 18px rgba(37,99,235,.25); transition: .2s; margin-top: 5px; }
+        .submit-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(37,99,235,.35); }
+        .alert-error { background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 9px; font-size: 13px; margin-bottom: 20px; border-left: 4px solid #dc2626; }
+        .alert-success { background: #dcfce7; color: #15803d; padding: 12px; border-radius: 9px; font-size: 13px; margin-bottom: 20px; border-left: 4px solid #16a34a; }
+        .back-link { display: block; text-align: center; margin-top: 18px; font-size: 13px; color: #2563eb; font-weight: 600; text-decoration: none; }
+        .back-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
 
-<header class="header">
-    <a href="../index.php" class="logo">
-        <span class="logo-mark">🥗</span>
-        <span>AI Diet Planner</span>
-    </a>
-    <a href="login.php" class="back-link"><i class="fa-solid fa-arrow-left"></i> Back to Login</a>
-</header>
-
-<div class="wrapper">
-    <div class="card">
-        <div class="card-icon"><i class="fa-solid fa-user-gear"></i></div>
-        <h1>Account Reactivation</h1>
-        <p class="subtitle">Submit your appeal and supporting proof to restore your expert account access.</p>
-
-        <?php if (!empty($message)): ?>
-            <div class="alert-card alert-card-success">
-                <i class="fa-solid fa-circle-check"></i>
-                <div>
-                    <strong>Success</strong>
-                    <?= htmlspecialchars($message) ?>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <?php if (!empty($error)): ?>
-            <div class="alert-card alert-card-danger">
-                <i class="fa-solid fa-circle-exclamation"></i>
-                <div>
-                    <strong>Notice</strong>
-                    <?= htmlspecialchars($error) ?>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <form method="POST" enctype="multipart/form-data">
-            <div class="form-group">
-                <label>Registered Email Address</label>
-                <div class="input-box">
-                    <i class="fa-regular fa-envelope field-icon"></i>
-                    <input type="email" name="email" placeholder="name@example.com" required>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Reason for Reactivation / Explanation</label>
-                <div class="input-box">
-                    <i class="fa-regular fa-comment-dots field-icon" style="top: 22px;"></i>
-                    <textarea name="reason" placeholder="Explain why your account should be reactivated..." required></textarea>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Supporting Document / Proof (Optional)</label>
-                <div class="file-upload-box" onclick="document.getElementById('file-input').click()">
-                    <input type="file" id="file-input" name="attachment" accept="image/*,.pdf,.doc,.docx" onchange="updateFileName(this)">
-                    <div class="file-upload-label" id="file-label">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> <span id="file-text">Choose file or drag here</span>
-                    </div>
-                </div>
-            </div>
-
-            <button type="submit" class="btn-primary">Submit Reactivation Request</button>
-        </form>
-
-
+<div class="card">
+    <div class="brand">
+        <div class="brand-icon"><i class="fa-solid fa-rotate-right"></i></div>
+        <h2>Account Reactivation</h2>
+        <p>Magsumite ng kahilingan at mga dokumento para sa muling pagbubukas ng iyong account.</p>
     </div>
-</div>
 
-<script>
-    function updateFileName(input) {
-        const fileText = document.getElementById('file-text');
-        if (input.files && input.files[0]) {
-            fileText.textContent = input.files[0].name;
-            fileText.style.color = 'var(--primary-dark)';
-            fileText.style.fontWeight = '700';
-        } else {
-            fileText.textContent = 'Choose file or drag here';
-            fileText.style.color = 'var(--muted)';
-            fileText.style.fontWeight = '600';
-        }
-    }
-</script>
+    <?php if (!empty($error)): ?>
+        <div class="alert-error"><i class="fa-solid fa-triangle-exclamation"></i> <?= htmlspecialchars($error) ?></div>
+    <?php endif; ?>
+
+    <?php if (!empty($success)): ?>
+        <div class="alert-success"><i class="fa-solid fa-circle-check"></i> <?= htmlspecialchars($success) ?></div>
+    <?php endif; ?>
+
+    <form method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" name="email" placeholder="Ilagay ang iyong rehistradong email" required>
+        </div>
+
+        <div class="form-group">
+            <label>Dahilan ng Kahilingan</label>
+            <textarea name="reason" placeholder="Ikwento o ilatag ang dahilan kung bakit dapat i-reactivate ang iyong account..." required></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Mga Dokumento / Patunay (Multiple files allowed)</label>
+            <div class="file-box">
+                <input type="file" name="document[]" accept="image/*,.pdf,.doc,.docx" multiple required>
+            </div>
+            <span style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Maaari kang pumili ng maramihang files nang sabay-sabay.</span>
+        </div>
+
+        <button type="submit" name="request_reactivation" class="submit-btn">Ipadala ang Kahilingan</button>
+    </form>
+
+    <a href="login.php" class="back-link"><i class="fa-solid fa-arrow-left"></i> Bumalik sa Login</a>
+</div>
 
 </body>
 </html>
