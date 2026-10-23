@@ -629,18 +629,26 @@ button{cursor:pointer}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 // INITIALIZE RIVE MASCOT (KABI) IN CHAT
-try {
-  const kabiRive = new Rive({
-    src: "../assets/rive/uploads/kabi.riv",
-    canvas: document.getElementById("kabiChatCanvas"),
-    autoplay: true,
-    onLoad: () => {
-      kabiRive.resizeDrawingSurfaceToCanvas();
-    }
-  });
-} catch (err) {
-  console.error("Rive chat mascot load error:", err);
-}
+document.addEventListener("DOMContentLoaded", function () {
+  try {
+    const kabiRive = new Rive({
+      src: "../assets/rive/uploads/kabi.riv",
+      canvas: document.getElementById("kabiChatCanvas"),
+      autoplay: true,
+      stateMachines: "State Machine 1", // Kailangan ito para lumitaw ang character ni Kabi
+      onLoad: () => {
+        console.log("Kabi loaded successfully in chat!");
+        kabiRive.resizeDrawingSurfaceToCanvas();
+      },
+      onError: (err) => {
+        console.error("Rive load error:", err);
+      }
+    });
+  } catch (err) {
+    console.error("Rive initialization error:", err);
+  }
+});
+</script>
 
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
