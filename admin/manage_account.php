@@ -12,6 +12,9 @@ if (!isset($_SESSION['role'])) { header("Location: ../auth/login.php"); exit(); 
 
 $errors = [];$success = "";
 
+// Kunin ang Admin ID mula sa session para sa activity logs
+$admin_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? 1;
+
 // ======================================================
 // TEXTBEE SMS HELPER FUNCTION
 // ======================================================
@@ -35,7 +38,7 @@ function sendTextBeeSMS($phoneNumber, $message) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
-        'x-api-key: ' . $textbeeKey // ITAMA ITO: Ginawang $textbeeKey
+        'x-api-key: ' . $textbeeKey
     ]);
 
     $response = curl_exec($ch);
@@ -51,8 +54,8 @@ if (isset($_POST['add_expert'])) {
     $fullname = trim($_POST['fullname'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
-    $password =$_POST['password'] ?? '';
-    $confirm_password =$_POST['confirm_password'] ?? '';
+    $password = $_POST['password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
     $certification = trim($_POST['certification'] ?? '');
     $experience = trim($_POST['experience'] ?? '');
 
@@ -63,7 +66,8 @@ if (isset($_POST['add_expert'])) {
     if (empty($_FILES['profile_pic']['name']))$errors[] = "Profile picture is required.";
     if (empty($_FILES['document']['name'][0]))$errors[] = "Verification documents are required.";
 
-    if (empty($errors)) {$doc_dir = "../uploads/nutritionists/";
+    if (empty($errors)) {
+        $doc_dir = "../uploads/nutritionists/";
         $pic_dir = "../uploads/profile_pics/";
 
         if (!is_dir($doc_dir)) mkdir($doc_dir, 0755, true);
@@ -73,10 +77,11 @@ if (isset($_POST['add_expert'])) {
         $pic_uploaded = move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $pic_dir .$pic_filename);
 
         $uploaded_docs = [];
-        foreach ($_FILES['document']['name'] as $key =>$name) {
-            if ($_FILES['document']['error'][$key] === UPLOAD_ERR_OK) {$doc_filename = time() . "_" . $key . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
+        foreach ($_FILES['document']['name'] as $key => $name) {
+            if ($_FILES['document']['error'][$key] === UPLOAD_ERR_OK) {
+                $doc_filename = time() . "_" . $key . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($name));
                 if (move_uploaded_file($_FILES['document']['tmp_name'][$key], $doc_dir .$doc_filename)) {
-                    $uploaded_docs[] =$doc_filename;
+                    $uploaded_docs[] = $doc_filename;
                 }
             }
         }
@@ -86,9 +91,9 @@ if (isset($_POST['add_expert'])) {
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
                 $documents_json = json_encode($uploaded_docs);
 
-                $stmt =$conn->prepare("INSERT INTO nutritionist (fullname, profile_pic, email, phone, password, certification, experience, document, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')");
+                $stmt = $conn->prepare("INSERT INTO nutritionist (fullname, profile_pic, email, phone, password, certification, experience, document, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')");
                 
-                if ($stmt->execute([$fullname,$pic_filename, $email,$phone, $hashed_password,$certification, $experience,$documents_json])) {
+                if ($stmt->execute([$fullname, $pic_filename, $email, $phone, $hashed_password, $certification, $experience, $documents_json])) {
                     header("Location: manage_account.php?msg=success");
                     exit();
                 } else {
@@ -107,16 +112,16 @@ if (isset($_POST['add_expert'])) {
 if (isset($_GET['approve_id'])) {
     $id = (int)$_GET['approve_id'];
     
-    $stmt =$conn->prepare("SELECT fullname, phone FROM nutritionist WHERE id = ?");
+    $stmt = $conn->prepare("SELECT fullname, phone FROM nutritionist WHERE id = ?");
     $stmt->execute([$id]);
-    $nutri =$stmt->fetch(PDO::FETCH_ASSOC);
+    $nutri = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($nutri) {
-        $updateStmt =$conn->prepare("UPDATE nutritionist SET status = 'active' WHERE id = ?");
+        $updateStmt = $conn->prepare("UPDATE nutritionist SET status = 'active' WHERE id = ?");
         $updateStmt->execute([$id]);
 
         $message = "Hello " . $nutri['fullname'] . ", great news! Your nutritionist account on AI Diet Planner has been APPROVED. You can now log in.";
-        sendTextBeeSMS($nutri['phone'],$message);
+        sendTextBeeSMS($nutri['phone'], $message);
     }
 
     header("Location: manage_account.php?msg=approved");
@@ -127,23 +132,23 @@ if (isset($_GET['approve_id'])) {
 if (isset($_GET['reject_id'])) {
     $id = (int)$_GET['reject_id'];
     
-    $stmt =$conn->prepare("SELECT fullname, phone FROM nutritionist WHERE id = ?");
+    $stmt = $conn->prepare("SELECT fullname, phone FROM nutritionist WHERE id = ?");
     $stmt->execute([$id]);
-    $nutri =$stmt->fetch(PDO::FETCH_ASSOC);
+    $nutri = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($nutri) {
-        $updateStmt =$conn->prepare("UPDATE nutritionist SET status = 'rejected' WHERE id = ?");
+        $updateStmt = $conn->prepare("UPDATE nutritionist SET status = 'rejected' WHERE id = ?");
         $updateStmt->execute([$id]);
 
         $message = "Hello " . $nutri['fullname'] . ", we regret to inform you that your nutritionist account application on AI Diet Planner has been REJECTED.";
-        sendTextBeeSMS($nutri['phone'],$message);
+        sendTextBeeSMS($nutri['phone'], $message);
     }
 
     header("Location: manage_account.php?msg=rejected");
     exit();
 }
 
-// Handle Deactivation with Reason & SMS Notification
+// Handle Deactivation with Reason & SMS Notification (NAAYOS ANG ACTOR_ID ERROR)
 if (isset($_POST['confirm_deactivate'])) {
     $id = (int)$_POST['deactivate_id'];
     $category = trim($_POST['deactivation_reason_category'] ?? 'Policy Violation');
@@ -166,8 +171,9 @@ if (isset($_POST['confirm_deactivate'])) {
         }
 
         if (tableExists($conn, 'activity_logs')) {
-            $logStmt = $conn->prepare("INSERT INTO activity_logs (action, description, created_at) VALUES (?, ?, NOW())");
-            $logStmt->execute(['Deactivated Nutritionist', "Admin deactivated nutritionist {$nutri['fullname']}. Reason: {$category} - {$remarks}"]);
+            // Isinama ang actor_id para masunod ang NOT NULL constraint ng database[cite: 14]
+            $logStmt = $conn->prepare("INSERT INTO activity_logs (actor_id, action, description, created_at) VALUES (?, ?, ?, NOW())");
+            $logStmt->execute([$admin_id, 'Deactivated Nutritionist', "Admin deactivated nutritionist {$nutri['fullname']}. Reason: {$category} - {$remarks}"]);
         }
 
         $message = "Hello " . $nutri['fullname'] . ", your nutritionist account on AI Diet Planner has been DEACTIVATED.\nReason: " . $category . "\nDetails: " . $remarks . "\nYou may submit a reactivation request via the login page.";
@@ -181,18 +187,18 @@ if (isset($_POST['confirm_deactivate'])) {
 // Handle Active Status Toggle with SMS Abiso
 if (isset($_GET['toggle_status']) && isset($_GET['id'])) {
     $id = (int)$_GET['id'];
-    $new_status =$_GET['toggle_status'] === 'active' ? 'active' : 'inactive';
+    $new_status = $_GET['toggle_status'] === 'active' ? 'active' : 'inactive';
     
-    $stmt =$conn->prepare("SELECT fullname, phone FROM nutritionist WHERE id = ?");
+    $stmt = $conn->prepare("SELECT fullname, phone FROM nutritionist WHERE id = ?");
     $stmt->execute([$id]);
-    $nutri =$stmt->fetch(PDO::FETCH_ASSOC);
+    $nutri = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($nutri && $new_status === 'active') {
-        $updateStmt =$conn->prepare("UPDATE nutritionist SET status = ? WHERE id = ?");
-        $updateStmt->execute([$new_status,$id]);
+        $updateStmt = $conn->prepare("UPDATE nutritionist SET status = ? WHERE id = ?");
+        $updateStmt->execute([$new_status, $id]);
 
         $message = "Hello " . $nutri['fullname'] . ", great news! Your nutritionist account on AI Diet Planner has been REACTIVATED. You can now log in.";
-        sendTextBeeSMS($nutri['phone'],$message);
+        sendTextBeeSMS($nutri['phone'], $message);
     }
 
     header("Location: manage_account.php?msg=status_updated");
@@ -202,34 +208,36 @@ if (isset($_GET['toggle_status']) && isset($_GET['id'])) {
 // ======================================================
 // FETCH EXPERTS & DATA ANALYSIS
 // ======================================================
-$experts = [];$db_error = null;
+$experts = []; $db_error = null;
 
 try {
-    $stmt =$conn->query("SELECT id, fullname, email, phone, certification, experience, status, profile_pic, document FROM nutritionist ORDER BY id DESC");
-    $experts =$stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $conn->query("SELECT id, fullname, email, phone, certification, experience, status, profile_pic, document FROM nutritionist ORDER BY id DESC");
+    $experts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    $db_error =$e->getMessage();
+    $db_error = $e->getMessage();
 }
 
-$totalAccounts = count($experts);$juniorCount = 0;   
+$totalAccounts = count($experts); $juniorCount = 0;   
 $midCount = 0;      
 $seniorCount = 0;   
 $totalExp = 0;
 
-foreach ($experts as$exp) {
-    $expText =$exp['experience'] ?? '';
-    preg_match('/\d+/', $expText, $matches);$yrs = isset($matches[0]) ? (int)$matches[0] : 0;
+foreach ($experts as $exp) {
+    $expText = $exp['experience'] ?? '';
+    preg_match('/\d+/', $expText, $matches); $yrs = isset($matches[0]) ? (int)$matches[0] : 0;
     
-    $totalExp +=$yrs;
+    $totalExp += $yrs;
 
-    if ($yrs < 3) {$juniorCount++;
-    } elseif ($yrs <= 5) {$midCount++;
+    if ($yrs < 3) {
+        $juniorCount++;
+    } elseif ($yrs <= 5) {
+        $midCount++;
     } else {
         $seniorCount++;
     }
 }
 
-$avgExperience =$totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
+$avgExperience = $totalAccounts > 0 ? round($totalExp / $totalAccounts, 1) : 0;
 $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
 ?>
 <!DOCTYPE html>
