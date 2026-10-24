@@ -463,7 +463,7 @@ a{color:inherit}
         <div class="mascot-container" id="mascotWrapper" title="Click or poke Kabi!">
           <canvas id="mascotCanvas" width="320" height="290"></canvas>
         </div>
-        <span>Your AI Nutrition Companion</span>
+        <span>Kabi - Your AI Nutrition Companion</span>
       </div>
     </section>
 
