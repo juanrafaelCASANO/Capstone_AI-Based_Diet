@@ -210,7 +210,7 @@ a{color:inherit}
 .btn-primary{background:var(--green);color:#fff;box-shadow:0 8px 18px rgba(59,143,99,.2)}
 .btn-secondary{background:#fff;color:var(--navy);border-color:var(--border)}
 
-/* TRANSPARENT BACKGROUND & MAS PINALAKI NA SAKTO SI KABI */
+/* TRANSPARENT BACKGROUND & MAS PINALAKI NA SAKTO SI KABI + OUTLINE/DROP-SHADOW PARA SA HORN VISIBILITY */
 .hero-stat{
   position:relative;z-index:1;background:transparent;border:none;
   border-radius:18px;padding:0;box-shadow:none;text-align:center;
@@ -226,6 +226,8 @@ a{color:inherit}
 .mascot-container canvas {
   width: 100%;
   height: 100%;
+  /* Nagdagdag ng drop-shadow/outline filter para lumitaw at maging visible ang mga sungay at katawan */
+  filter: drop-shadow(0 2px 5px rgba(23, 59, 50, 0.25)) drop-shadow(0 0 1px rgba(0, 0, 0, 0.35));
 }
 .hero-stat span{display:block;color:var(--muted);font-size:12px;line-height:1.4;margin-top:6px}
 
@@ -578,7 +580,6 @@ window.addEventListener('DOMContentLoaded', () => {
           if (inputs && inputs.length > 0) {
             inputs.forEach(input => {
               mascotInputs[input.name] = input;
-              console.log(`Input loaded -> Name: ${input.name}, Type: ${input.type}`);
             });
             
             // PAG-SET NG KULAY NG HORN PATUNGONG CREAM BROWN (Kung mayroon kang ganyang input)
