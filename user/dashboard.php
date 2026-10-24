@@ -194,7 +194,7 @@ a{color:inherit}
 .hero{
   background:linear-gradient(135deg,#eaf6ee 0%,#f8fbf7 70%);
   border:1px solid #dcebe1;border-radius:24px;padding:clamp(24px,4vw,38px);
-  display:grid;grid-template-columns:minmax(0,1.3fr) minmax(220px,.7fr);
+  display:grid;grid-template-columns:minmax(0,1.3fr) minmax(240px,.7fr);
   gap:30px;align-items:center;overflow:hidden;position:relative;
 }
 .hero h2{font-size:clamp(25px,3.4vw,42px);line-height:1.08;letter-spacing:-1.2px;margin:8px 0 12px;max-width:650px}
@@ -210,7 +210,7 @@ a{color:inherit}
 .btn-primary{background:var(--green);color:#fff;box-shadow:0 8px 18px rgba(59,143,99,.2)}
 .btn-secondary{background:#fff;color:var(--navy);border-color:var(--border)}
 
-/* TRANSPARENT BACKGROUND & LARGER SIZING PARA KAY KABI */
+/* TRANSPARENT BACKGROUND & PINALAKI PA NANG HUSTO SI KABI */
 .hero-stat{
   position:relative;z-index:1;background:transparent;border:none;
   border-radius:18px;padding:0;box-shadow:none;text-align:center;
@@ -218,15 +218,15 @@ a{color:inherit}
 }
 .mascot-container {
   width: 100%;
-  max-width: 210px;
-  height: 190px;
+  max-width: 270px;
+  height: 240px;
   margin: 0 auto;
 }
 .mascot-container canvas {
   width: 100%;
   height: 100%;
 }
-.hero-stat span{display:block;color:var(--muted);font-size:12px;line-height:1.4;margin-top:2px}
+.hero-stat span{display:block;color:var(--muted);font-size:12px;line-height:1.4;margin-top:6px}
 
 .section-title{display:flex;align-items:end;justify-content:space-between;gap:15px;margin:30px 0 14px}
 .section-title h3{margin:0;font-size:18px}
@@ -456,7 +456,7 @@ a{color:inherit}
         </div>
       </div>
       
-      <!-- RIVE INTERACTIVE MASCOT INTEGRATION (TRANSPARENT & SIZED UP) -->
+      <!-- RIVE INTERACTIVE MASCOT INTEGRATION (TRANSPARENT & LARGER SIZING) -->
       <div class="hero-stat">
         <div class="mascot-container">
           <canvas id="mascotCanvas"></canvas>
