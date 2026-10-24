@@ -210,7 +210,7 @@ a{color:inherit}
 .btn-primary{background:var(--green);color:#fff;box-shadow:0 8px 18px rgba(59,143,99,.2)}
 .btn-secondary{background:#fff;color:var(--navy);border-color:var(--border)}
 
-/* TRANSPARENT BACKGROUND & MAS PINALAKI NA SAKTO SI KABI + OUTLINE/DROP-SHADOW PARA SA HORN VISIBILITY */
+/* TRANSPARENT BACKGROUND & OUTLINE / DROP-SHADOW PARA SA HORN VISIBILITY */
 .hero-stat{
   position:relative;z-index:1;background:transparent;border:none;
   border-radius:18px;padding:0;box-shadow:none;text-align:center;
@@ -226,7 +226,6 @@ a{color:inherit}
 .mascot-container canvas {
   width: 100%;
   height: 100%;
-  /* Nagdagdag ng drop-shadow/outline filter para lumitaw at maging visible ang mga sungay at katawan */
   filter: drop-shadow(0 2px 5px rgba(23, 59, 50, 0.25)) drop-shadow(0 0 1px rgba(0, 0, 0, 0.35));
 }
 .hero-stat span{display:block;color:var(--muted);font-size:12px;line-height:1.4;margin-top:6px}
@@ -582,20 +581,16 @@ window.addEventListener('DOMContentLoaded', () => {
               mascotInputs[input.name] = input;
             });
             
-            // PAG-SET NG KULAY NG HORN PATUNGONG CREAM BROWN (Kung mayroon kang ganyang input)
-            if (mascotInputs['hornColor']) mascotInputs['hornColor'].value = 'cream brown';
-            if (mascotInputs['horns']) mascotInputs['horns'].value = 'cream brown';
-
-            // LAHAT NG EXERCISE ACTIONS AT POSES (SUNUD-SUNOD, TAPOS TITIGIL SA IDLE)
+            // 5-SECOND INTERVAL PER ACTION SA INTRO SEQUENCE
             const fullExerciseSequence = [
-              { pose: 1, delay: 0 },     // 1. Hi / Wave sa simula
-              { pose: 2, delay: 2000 },    // 2. Flex pose
-              { pose: 4, delay: 4000 },    // 3. Jumping Jacks / Exercise action
-              { pose: 7, delay: 6000 },    // 4. Celebrate action
-              { pose: 25, delay: 8000 },   // 5. Heart action
-              { pose: 27, delay: 10000 },  // 6. Fist Pump / Power action
-              { pose: 19, delay: 12000 },  // 7. Thinking / Cooling down action
-              { pose: 0, delay: 14000 }    // 8. Idle (Hinto na, walang loop)
+              { pose: 1, delay: 0 },      // 0s: Hi / Wave
+              { pose: 2, delay: 5000 },   // 5s: Flex pose
+              { pose: 4, delay: 10000 },  // 10s: Jumping Jacks
+              { pose: 7, delay: 15000 },  // 15s: Celebrate
+              { pose: 25, delay: 20000 }, // 20s: Heart
+              { pose: 27, delay: 25000 }, // 25s: Fist Pump
+              { pose: 19, delay: 30000 }, // 30s: Thinking / Cool down
+              { pose: 0, delay: 35000 }   // 35s: Idle (Hinto na, walang loop)
             ];
 
             fullExerciseSequence.forEach(step => {
@@ -616,6 +611,22 @@ window.addEventListener('DOMContentLoaded', () => {
       onError: (err) => {
         console.error("Rive Error:", err);
       }
+    });
+
+    // EYES FOLLOW CURSOR (MOUSEMOVE TRACKER)
+    const canvasEl = document.getElementById("mascotCanvas");
+    canvasEl.addEventListener('mousemove', (e) => {
+      const rect = canvasEl.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // I-update ang look / cursor inputs kung available sa state machine
+      if (mascotInputs['cursorX']) mascotInputs['cursorX'].value = x;
+      if (mascotInputs['cursorY']) mascotInputs['cursorY'].value = y;
+      if (mascotInputs['lookX']) mascotInputs['lookX'].value = (x / rect.width) * 2 - 1;
+      if (mascotInputs['lookY']) mascotInputs['lookY'].value = (y / rect.height) * 2 - 1;
+      if (mascotInputs['mouseX']) mascotInputs['mouseX'].value = x;
+      if (mascotInputs['mouseY']) mascotInputs['mouseY'].value = y;
     });
 
     // INTERACTIVE CLICK / POKE REACTION
