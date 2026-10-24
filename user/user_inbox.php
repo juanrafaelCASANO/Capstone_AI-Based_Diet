@@ -191,6 +191,62 @@ a{color:inherit;text-decoration:none}
 .eyebrow{font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.1em}
 .topbar h1{font-size:clamp(25px,3vw,34px);line-height:1.15;margin:5px 0 0;letter-spacing:-.7px}
 
+/* SEARCH & FILTER TOOLBAR STYLES */
+.inbox-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+.search-box input {
+  width: 100%;
+  padding: 11px 16px 11px 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 13.5px;
+  color: var(--text);
+  outline: none;
+  transition: border-color .2s;
+  box-shadow: var(--shadow);
+}
+.search-box input:focus {
+  border-color: var(--green);
+}
+.filter-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pill-btn {
+  padding: 8px 14px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .2s;
+  box-shadow: var(--shadow);
+}
+.pill-btn:hover {
+  border-color: var(--green);
+  color: var(--text);
+}
+.pill-btn.active {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+
 /* INBOX LAYOUT GRID */
 .inbox-layout {
   display: grid;
@@ -447,8 +503,23 @@ a{color:inherit;text-decoration:none}
       </div>
     </header>
 
+    <!-- SEARCH & FILTER TOOLBAR -->
+    <div class="inbox-toolbar">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px;"></i>
+        <input type="text" id="inboxSearch" placeholder="Search nutritionist by name..." onkeyup="filterInbox()">
+      </div>
+      <div class="filter-pills">
+        <button type="button" class="pill-btn active" onclick="filterByStatus('all', this)">All</button>
+        <button type="button" class="pill-btn" onclick="filterByStatus('available', this)">Available</button>
+        <button type="button" class="pill-btn" onclick="filterByStatus('on_leave', this)">On Leave</button>
+        <button type="button" class="pill-btn" onclick="filterByStatus('unavailable', this)">Unavailable</button>
+        <button type="button" class="pill-btn" onclick="filterByStatus('offline', this)">Offline</button>
+      </div>
+    </div>
+
     <div class="inbox-layout">
-      <div class="inbox-list">
+      <div class="inbox-list" id="inboxListContainer">
         <?php if (count($conversations) > 0): ?>
           <?php foreach ($conversations as $chat): ?>
             <?php 
@@ -459,7 +530,10 @@ a{color:inherit;text-decoration:none}
               $status_class = strtolower($raw_status);
               $status_label = ucwords(str_replace('_', ' ', $raw_status));
             ?>
-            <a href="chat.php?nutritionist_id=<?php echo $chat['nutritionist_id']; ?>" class="inbox-card">
+            <a href="chat.php?nutritionist_id=<?php echo $chat['nutritionist_id']; ?>" 
+               class="inbox-card" 
+               data-name="<?php echo strtolower(htmlspecialchars($chat['nutritionist_name'])); ?>" 
+               data-status="<?php echo $status_class; ?>">
               <div class="nutritionist-info">
                 <div class="avatar-container">
                   <div class="avatar">
@@ -508,7 +582,7 @@ a{color:inherit;text-decoration:none}
             </a>
           <?php endforeach; ?>
         <?php else: ?>
-          <div class="empty-box">
+          <div class="empty-box" id="emptyInboxMsg">
             <i class="fa-solid fa-inbox" style="font-size:32px; margin-bottom:12px; display:block;"></i>
             No messages yet. Select a recommended nutritionist on the right to start a conversation.
           </div>
@@ -603,6 +677,39 @@ a{color:inherit;text-decoration:none}
 </div>
 
 <script>
+let currentStatusFilter = 'all';
+
+function filterInbox() {
+    const query = document.getElementById('inboxSearch').value.toLowerCase().trim();
+    const cards = document.querySelectorAll('.inbox-card');
+    
+    cards.forEach(card => {
+        const name = card.getAttribute('data-name');
+        const status = card.getAttribute('data-status');
+        
+        const matchesSearch = name.includes(query);
+        const matchesStatus = (currentStatusFilter === 'all' || status === currentStatusFilter);
+
+        if (matchesSearch && matchesStatus) {
+            card.style.display = 'flex';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function filterByStatus(status, btn) {
+    currentStatusFilter = status;
+    
+    // Update active pill styling
+    document.querySelectorAll('.pill-btn').forEach(b => {
+        b.classList.remove('active');
+    });
+    event.currentTarget.classList.add('active');
+
+    filterInbox();
+}
+
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
 }

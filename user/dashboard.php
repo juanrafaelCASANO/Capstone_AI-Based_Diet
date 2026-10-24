@@ -553,12 +553,11 @@ a{color:inherit}
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 
 <script>
-// INITIALIZE RIVE INTERACTIVE MASCOT
+// INITIALIZE RIVE INTERACTIVE MASCOT WITH CORRECT PATH
 const r = new Rive({
-  src: "../assets/rive/mascot.riv", // Tiyaking tugma ang path patungo sa iyong .riv file
+  src: "../assets/rive/uploads/kabi.riv",
   canvas: document.getElementById("mascotCanvas"),
   autoplay: true,
-  stateMachines: "State Machine 1", // Palitan kung iba ang pangalan ng State Machine sa Rive editor
   onLoad: () => {
     r.resizeDrawingSurfaceToCanvas();
   }
