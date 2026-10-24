@@ -37,7 +37,7 @@ try {
     $unread_count = 0;
 }
 
-// Query to get the user's latest conversations with different nutritionists
+// Query to get the user's latest conversations with different nutritionists[cite: 9]
 $inbox_sql = "
     WITH conversations AS (
         SELECT 
@@ -82,7 +82,7 @@ $inbox_stmt = $conn->prepare($inbox_sql);
 $inbox_stmt->execute(['user_id' => $user_id]);
 $conversations = $inbox_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get all active nutritionists with lat/lng for distance calculation
+// Get all active nutritionists with lat/lng for distance calculation[cite: 9]
 $nutri_list_sql = "
     SELECT n.id, n.fullname, n.profile_pic, n.certification, n.latitude, n.longitude, n.status AS account_status, n.availability_status, p.specialty AS specialization 
     FROM nutritionist n
@@ -92,7 +92,7 @@ $nutri_list_sql = "
 $nutri_list_stmt = $conn->query($nutri_list_sql);
 $all_nutritionists = $nutri_list_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Function to get initials (e.g. "Juan Dela Cruz" -> "JC")
+// Function to get initials (e.g. "Juan Dela Cruz" -> "JC")[cite: 9]
 function getInitials($name) {
     $words = explode(' ', trim($name));
     if (count($words) >= 2) {
@@ -101,7 +101,7 @@ function getInitials($name) {
     return strtoupper(substr($name, 0, 2));
 }
 
-// Function using Haversine formula to calculate distance in kilometers
+// Function using Haversine formula to calculate distance in kilometers[cite: 9]
 function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     if (!$lat1 || !$lon1 || !$lat2 || !$lon2) return 999999; 
     $earthRadius = 6371; 
@@ -112,13 +112,13 @@ function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     return $earthRadius * $c;
 }
 
-// Calculate distance for each nutritionist and add to array
+// Calculate distance for each nutritionist and add to array[cite: 9]
 foreach ($all_nutritionists as &$nutri) {
     $nutri['distance'] = calculateDistance($user_lat, $user_lng, $nutri['latitude'], $nutri['longitude']);
 }
 unset($nutri);
 
-// Sort nutritionists from closest to farthest
+// Sort nutritionists from closest to farthest[cite: 9]
 usort($all_nutritionists, function($a, $b) {
     return $a['distance'] <=> $b['distance'];
 });
@@ -523,12 +523,21 @@ a{color:inherit;text-decoration:none}
         <?php if (count($conversations) > 0): ?>
           <?php foreach ($conversations as $chat): ?>
             <?php 
-              $raw_status = trim($chat['availability_status'] ?? 'available');
-              if (empty($raw_status) || $chat['account_status'] != 'active') {
-                  $raw_status = 'offline';
+              $raw_availability = trim(strtolower($chat['availability_status'] ?? 'available'));
+              $account_status = trim(strtolower($chat['account_status'] ?? 'active'));
+
+              if ($account_status !== 'active' && $account_status !== 'approved') {
+                  $status_class = 'offline';
+                  $status_label = 'Offline';
+              } else {
+                  if (in_array($raw_availability, ['available', 'on_leave', 'unavailable'])) {
+                      $status_class = $raw_availability;
+                      $status_label = ucwords(str_replace('_', ' ', $raw_availability));
+                  } else {
+                      $status_class = 'available';
+                      $status_label = 'Available';
+                  }
               }
-              $status_class = strtolower($raw_status);
-              $status_label = ucwords(str_replace('_', ' ', $raw_status));
             ?>
             <a href="chat.php?nutritionist_id=<?php echo $chat['nutritionist_id']; ?>" 
                class="inbox-card" 
@@ -610,12 +619,21 @@ a{color:inherit;text-decoration:none}
                     }
                 }
 
-                $raw_s = trim($nutri['availability_status'] ?? 'available');
-                if (empty($raw_s) || $nutri['account_status'] != 'active') {
-                    $raw_s = 'offline';
+                $raw_s = trim(strtolower($nutri['availability_status'] ?? 'available'));
+                $acc_s = trim(strtolower($nutri['account_status'] ?? 'active'));
+
+                if ($acc_s !== 'active' && $acc_s !== 'approved' && $acc_s !== '') {
+                    $s_class = 'offline';
+                    $s_label = 'Offline';
+                } else {
+                    if (in_array($raw_s, ['available', 'on_leave', 'unavailable'])) {
+                        $s_class = $raw_s;
+                        $s_label = ucwords(str_replace('_', ' ', $raw_s));
+                    } else {
+                        $s_class = 'available';
+                        $s_label = 'Available';
+                    }
                 }
-                $s_class = strtolower($raw_s);
-                $s_label = ucwords(str_replace('_', ' ', $raw_s));
               ?>
               <a href="chat.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="nutri-sidebar-item">
                 <div class="nutri-meta">
@@ -701,7 +719,6 @@ function filterInbox() {
 function filterByStatus(status, btn) {
     currentStatusFilter = status;
     
-    // Update active pill styling
     document.querySelectorAll('.pill-btn').forEach(b => {
         b.classList.remove('active');
     });
