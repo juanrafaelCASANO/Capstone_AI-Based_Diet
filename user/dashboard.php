@@ -578,8 +578,13 @@ window.addEventListener('DOMContentLoaded', () => {
           if (inputs && inputs.length > 0) {
             inputs.forEach(input => {
               mascotInputs[input.name] = input;
+              console.log(`Input loaded -> Name: ${input.name}, Type: ${input.type}`);
             });
             
+            // PAG-SET NG KULAY NG HORN PATUNGONG CREAM BROWN (Kung mayroon kang ganyang input)
+            if (mascotInputs['hornColor']) mascotInputs['hornColor'].value = 'cream brown';
+            if (mascotInputs['horns']) mascotInputs['horns'].value = 'cream brown';
+
             // LAHAT NG EXERCISE ACTIONS AT POSES (SUNUD-SUNOD, TAPOS TITIGIL SA IDLE)
             const fullExerciseSequence = [
               { pose: 1, delay: 0 },     // 1. Hi / Wave sa simula
@@ -599,7 +604,6 @@ window.addEventListener('DOMContentLoaded', () => {
                   if (step.pose !== 0 && mascotInputs['mood']) {
                     mascotInputs['mood'].value = 1; // happy
                   }
-                  console.log(`Setting pose to: ${step.pose}`);
                 }
               }, step.delay);
             });
