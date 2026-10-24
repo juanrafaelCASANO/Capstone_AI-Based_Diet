@@ -37,7 +37,7 @@ try {
     $unread_count = 0;
 }
 
-// Query to get the user's latest conversations with different nutritionists[cite: 9]
+// Query to get the user's latest conversations with different nutritionists (including last_active_at)
 $inbox_sql = "
     WITH conversations AS (
         SELECT 
@@ -67,6 +67,7 @@ $inbox_sql = "
         n.profile_pic,
         n.status AS account_status,
         n.availability_status,
+        n.last_active_at,
         c.message AS last_message,
         c.created_at AS last_message_time,
         c.sender_id AS last_sender_id,
@@ -82,9 +83,9 @@ $inbox_stmt = $conn->prepare($inbox_sql);
 $inbox_stmt->execute(['user_id' => $user_id]);
 $conversations = $inbox_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get all active nutritionists with lat/lng for distance calculation[cite: 9]
+// Get all active nutritionists with lat/lng and last_active_at for distance and status calculation
 $nutri_list_sql = "
-    SELECT n.id, n.fullname, n.profile_pic, n.certification, n.latitude, n.longitude, n.status AS account_status, n.availability_status, p.specialty AS specialization 
+    SELECT n.id, n.fullname, n.profile_pic, n.certification, n.latitude, n.longitude, n.status AS account_status, n.availability_status, n.last_active_at, p.specialty AS specialization 
     FROM nutritionist n
     LEFT JOIN nutritionists_profile p ON n.fullname = p.name
     WHERE n.status = 'active' OR n.status = 'approved' OR n.status IS NULL
@@ -92,7 +93,7 @@ $nutri_list_sql = "
 $nutri_list_stmt = $conn->query($nutri_list_sql);
 $all_nutritionists = $nutri_list_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Function to get initials (e.g. "Juan Dela Cruz" -> "JC")[cite: 9]
+// Function to get initials (e.g. "Juan Dela Cruz" -> "JC")
 function getInitials($name) {
     $words = explode(' ', trim($name));
     if (count($words) >= 2) {
@@ -101,7 +102,7 @@ function getInitials($name) {
     return strtoupper(substr($name, 0, 2));
 }
 
-// Function using Haversine formula to calculate distance in kilometers[cite: 9]
+// Function using Haversine formula to calculate distance in kilometers
 function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     if (!$lat1 || !$lon1 || !$lat2 || !$lon2) return 999999; 
     $earthRadius = 6371; 
@@ -112,13 +113,13 @@ function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     return $earthRadius * $c;
 }
 
-// Calculate distance for each nutritionist and add to array[cite: 9]
+// Calculate distance for each nutritionist and add to array
 foreach ($all_nutritionists as &$nutri) {
     $nutri['distance'] = calculateDistance($user_lat, $user_lng, $nutri['latitude'], $nutri['longitude']);
 }
 unset($nutri);
 
-// Sort nutritionists from closest to farthest[cite: 9]
+// Sort nutritionists from closest to farthest
 usort($all_nutritionists, function($a, $b) {
     return $a['distance'] <=> $b['distance'];
 });
@@ -525,8 +526,23 @@ a{color:inherit;text-decoration:none}
             <?php 
               $raw_availability = trim(strtolower($chat['availability_status'] ?? 'available'));
               $account_status = trim(strtolower($chat['account_status'] ?? 'active'));
+              $last_active = $chat['last_active_at'] ?? null;
+
+              // Check if offline based on last_active_at (e.g., inactive for more than 15 minutes / 900 seconds)
+              $is_offline_by_time = false;
+              if ($last_active) {
+                  $inactive_seconds = time() - strtotime($last_active);
+                  if ($inactive_seconds > 900) {
+                      $is_offline_by_time = true;
+                  }
+              } else {
+                  $is_offline_by_time = true;
+              }
 
               if ($account_status !== 'active' && $account_status !== 'approved') {
+                  $status_class = 'offline';
+                  $status_label = 'Offline';
+              } elseif ($is_offline_by_time) {
                   $status_class = 'offline';
                   $status_label = 'Offline';
               } else {
@@ -621,8 +637,22 @@ a{color:inherit;text-decoration:none}
 
                 $raw_s = trim(strtolower($nutri['availability_status'] ?? 'available'));
                 $acc_s = trim(strtolower($nutri['account_status'] ?? 'active'));
+                $nutri_last_active = $nutri['last_active_at'] ?? null;
+
+                $nutri_offline_by_time = false;
+                if ($nutri_last_active) {
+                    $nutri_inactive_sec = time() - strtotime($nutri_last_active);
+                    if ($nutri_inactive_sec > 900) {
+                        $nutri_offline_by_time = true;
+                    }
+                } else {
+                    $nutri_offline_by_time = true;
+                }
 
                 if ($acc_s !== 'active' && $acc_s !== 'approved' && $acc_s !== '') {
+                    $s_class = 'offline';
+                    $s_label = 'Offline';
+                } elseif ($nutri_offline_by_time) {
                     $s_class = 'offline';
                     $s_label = 'Offline';
                 } else {
