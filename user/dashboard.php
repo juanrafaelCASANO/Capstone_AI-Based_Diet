@@ -580,35 +580,29 @@ window.addEventListener('DOMContentLoaded', () => {
               mascotInputs[input.name] = input;
             });
             
-            // INTRO WORKOUT SEQUENCE (Non-looping)
-            // 1. Hi / Wave sa simula (0 - 2s)
-            if (mascotInputs['hi']) {
-              mascotInputs['hi'].fire();
-            } else if (mascotInputs['pose']) {
-              mascotInputs['pose'].value = 1; // wave
-            }
+            // LAHAT NG EXERCISE ACTIONS AT POSES (SUNUD-SUNOD, TAPOS TITIGIL SA IDLE)
+            const fullExerciseSequence = [
+              { pose: 1, delay: 0 },     // 1. Hi / Wave sa simula
+              { pose: 2, delay: 2000 },    // 2. Flex pose
+              { pose: 4, delay: 4000 },    // 3. Jumping Jacks / Exercise action
+              { pose: 7, delay: 6000 },    // 4. Celebrate action
+              { pose: 25, delay: 8000 },   // 5. Heart action
+              { pose: 27, delay: 10000 },  // 6. Fist Pump / Power action
+              { pose: 19, delay: 12000 },  // 7. Thinking / Cooling down action
+              { pose: 0, delay: 14000 }    // 8. Idle (Hinto na, walang loop)
+            ];
 
-            // 2. Flex / Workout pose pagkatapos ng 2 segundo (2s - 4s)
-            setTimeout(() => {
-              if (mascotInputs['pose']) {
-                mascotInputs['pose'].value = 2; // flex
-                if (mascotInputs['mood']) mascotInputs['mood'].value = 1;
-              }
-            }, 2000);
-
-            // 3. Jumping jacks / Other exercise pose pagkatapos ng 4 segundo (4s - 6s)
-            setTimeout(() => {
-              if (mascotInputs['pose']) {
-                mascotInputs['pose'].value = 4; // exercise / jumping jacks
-              }
-            }, 4000);
-
-            // 4. Balik sa idle/neutral pagkatapos ng 6 segundo para hindi mag-loop
-            setTimeout(() => {
-              if (mascotInputs['pose']) {
-                mascotInputs['pose'].value = 0; // idle
-              }
-            }, 6000);
+            fullExerciseSequence.forEach(step => {
+              setTimeout(() => {
+                if (mascotInputs['pose']) {
+                  mascotInputs['pose'].value = step.pose;
+                  if (step.pose !== 0 && mascotInputs['mood']) {
+                    mascotInputs['mood'].value = 1; // happy
+                  }
+                  console.log(`Setting pose to: ${step.pose}`);
+                }
+              }, step.delay);
+            });
           }
         } catch (e) {
           console.error("Error sa pagkuha ng inputs:", e);
@@ -627,7 +621,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (mascotInputs['poke']) {
         mascotInputs['poke'].fire();
       } else if (mascotInputs['pose']) {
-        const funPoses = [7, 2, 25, 27, 4];
+        const funPoses = [7, 2, 25, 27, 4, 19];
         const randomPose = funPoses[Math.floor(Math.random() * funPoses.length)];
         
         mascotInputs['pose'].value = randomPose;
