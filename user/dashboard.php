@@ -554,7 +554,7 @@ a{color:inherit}
 
 <script>
 // INITIALIZE RIVE INTERACTIVE MASCOT WITH CORRECT PATH
-const r = new Rive({
+const r = new rive.Rive({
   src: "../assets/rive/uploads/kabi.riv",
   canvas: document.getElementById("mascotCanvas"),
   autoplay: true,
