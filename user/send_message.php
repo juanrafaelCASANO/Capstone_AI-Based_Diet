@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
                 $url = 'https://api.openai.com/v1/chat/completions';
                 $apiKey = getenv('MESSAGING_OPENAI_KEY');
                 $data = [
-                    'model' => 'gpt-3.5-turbo',
+                    'model' => 'gpt-4o-mini',
                     'messages' => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user', 'content' => $message]
