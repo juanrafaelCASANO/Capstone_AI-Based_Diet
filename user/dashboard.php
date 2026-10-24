@@ -210,7 +210,7 @@ a{color:inherit}
 .btn-primary{background:var(--green);color:#fff;box-shadow:0 8px 18px rgba(59,143,99,.2)}
 .btn-secondary{background:#fff;color:var(--navy);border-color:var(--border)}
 
-/* TRANSPARENT BACKGROUND & LARGER SIZING PARA KAY KABI */
+/* TRANSPARENT BACKGROUND & SIZED UP PARA KAY KABI (ORIGINAL COLOR) */
 .hero-stat{
   position:relative;z-index:1;background:transparent;border:none;
   border-radius:18px;padding:0;box-shadow:none;text-align:center;
@@ -456,7 +456,7 @@ a{color:inherit}
         </div>
       </div>
       
-      <!-- RIVE INTERACTIVE MASCOT INTEGRATION (STATE MACHINE 'Kabi' CONFIG) -->
+      <!-- RIVE MASCOT INTEGRATION (TRANSPARENT BACKGROUND & ORIGINAL COLOR) -->
       <div class="hero-stat">
         <div class="mascot-container">
           <canvas id="mascotCanvas"></canvas>
@@ -553,7 +553,7 @@ a{color:inherit}
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 
 <script>
-// INITIALIZE RIVE INTERACTIVE MASCOT WITH STATE MACHINE 'Kabi'
+// INITIALIZE RIVE INTERACTIVE MASCOT (ORIGINAL COLORS & DEFAULT STATE MACHINE)
 let mascotRive = null;
 window.addEventListener('DOMContentLoaded', () => {
   try {
@@ -564,19 +564,6 @@ window.addEventListener('DOMContentLoaded', () => {
       autoplay: true,
       onLoad: () => {
         mascotRive.resizeDrawingSurfaceToCanvas();
-        try {
-          const inputs = mascotRive.stateMachineInputs("Kabi");
-          if (inputs) {
-            inputs.forEach(input => {
-              if (input.name === 'color') input.value = 4;   // 4 = green
-              if (input.name === 'shirt') input.value = true; // May T-shirt
-              if (input.name === 'mood') input.value = 1;   // 1 = happy
-              if (input.name === 'pose') input.value = 1;   // 1 = wave (kumakaway sa dashboard)
-            });
-          }
-        } catch (e) {
-          console.log("Mascot inputs setup note:", e);
-        }
       }
     });
   } catch (err) {
