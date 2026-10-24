@@ -619,14 +619,9 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // EYES FOLLOW CURSOR (MOUSEMOVE TRACKER + RIVE POINTER EVENT)
+    // EYES FOLLOW CURSOR (SAFE MOUSE TRACKER PARA SA MGA INPUTS)
     const canvasEl = document.getElementById("mascotCanvas");
     canvasEl.addEventListener('mousemove', (e) => {
-      // I-pass sa Rive native pointerMove para sa mata / tracking kung naka-configure sa .riv
-      if (mascotRive) {
-        mascotRive.pointerMove(e);
-      }
-
       const rect = canvasEl.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
