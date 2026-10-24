@@ -619,19 +619,25 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // EYES FOLLOW CURSOR (SAFE MOUSE TRACKER PARA SA MGA INPUTS)
+    // EYES FOLLOW CURSOR (DIRECT RIVE POINTER EVENTS BINDING)
     const canvasEl = document.getElementById("mascotCanvas");
-    canvasEl.addEventListener('mousemove', (e) => {
-      const rect = canvasEl.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+    
+    canvasEl.addEventListener('pointermove', (e) => {
+      if (mascotRive) {
+        mascotRive.pointerMove(e);
+      }
+    });
 
-      if (mascotInputs['cursorX']) mascotInputs['cursorX'].value = x;
-      if (mascotInputs['cursorY']) mascotInputs['cursorY'].value = y;
-      if (mascotInputs['lookX']) mascotInputs['lookX'].value = (x / rect.width) * 2 - 1;
-      if (mascotInputs['lookY']) mascotInputs['lookY'].value = (y / rect.height) * 2 - 1;
-      if (mascotInputs['mouseX']) mascotInputs['mouseX'].value = x;
-      if (mascotInputs['mouseY']) mascotInputs['mouseY'].value = y;
+    canvasEl.addEventListener('pointerdown', (e) => {
+      if (mascotRive) {
+        mascotRive.pointerDown(e);
+      }
+    });
+
+    canvasEl.addEventListener('pointerup', (e) => {
+      if (mascotRive) {
+        mascotRive.pointerUp(e);
+      }
     });
 
     // INTERACTIVE CLICK / POKE REACTION
