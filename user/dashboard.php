@@ -210,16 +210,16 @@ a{color:inherit}
 .btn-primary{background:var(--green);color:#fff;box-shadow:0 8px 18px rgba(59,143,99,.2)}
 .btn-secondary{background:#fff;color:var(--navy);border-color:var(--border)}
 
-/* RIVE MASCOT STYLING SA HERO STAT */
+/* TRANSPARENT BACKGROUND & LARGER SIZING PARA KAY KABI */
 .hero-stat{
-  position:relative;z-index:1;background:#fff;border:1px solid var(--border);
-  border-radius:18px;padding:15px;box-shadow:var(--shadow);text-align:center;
+  position:relative;z-index:1;background:transparent;border:none;
+  border-radius:18px;padding:0;box-shadow:none;text-align:center;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
 }
 .mascot-container {
   width: 100%;
-  max-width: 180px;
-  height: 160px;
+  max-width: 210px;
+  height: 190px;
   margin: 0 auto;
 }
 .mascot-container canvas {
@@ -456,7 +456,7 @@ a{color:inherit}
         </div>
       </div>
       
-      <!-- RIVE INTERACTIVE MASCOT INTEGRATION -->
+      <!-- RIVE INTERACTIVE MASCOT INTEGRATION (TRANSPARENT & SIZED UP) -->
       <div class="hero-stat">
         <div class="mascot-container">
           <canvas id="mascotCanvas"></canvas>
