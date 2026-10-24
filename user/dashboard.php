@@ -581,16 +581,22 @@ window.addEventListener('DOMContentLoaded', () => {
               mascotInputs[input.name] = input;
             });
             
-            // 5-SECOND INTERVAL PER ACTION SA INTRO SEQUENCE
+            // INTRO EXERCISE SEQUENCE MAY 3-4 SECONDS IDLE INTERVAL SA PAGITAN NG MGA AKSYON
             const fullExerciseSequence = [
-              { pose: 1, delay: 0 },      // 0s: Hi / Wave
-              { pose: 2, delay: 5000 },   // 5s: Flex pose
-              { pose: 4, delay: 10000 },  // 10s: Jumping Jacks
-              { pose: 7, delay: 15000 },  // 15s: Celebrate
-              { pose: 25, delay: 20000 }, // 20s: Heart
-              { pose: 27, delay: 25000 }, // 25s: Fist Pump
-              { pose: 19, delay: 30000 }, // 30s: Thinking / Cool down
-              { pose: 0, delay: 35000 }   // 35s: Idle (Hinto na, walang loop)
+              { pose: 1, delay: 0 },      // 0s: Wave
+              { pose: 0, delay: 4000 },   // 4s: Idle rest (3-4s pause)
+              { pose: 2, delay: 8000 },   // 8s: Flex pose
+              { pose: 0, delay: 12000 },  // 12s: Idle rest (3-4s pause)
+              { pose: 4, delay: 16000 },  // 16s: Jumping Jacks
+              { pose: 0, delay: 20000 },  // 20s: Idle rest (3-4s pause)
+              { pose: 7, delay: 24000 },  // 24s: Celebrate
+              { pose: 0, delay: 28000 },  // 28s: Idle rest (3-4s pause)
+              { pose: 25, delay: 32000 }, // 32s: Heart
+              { pose: 0, delay: 36000 },  // 36s: Idle rest (3-4s pause)
+              { pose: 27, delay: 40000 }, // 40s: Fist Pump
+              { pose: 0, delay: 44000 },  // 44s: Idle rest (3-4s pause)
+              { pose: 19, delay: 48000 }, // 48s: Cool down / Thinking
+              { pose: 0, delay: 52000 }   // 52s: Final Idle (Hinto na, walang loop)
             ];
 
             fullExerciseSequence.forEach(step => {
@@ -613,14 +619,18 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // EYES FOLLOW CURSOR (MOUSEMOVE TRACKER)
+    // EYES FOLLOW CURSOR (MOUSEMOVE TRACKER + RIVE POINTER EVENT)
     const canvasEl = document.getElementById("mascotCanvas");
     canvasEl.addEventListener('mousemove', (e) => {
+      // I-pass sa Rive native pointerMove para sa mata / tracking kung naka-configure sa .riv
+      if (mascotRive) {
+        mascotRive.pointerMove(e);
+      }
+
       const rect = canvasEl.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      // I-update ang look / cursor inputs kung available sa state machine
       if (mascotInputs['cursorX']) mascotInputs['cursorX'].value = x;
       if (mascotInputs['cursorY']) mascotInputs['cursorY'].value = y;
       if (mascotInputs['lookX']) mascotInputs['lookX'].value = (x / rect.width) * 2 - 1;
@@ -643,7 +653,6 @@ window.addEventListener('DOMContentLoaded', () => {
         mascotInputs['pose'].value = randomPose;
         if (mascotInputs['mood']) mascotInputs['mood'].value = 1;
 
-        // Babalik sa idle (0) pagkatapos ng 1.8 segundo para hindi mag-loop
         setTimeout(() => {
           if (mascotInputs['pose']) {
             mascotInputs['pose'].value = 0;
