@@ -554,6 +554,11 @@ a{color:inherit}
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 
 <script>
+// I-suppress ang mga lumang deprecation warnings sa Rive console
+if (typeof rive !== 'undefined' && rive.suppressDeprecationWarnings) {
+  rive.suppressDeprecationWarnings = ["state-machines-param", "state-machine-inputs"];
+}
+
 let mascotRive = null;
 let mascotInputs = {};
 
@@ -562,31 +567,48 @@ window.addEventListener('DOMContentLoaded', () => {
     mascotRive = new rive.Rive({
       src: "../assets/rive/uploads/kabi.riv",
       canvas: document.getElementById("mascotCanvas"),
-      stateMachines: "Kabi",
+      stateMachine: "Kabi",
       autoplay: true,
       onLoad: () => {
         mascotRive.resizeDrawingSurfaceToCanvas();
-        console.log("Rive loaded successfully. Active SM:", mascotRive.activeStateMachineName);
+        console.log("Rive loaded successfully.");
         
         try {
           const inputs = mascotRive.stateMachineInputs("Kabi");
           if (inputs && inputs.length > 0) {
             inputs.forEach(input => {
               mascotInputs[input.name] = input;
-              console.log(`Input loaded -> Name: ${input.name}, Type: ${input.type}`);
             });
             
-            // 1. Kumakaway (Wave) pagkabukas ng dashboard (One-shot)
+            // INTRO WORKOUT SEQUENCE (Non-looping)
+            // 1. Hi / Wave sa simula (0 - 2s)
             if (mascotInputs['hi']) {
               mascotInputs['hi'].fire();
             } else if (mascotInputs['pose']) {
               mascotInputs['pose'].value = 1; // wave
-              setTimeout(() => {
-                if (mascotInputs['pose']) mascotInputs['pose'].value = 0; // idle
-              }, 2000);
             }
-          } else {
-            console.warn("Walang nahanap na inputs sa State Machine 'Kabi'.");
+
+            // 2. Flex / Workout pose pagkatapos ng 2 segundo (2s - 4s)
+            setTimeout(() => {
+              if (mascotInputs['pose']) {
+                mascotInputs['pose'].value = 2; // flex
+                if (mascotInputs['mood']) mascotInputs['mood'].value = 1;
+              }
+            }, 2000);
+
+            // 3. Jumping jacks / Other exercise pose pagkatapos ng 4 segundo (4s - 6s)
+            setTimeout(() => {
+              if (mascotInputs['pose']) {
+                mascotInputs['pose'].value = 4; // exercise / jumping jacks
+              }
+            }, 4000);
+
+            // 4. Balik sa idle/neutral pagkatapos ng 6 segundo para hindi mag-loop
+            setTimeout(() => {
+              if (mascotInputs['pose']) {
+                mascotInputs['pose'].value = 0; // idle
+              }
+            }, 6000);
           }
         } catch (e) {
           console.error("Error sa pagkuha ng inputs:", e);
@@ -597,32 +619,26 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // 2. Click / Poke reaction handler gamit ang wrapper o canvas
+    // INTERACTIVE CLICK / POKE REACTION
     const wrapper = document.getElementById("mascotWrapper");
     wrapper.addEventListener('click', () => {
       console.log("Mascot clicked!");
       
       if (mascotInputs['poke']) {
-        console.log("Firing 'poke' trigger.");
         mascotInputs['poke'].fire();
       } else if (mascotInputs['pose']) {
-        // Random fun poses: 7=celebrate, 2=flex, 25=heart, 27=fistPump, 4=jumpingJacks
         const funPoses = [7, 2, 25, 27, 4];
         const randomPose = funPoses[Math.floor(Math.random() * funPoses.length)];
         
-        console.log("Changing pose to:", randomPose);
         mascotInputs['pose'].value = randomPose;
-        if (mascotInputs['mood']) mascotInputs['mood'].value = 1; // happy
+        if (mascotInputs['mood']) mascotInputs['mood'].value = 1;
 
         // Babalik sa idle (0) pagkatapos ng 1.8 segundo para hindi mag-loop
         setTimeout(() => {
           if (mascotInputs['pose']) {
             mascotInputs['pose'].value = 0;
-            console.log("Reverting pose back to idle (0).");
           }
         }, 1800);
-      } else {
-        console.warn("Wala pang laman ang mascotInputs o hindi pa na-load.");
       }
     });
 
