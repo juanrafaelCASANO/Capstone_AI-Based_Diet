@@ -554,11 +554,6 @@ a{color:inherit}
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 
 <script>
-// I-suppress ang mga lumang deprecation warnings sa Rive console
-if (typeof rive !== 'undefined' && rive.suppressDeprecationWarnings) {
-  rive.suppressDeprecationWarnings = ["state-machines-param", "state-machine-inputs"];
-}
-
 let mascotRive = null;
 let mascotInputs = {};
 
@@ -567,17 +562,18 @@ window.addEventListener('DOMContentLoaded', () => {
     mascotRive = new rive.Rive({
       src: "../assets/rive/uploads/kabi.riv",
       canvas: document.getElementById("mascotCanvas"),
-      stateMachine: "Kabi", // Pinalitan mula stateMachines (plural) patungong stateMachine (isahan)
+      stateMachines: "Kabi",
       autoplay: true,
       onLoad: () => {
         mascotRive.resizeDrawingSurfaceToCanvas();
-        console.log("Rive loaded successfully.");
+        console.log("Rive loaded successfully. Active SM:", mascotRive.activeStateMachineName);
         
         try {
           const inputs = mascotRive.stateMachineInputs("Kabi");
           if (inputs && inputs.length > 0) {
             inputs.forEach(input => {
               mascotInputs[input.name] = input;
+              console.log(`Input loaded -> Name: ${input.name}, Type: ${input.type}`);
             });
             
             // 1. Kumakaway (Wave) pagkabukas ng dashboard (One-shot)
@@ -589,6 +585,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (mascotInputs['pose']) mascotInputs['pose'].value = 0; // idle
               }, 2000);
             }
+          } else {
+            console.warn("Walang nahanap na inputs sa State Machine 'Kabi'.");
           }
         } catch (e) {
           console.error("Error sa pagkuha ng inputs:", e);
@@ -599,7 +597,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // 2. Click / Poke reaction handler gamit ang wrapper
+    // 2. Click / Poke reaction handler gamit ang wrapper o canvas
     const wrapper = document.getElementById("mascotWrapper");
     wrapper.addEventListener('click', () => {
       console.log("Mascot clicked!");
