@@ -194,7 +194,7 @@ a{color:inherit}
 .hero{
   background:linear-gradient(135deg,#eaf6ee 0%,#f8fbf7 70%);
   border:1px solid #dcebe1;border-radius:24px;padding:clamp(24px,4vw,38px);
-  display:grid;grid-template-columns:minmax(0,1.3fr) minmax(240px,.7fr);
+  display:grid;grid-template-columns:minmax(0,1.3fr) minmax(260px,.7fr);
   gap:30px;align-items:center;overflow:hidden;position:relative;
 }
 .hero h2{font-size:clamp(25px,3.4vw,42px);line-height:1.08;letter-spacing:-1.2px;margin:8px 0 12px;max-width:650px}
@@ -210,7 +210,7 @@ a{color:inherit}
 .btn-primary{background:var(--green);color:#fff;box-shadow:0 8px 18px rgba(59,143,99,.2)}
 .btn-secondary{background:#fff;color:var(--navy);border-color:var(--border)}
 
-/* TRANSPARENT BACKGROUND & SIZED UP PARA KAY KABI (ORIGINAL COLOR) */
+/* TRANSPARENT BACKGROUND & MAS PINALAKI NA SAKTO SI KABI */
 .hero-stat{
   position:relative;z-index:1;background:transparent;border:none;
   border-radius:18px;padding:0;box-shadow:none;text-align:center;
@@ -218,9 +218,10 @@ a{color:inherit}
 }
 .mascot-container {
   width: 100%;
-  max-width: 270px;
-  height: 240px;
+  max-width: 320px;
+  height: 290px;
   margin: 0 auto;
+  cursor: pointer;
 }
 .mascot-container canvas {
   width: 100%;
@@ -456,9 +457,9 @@ a{color:inherit}
         </div>
       </div>
       
-      <!-- RIVE MASCOT INTEGRATION (TRANSPARENT BACKGROUND & ORIGINAL COLOR) -->
+      <!-- RIVE INTERACTIVE MASCOT INTEGRATION (WAVE ON LOAD & POKE/CLICK INTERACTION) -->
       <div class="hero-stat">
-        <div class="mascot-container">
+        <div class="mascot-container" id="mascotWrapper" title="Click or poke Kabi!">
           <canvas id="mascotCanvas"></canvas>
         </div>
         <span>Your AI Nutrition Companion</span>
@@ -553,8 +554,10 @@ a{color:inherit}
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 
 <script>
-// INITIALIZE RIVE INTERACTIVE MASCOT (ORIGINAL COLORS & DEFAULT STATE MACHINE)
+// INITIALIZE RIVE INTERACTIVE MASCOT WITH WAVE AND POKE INTERACTIONS
 let mascotRive = null;
+let mascotInputs = {};
+
 window.addEventListener('DOMContentLoaded', () => {
   try {
     mascotRive = new rive.Rive({
@@ -564,8 +567,49 @@ window.addEventListener('DOMContentLoaded', () => {
       autoplay: true,
       onLoad: () => {
         mascotRive.resizeDrawingSurfaceToCanvas();
+        try {
+          const inputs = mascotRive.stateMachineInputs("Kabi");
+          if (inputs) {
+            inputs.forEach(input => {
+              mascotInputs[input.name] = input;
+            });
+            
+            // 1. Pagbukas ng dashboard, kumakaway si Kabi (One-shot wave)
+            if (mascotInputs['hi']) {
+              mascotInputs['hi'].fire();
+            } else if (mascotInputs['pose']) {
+              mascotInputs['pose'].value = 1; // wave pose
+              setTimeout(() => {
+                if (mascotInputs['pose']) mascotInputs['pose'].value = 0; // balik sa idle para hindi mag-loop
+              }, 2000);
+            }
+          }
+        } catch (e) {
+          console.log("Mascot inputs setup note:", e);
+        }
       }
     });
+
+    // 2. Kapag pinindot o pinoke si Kabi sa canvas
+    const canvasEl = document.getElementById("mascotCanvas");
+    canvasEl.addEventListener('click', () => {
+      if (mascotInputs['poke']) {
+        mascotInputs['poke'].fire(); // One-shot surprised squash/reaction
+      } else if (mascotInputs['pose']) {
+        // Iba pang interactive poses kapag pinindot (halimbawa: 7=celebrate, 2=flex, 25=heart, 27=fistPump)
+        const funPoses = [7, 2, 25, 27];
+        const randomPose = funPoses[Math.floor(Math.random() * funPoses.length)];
+        
+        mascotInputs['pose'].value = randomPose;
+        if (mascotInputs['mood']) mascotInputs['mood'].value = 1; // happy
+
+        // Hindi mag-loloop: ibabalik sa idle (0) pagkatapos ng 1.8 segundo
+        setTimeout(() => {
+          if (mascotInputs['pose']) mascotInputs['pose'].value = 0;
+        }, 1800);
+      }
+    });
+
   } catch (err) {
     console.error("Rive Error:", err);
   }
