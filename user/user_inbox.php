@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Handle appointment booking submission via modal
+// Handle appointment booking submission via modal with past date/time validation
 $booking_success = "";
 $booking_error = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment_submit'])) {
@@ -21,15 +21,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment_subm
     if (empty($app_date) || empty($app_time)) {
         $booking_error = "Please select both a preferred date and time.";
     } else {
-        try {
-            $stmt = $conn->prepare("
-                INSERT INTO appointments (user_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
-                VALUES (?, ?, ?, ?, ?, 'pending')
-            ");
-            $stmt->execute([$user_id, $nutri_id_target, $app_date, $app_time, $notes]);
-            $booking_success = "Appointment request sent successfully! Waiting for nutritionist confirmation.";
-        } catch (Exception $e) {
-            $booking_error = "Failed to book appointment: " . $e->getMessage();
+        // Validation: Siguraduhing hindi past date/time ang napili
+        $selected_datetime = strtotime($app_date . ' ' . $app_time);
+        $current_datetime = time();
+
+        if ($selected_datetime < $current_datetime) {
+            $booking_error = "You cannot book an appointment in the past. Please select a valid future date and time.";
+        } else {
+            try {
+                $stmt = $conn->prepare("
+                    INSERT INTO appointments (user_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
+                    VALUES (?, ?, ?, ?, ?, 'pending')
+                ");
+                $stmt->execute([$user_id, $nutri_id_target, $app_date, $app_time, $notes]);
+                $booking_success = "Appointment request sent successfully! Waiting for nutritionist confirmation.";
+            } catch (Exception $e) {
+                $booking_error = "Failed to book appointment: " . $e->getMessage();
+            }
         }
     }
 }
@@ -479,7 +487,75 @@ a{color:inherit;text-decoration:none}
   .available-card { position: static; }
 }
 
-/* MODAL STYLES */
+/* ENHANCED MODERN MODAL CARD STYLES */
+.appointment-modal-overlay {
+  position: fixed; inset: 0; background: rgba(15, 32, 25, 0.55); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+  opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease;
+  padding: 16px;
+}
+.appointment-modal-overlay.active { opacity: 1; visibility: visible; }
+
+.appointment-modal-card {
+  background: #ffffff; width: 100%; max-width: 440px; border-radius: 24px; padding: 30px;
+  box-shadow: 0 25px 60px rgba(10, 30, 20, 0.22); transform: scale(0.9);
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+.appointment-modal-overlay.active .appointment-modal-card { transform: scale(1); }
+
+.modal-header-flex {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+}
+.modal-title-wrap h3 {
+  font-size: 22px; font-weight: 800; color: var(--navy); margin: 0; letter-spacing: -0.5px;
+}
+.modal-close-btn {
+  background: var(--cream); border: 1px solid var(--border); width: 34px; height: 34px;
+  border-radius: 50%; font-size: 16px; cursor: pointer; color: var(--muted);
+  display: grid; place-items: center; transition: background .2s, color .2s;
+}
+.modal-close-btn:hover { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+
+.modal-subtitle {
+  font-size: 13.5px; color: var(--muted); margin-bottom: 24px; line-height: 1.4;
+}
+
+.modal-form-group { margin-bottom: 16px; text-align: left; }
+.modal-form-group label {
+  display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text);
+}
+.modal-input-wrap { position: relative; }
+.modal-input-wrap i {
+  position: absolute; top: 50%; left: 14px; transform: translateY(-50%); color: var(--muted); font-size: 14px;
+}
+.modal-input-wrap input {
+  width: 100%; padding: 12px 14px 12px 42px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--cream); font-size: 14px; color: var(--text); outline: none; transition: all .2s;
+}
+.modal-input-wrap textarea {
+  width: 100%; padding: 12px 14px 12px 42px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--cream); font-size: 14px; color: var(--text); outline: none; resize: vertical; min-height: 95px;
+  font-family: inherit;
+}
+.modal-input-wrap input:focus, .modal-input-wrap textarea:focus {
+  border-color: var(--green); background: #fff; box-shadow: 0 0 0 3px rgba(59, 143, 99, 0.12);
+}
+
+.modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+.btn-modal-cancel {
+  flex: 1; height: 46px; background: var(--cream); color: var(--text); border: 1px solid var(--border);
+  border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; transition: background 0.2s;
+}
+.btn-modal-cancel:hover { background: var(--green-soft); }
+.btn-modal-submit {
+  flex: 1.3; height: 46px; background: linear-gradient(135deg, var(--green), #2e714e); color: #fff;
+  border: none; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer;
+  box-shadow: 0 8px 20px rgba(59, 143, 99, 0.25); transition: transform 0.2s, box-shadow 0.2s;
+}
+.btn-modal-submit:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(59, 143, 99, 0.35); }
+
+/* LOGOUT MODAL STYLES */
 .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -487,7 +563,7 @@ a{color:inherit;text-decoration:none}
 }
 .logout-modal-overlay.active { opacity: 1; visibility: visible; }
 .logout-modal-card {
-  background: #ffffff; width: 90%; max-width: 400px; border-radius: 20px; padding: 28px 24px;
+  background: #ffffff; width: 90%; max-width: 380px; border-radius: 20px; padding: 28px 24px;
   text-align: center; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); transform: scale(0.85);
   transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -499,17 +575,6 @@ a{color:inherit;text-decoration:none}
 .logout-modal-card h3 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text); }
 .logout-modal-card p { margin: 0 0 24px; font-size: 14px; color: var(--muted); line-height: 1.5; }
 .logout-modal-actions { display: flex; gap: 12px; }
-.btn-modal-cancel {
-  flex: 1; height: 44px; background: var(--cream); color: var(--text); border: 1px solid var(--border);
-  border-radius: 12px; font-weight: 650; font-size: 14px; cursor: pointer; transition: background 0.2s;
-}
-.btn-modal-cancel:hover { background: var(--green-soft); }
-.btn-modal-logout {
-  flex: 1; height: 44px; background: #b42318; color: #ffffff; border: none; border-radius: 12px;
-  font-weight: 650; font-size: 14px; display: inline-flex; align-items: center; justify-content: center;
-  text-decoration: none; transition: background 0.2s, transform 0.2s;
-}
-.btn-modal-logout:hover { background: #901c12; transform: translateY(-1px); }
 
 /* ALERT NOTIFICATIONS IN INBOX */
 .alert-banner {
@@ -774,36 +839,47 @@ a{color:inherit;text-decoration:none}
   </main>
 </div>
 
-<!-- APPOINTMENT BOOKING MODAL -->
-<div id="appointmentModal" class="logout-modal-overlay">
-  <div class="logout-modal-card" style="max-width: 440px; text-align: left;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <h3 style="margin: 0; font-size: 20px;">Book Consultation</h3>
-      <button type="button" onclick="closeBookModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted);">&times;</button>
+<!-- ENHANCED APPOINTMENT BOOKING MODAL -->
+<div id="appointmentModal" class="appointment-modal-overlay">
+  <div class="appointment-modal-card">
+    <div class="modal-header-flex">
+      <div class="modal-title-wrap">
+        <h3>Book Consultation</h3>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closeBookModal()"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <p style="font-size: 13.5px; color: var(--muted); margin-bottom: 20px;">Schedule an appointment with <strong id="modalNutriName" style="color: var(--text);"></strong></p>
+    <div class="modal-subtitle">Schedule an appointment with <strong id="modalNutriName" style="color: var(--text);"></strong></div>
     
     <form method="POST">
       <input type="hidden" name="nutritionist_id" id="modalNutriId">
       
-      <div style="margin-bottom: 16px;">
-        <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text);">Preferred Date</label>
-        <input type="date" name="appointment_date" min="<?php echo date('Y-m-d'); ?>" required style="width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--cream); font-size: 14px; outline: none;">
+      <div class="modal-form-group">
+        <label>Preferred Date</label>
+        <div class="modal-input-wrap">
+          <i class="fa-regular fa-calendar"></i>
+          <input type="date" name="appointment_date" min="<?php echo date('Y-m-d'); ?>" required>
+        </div>
       </div>
 
-      <div style="margin-bottom: 16px;">
-        <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text);">Preferred Time</label>
-        <input type="time" name="appointment_time" required style="width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--cream); font-size: 14px; outline: none;">
+      <div class="modal-form-group">
+        <label>Preferred Time</label>
+        <div class="modal-input-wrap">
+          <i class="fa-regular fa-clock"></i>
+          <input type="time" name="appointment_time" required>
+        </div>
       </div>
 
-      <div style="margin-bottom: 24px;">
-        <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text);">Notes / Purpose of Consultation</label>
-        <textarea name="notes" placeholder="Tell the nutritionist your goal or concern..." style="width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--cream); font-size: 14px; outline: none; resize: vertical; min-height: 90px;"></textarea>
+      <div class="modal-form-group">
+        <label>Notes / Purpose of Consultation</label>
+        <div class="modal-input-wrap">
+          <i class="fa-regular fa-comment-dots" style="top: 22px;"></i>
+          <textarea name="notes" placeholder="Tell the nutritionist your goal or concern..." required></textarea>
+        </div>
       </div>
 
-      <div style="display: flex; gap: 10px;">
+      <div class="modal-actions">
         <button type="button" class="btn-modal-cancel" onclick="closeBookModal()">Cancel</button>
-        <button type="submit" name="book_appointment_submit" style="flex: 1; height: 44px; background: var(--navy); color: #fff; border: none; border-radius: 12px; font-weight: 650; font-size: 14px; cursor: pointer; transition: background 0.2s;">Submit Request</button>
+        <button type="submit" name="book_appointment_submit" class="btn-modal-submit">Submit Request</button>
       </div>
     </form>
   </div>
