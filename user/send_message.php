@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
                     INSERT INTO messages (sender_id, receiver_id, message, created_at) 
                     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
                 ");
-                $stmtAi->execute([$receiver_id, $sender_id, "🤖 [AI Assistant]: " . $aiReply]);
+                $stmtAi->execute([$receiver_id, $sender_id, "🐮 [Kabi]: " . $aiReply]);
             }
 
             $conn->commit();
