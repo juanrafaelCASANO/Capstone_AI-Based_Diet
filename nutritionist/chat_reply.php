@@ -10,6 +10,14 @@ if (!isset($_SESSION['user_id'])) {
 $nutri_id = $_SESSION['user_id'];
 $user_id = $_GET['user_id'] ?? 0;
 
+// I-update ang last active timestamp ng nutritionist tuwing binubuksan o nire-refresh ang chat page
+try {
+    $update_active = $conn->prepare("UPDATE nutritionist SET last_active_at = NOW() WHERE id = ?");
+    $update_active->execute([$nutri_id]);
+} catch (Exception $e) {
+    // Handle error if needed
+}
+
 $stmt = $conn->prepare("SELECT fullname, latitude, longitude FROM nutritionist WHERE id = ?");
 $stmt->execute([$nutri_id]);
 $nutri = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -901,6 +909,13 @@ $('#message').keypress(function(e){
         sendMessage();
     }
 });
+
+// Background Heartbeat: Nagpapadala ng signal kada 1 minuto (60000ms) para manatiling 'Active'
+setInterval(function() {
+    $.post('update_activity.php', function(response) {
+        // Tahimik itong tumatakbo sa background nang walang iniistorbo sa user
+    });
+}, 60000);
 
 setInterval(fetchMessages, 2000);
 fetchMessages();

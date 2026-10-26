@@ -93,6 +93,12 @@ if (isset($_POST['verify_otp'])) {
                 $_SESSION['fullname'] = $fullname;
                 $_SESSION['role']     = $role;
 
+                // IDAGDAG ITO: I-update ang huling aktibidad kung nutritionist ang nag-login
+                if ($role === 'nutritionist') {
+                    $update_active = $conn->prepare("UPDATE nutritionist SET last_active_at = NOW() WHERE id = ?");
+                    $update_active->execute([$user_id]);
+                }
+
                 $cookie_token = hash('sha256', $user_id . $role . 'aidietplanner_secret_salt');
                 setcookie('trusted_device_' . $user_id, $cookie_token, time() + (7 * 86400), "/", "", false, true);
 
@@ -190,6 +196,12 @@ if (isset($_POST['login'])) {
                 $_SESSION['user_id']  = $user_id;
                 $_SESSION['fullname'] = $user_data['fullname'];
                 $_SESSION['role']     = $role;
+
+                // IDAGDAG RIN ITO DITO para sa mga nag-login gamit ang trusted cookie
+                if ($role === 'nutritionist') {
+                    $update_active = $conn->prepare("UPDATE nutritionist SET last_active_at = NOW() WHERE id = ?");
+                    $update_active->execute([$user_id]);
+                }
 
                 if (function_exists('logActivity')) {
                     logActivity($conn, $user_id, $role, "Logged in successfully (Trusted Browser/Device - Bypassed OTP)");

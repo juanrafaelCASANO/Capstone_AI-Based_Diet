@@ -615,6 +615,15 @@ document.getElementById('logoutModal').addEventListener('click', function(e) {
     if(window.innerWidth > 720) setMenu(false);
   });
 })();
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+// Background Heartbeat para sa Dashboard at Inbox
+setInterval(function() {
+    $.post('update_activity.php', function(response) {
+        // Tahimik na nag-a-update sa background
+    });
+}, 60000);
 </script>
+
 </body>
 </html>

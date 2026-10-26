@@ -24,7 +24,7 @@ $stmt->execute([$user_id, $nutri_id, $nutri_id, $user_id]);
 
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     // Piliting ilagay sa kaliwa (nutritionist-msg) kung ang mensahe ay galing kay AI Assistant
-    $is_ai = (strpos($row['message'], 'Kabi') !== false || strpos($row['message'], '🤖') !== false);
+    $is_ai = (strpos($row['message'], 'Kabi') !== false || strpos($row['message'], '🐮') !== false);
 
     if ($is_ai) {
         $class = 'nutritionist-msg';
