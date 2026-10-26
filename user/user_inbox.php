@@ -798,7 +798,7 @@ a{color:inherit;text-decoration:none}
 
       <div style="margin-bottom: 24px;">
         <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text);">Notes / Purpose of Consultation</label>
-        <textarea name="notes" placeholder="Sabihin sa nutritionist ang iyong layunin o concern..." style="width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--cream); font-size: 14px; outline: none; resize: vertical; min-height: 90px;"></textarea>
+        <textarea name="notes" placeholder="Tell the nutritionist your goal or concern..." style="width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--cream); font-size: 14px; outline: none; resize: vertical; min-height: 90px;"></textarea>
       </div>
 
       <div style="display: flex; gap: 10px;">
