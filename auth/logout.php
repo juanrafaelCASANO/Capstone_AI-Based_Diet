@@ -6,6 +6,16 @@ require_once '../config.php';
 require_once '../logs/activity_logger.php';
 
 if (isset($_SESSION['user_id'], $_SESSION['role'])) {
+    // Kung ang nag-log out ay nutritionist, gawing 'offline' ang availability status
+    if ($_SESSION['role'] === 'nutritionist') {
+        try {
+            $update_offline = $conn->prepare("UPDATE nutritionist SET availability_status = 'offline' WHERE id = ?");
+            $update_offline.execute([$_SESSION['user_id']]);
+        } catch (Exception $e) {
+            // Handle error if needed
+        }
+    }
+
     logActivity(
         $conn,
         $_SESSION['user_id'],
