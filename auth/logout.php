@@ -10,7 +10,8 @@ if (isset($_SESSION['user_id'], $_SESSION['role'])) {
     if ($_SESSION['role'] === 'nutritionist') {
         try {
             $update_offline = $conn->prepare("UPDATE nutritionist SET availability_status = 'offline' WHERE id = ?");
-            $update_offline.execute([$_SESSION['user_id']]);
+            // Naayos dito: ginamit ang -> sa halip na .
+            $update_offline->execute([$_SESSION['user_id']]);
         } catch (Exception $e) {
             // Handle error if needed
         }
