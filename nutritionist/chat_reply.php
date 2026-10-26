@@ -176,54 +176,91 @@ a { color: inherit; text-decoration: none; }
 .nav a.active { background: rgba(255,255,255,.14); color: #fff; }
 .nav-icon { width: 24px; text-align: center; font-size: 17px; }
 
-.client-card {
-  margin-top: 15px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  padding: 14px;
+.sidebar-bottom { margin-top: auto; border-top: 1px solid rgba(255,255,255,.1); padding-top: 16px; }
+.sidebar-bottom a.logout {
+  display: flex; align-items: center; gap: 12px; padding: 13px 12px;
+  border-radius: 12px; color: #f8d7da !important; font-size: 14px; font-weight: 650;
+  transition: background .2s, transform .2s;
 }
-.client-card h4 {
-  margin: 0 0 6px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: .1em;
-  color: #99f6e4;
+.sidebar-bottom a.logout:hover { background: rgba(220,53,69,.2); transform: translateX(2px); }
+
+/* CONSULTATION LAYOUT (CHAT + RIGHT CLIENT PANEL) */
+.consultation-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex: 1;
+  min-height: 0;
 }
-.client-card-name {
-  font-size: 15px;
+.chat-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.client-info-col {
+  width: 340px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 26px;
+}
+.client-info-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.client-avatar-large {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+  font-size: 24px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+}
+.client-info-name {
+  font-size: 18px;
   font-weight: 700;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--text);
   margin-bottom: 8px;
 }
-.client-distance-badge {
-  font-size: 11px;
-  font-weight: 700;
-  background: rgba(13, 148, 136, 0.3);
-  color: #99f6e4;
-  padding: 3px 8px;
-  border-radius: 6px;
-  display: inline-block;
-  margin-bottom: 10px;
-}
-.client-body-info {
+.client-info-distance {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+  padding: 4px 10px;
+  border-radius: 8px;
   font-size: 12px;
-  color: #dbece5;
-  margin-bottom: 12px;
-  border-top: 1px solid rgba(255,255,255,0.1);
-  padding-top: 8px;
-  display: grid;
-  gap: 4px;
+  font-weight: 700;
+  margin-bottom: 16px;
 }
-.client-body-info div {
+.client-info-body {
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: left;
+  margin-bottom: 16px;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.client-info-body div {
   display: flex;
   justify-content: space-between;
 }
-.client-body-info span {
-  color: #99f6e4;
+.client-info-body strong {
+  color: var(--text);
 }
 
 .view-map-btn {
@@ -232,25 +269,17 @@ a { color: inherit; text-decoration: none; }
   justify-content: center;
   gap: 6px;
   width: 100%;
-  padding: 9px 12px;
-  border-radius: 10px;
+  padding: 12px;
+  border-radius: 12px;
   background: var(--teal);
   color: #fff;
   border: none;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: background .2s, transform .2s;
 }
 .view-map-btn:hover { background: var(--teal-dark); transform: translateY(-1px); }
-
-.sidebar-bottom { margin-top: auto; border-top: 1px solid rgba(255,255,255,.1); padding-top: 16px; }
-.sidebar-bottom a.logout {
-  display: flex; align-items: center; gap: 12px; padding: 13px 12px;
-  border-radius: 12px; color: #f8d7da !important; font-size: 14px; font-weight: 650;
-  transition: background .2s, transform .2s;
-}
-.sidebar-bottom a.logout:hover { background: rgba(220,53,69,.2); transform: translateX(2px); }
 
 /* MODAL STYLES */
 .logout-modal-overlay {
@@ -474,6 +503,15 @@ a { color: inherit; text-decoration: none; }
 .close-modal:hover { background: #e2e8f0; }
 
 .overlay { display: none; }
+@media(max-width: 1100px) {
+  .consultation-layout {
+    flex-direction: column-reverse;
+  }
+  .client-info-col {
+    width: 100%;
+    position: static;
+  }
+}
 @media(max-width: 900px) {
   .sidebar { width: 240px; flex-basis: 240px; }
 }
@@ -512,30 +550,7 @@ a { color: inherit; text-decoration: none; }
       <i class="fa-solid fa-arrow-left"></i> Back to Inbox
     </a>
 
-    <!-- ACTIVE CLIENT CARD NA MAY DISTANSYA AT BODY INFO -->
-    <div class="client-card">
-      <h4>Active Client</h4>
-      <div class="client-card-name"><?php echo htmlspecialchars($client_name); ?></div>
-      <?php if (!empty($dist_label)): ?>
-        <div class="client-distance-badge">
-          <i class="fa-solid fa-location-dot"></i> <?php echo $dist_label; ?>
-        </div>
-      <?php endif; ?>
-
-      <div class="client-body-info">
-        <div><span>Age:</span> <strong><?php echo htmlspecialchars($client_age); ?></strong></div>
-        <div><span>Gender:</span> <strong><?php echo htmlspecialchars($client_gender); ?></strong></div>
-        <div><span>Height:</span> <strong><?php echo htmlspecialchars($client_height); ?> cm</strong></div>
-        <div><span>Weight:</span> <strong><?php echo htmlspecialchars($client_weight); ?> kg</strong></div>
-        <div><span>Goal:</span> <strong><?php echo htmlspecialchars($client_goal); ?></strong></div>
-      </div>
-
-      <button type="button" class="view-map-btn" onclick="openClientMap(<?php echo $client_lat; ?>, <?php echo$client_lng; ?>, '<?php echo htmlspecialchars(addslashes($client_name)); ?>', '<?php echo htmlspecialchars(addslashes($client_address)); ?>')">
-        <i class="fa-solid fa-location-dot" style="color: #99f6e4; margin-right: 4px;"></i> View Location Map
-      </button>
-    </div>
-
-    <div class="nav-label" style="margin-top:20px;">Menu</div>
+    <div class="nav-label" style="margin-top:10px;">Menu</div>
     <nav class="nav">
       <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
@@ -565,30 +580,63 @@ a { color: inherit; text-decoration: none; }
       </a>
     </header>
 
-    <div class="chat-wrapper">
-      <div class="chat-header">
-        <div class="chat-client-info">
-          <div class="chat-client-avatar">
-            <?php echo htmlspecialchars(strtoupper(substr($client_name, 0, 1))); ?>
+    <!-- CONSULTATION LAYOUT (CHAT + RIGHT CLIENT PANEL) -->
+    <div class="consultation-layout">
+      <!-- Chat Column -->
+      <div class="chat-col">
+        <div class="chat-wrapper">
+          <div class="chat-header">
+            <div class="chat-client-info">
+              <div class="chat-client-avatar">
+                <?php echo htmlspecialchars(strtoupper(substr($client_name, 0, 1))); ?>
+              </div>
+              <div class="chat-client-details">
+                <strong><?php echo htmlspecialchars($client_name); ?></strong>
+                <span>Active Consultation</span>
+              </div>
+            </div>
+
+            <?php if ($has_both_messaged): ?>
+              <button type="button" onclick="showClearChatModal()" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 7px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s;">
+                <i class="fa-solid fa-broom"></i> Clear Chat
+              </button>
+            <?php endif; ?>
           </div>
-          <div class="chat-client-details">
-            <strong><?php echo htmlspecialchars($client_name); ?></strong>
-            <span>Active Consultation</span>
+
+          <div id="chat-box"></div>
+
+          <div class="chat-input-area">
+            <input type="text" id="message" placeholder="Type professional advice or reply..." autocomplete="off">
+            <button id="send"><i class="fa-solid fa-paper-plane"></i> Send</button>
           </div>
         </div>
-
-        <?php if ($has_both_messaged): ?>
-          <button type="button" onclick="showClearChatModal()" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 7px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s;">
-            <i class="fa-solid fa-broom"></i> Clear Chat
-          </button>
-        <?php endif; ?>
       </div>
 
-      <div id="chat-box"></div>
+      <!-- Client Info Right Column (Without Kabi) -->
+      <div class="client-info-col">
+        <div class="client-info-panel">
+          <div class="client-avatar-large">
+            <?php echo htmlspecialchars(strtoupper(substr($client_name, 0, 1))); ?>
+          </div>
+          <div class="client-info-name"><?php echo htmlspecialchars($client_name); ?></div>
+          <?php if (!empty($dist_label)): ?>
+            <div class="client-info-distance">
+              <i class="fa-solid fa-location-dot"></i> <?php echo $dist_label; ?>
+            </div>
+          <?php endif; ?>
 
-      <div class="chat-input-area">
-        <input type="text" id="message" placeholder="Type professional advice or reply..." autocomplete="off">
-        <button id="send"><i class="fa-solid fa-paper-plane"></i> Send</button>
+          <div class="client-info-body">
+            <div><span>Age:</span> <strong><?php echo htmlspecialchars($client_age); ?></strong></div>
+            <div><span>Gender:</span> <strong><?php echo htmlspecialchars($client_gender); ?></strong></div>
+            <div><span>Height:</span> <strong><?php echo htmlspecialchars($client_height); ?> cm</strong></div>
+            <div><span>Weight:</span> <strong><?php echo htmlspecialchars($client_weight); ?> kg</strong></div>
+            <div><span>Goal:</span> <strong><?php echo htmlspecialchars($client_goal); ?></strong></div>
+          </div>
+
+          <button type="button" class="view-map-btn" onclick="openClientMap(<?php echo $client_lat; ?>, <?php echo $client_lng; ?>, '<?php echo htmlspecialchars(addslashes($client_name)); ?>', '<?php echo htmlspecialchars(addslashes($client_address)); ?>')">
+            <i class="fa-solid fa-location-dot" style="margin-right: 4px;"></i> View Location Map
+          </button>
+        </div>
       </div>
     </div>
   </main>
@@ -751,7 +799,6 @@ function openClientMap(lat, lng, name, address) {
             }
         });
 
-        // Custom Pin Icon para sa Leaflet Map
         const customPinIcon = L.divIcon({
             className: 'custom-map-pin',
             html: `<div style="
