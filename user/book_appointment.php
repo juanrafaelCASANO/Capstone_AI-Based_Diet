@@ -12,7 +12,7 @@ $user_id = $_SESSION['user_id'];
 $nutritionist_id = $_GET['nutritionist_id'] ?? 0;
 
 // Kunin ang detalye ng nutritionist para makita ng user kung sino ang ibinubook nila
-$nutri_stmt = $conn->prepare("SELECT id, fullname, specialization FROM nutritionist WHERE id = ?");
+$nutri_stmt = $conn->prepare("SELECT id, fullname FROM nutritionist WHERE id = ?");
 $nutri_stmt->execute([$nutritionist_id]);
 $nutritionist = $nutri_stmt->fetch(PDO::FETCH_ASSOC);
 
