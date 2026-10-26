@@ -251,7 +251,7 @@ a{color:inherit;text-decoration:none}
 /* INBOX LAYOUT GRID */
 .inbox-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 20px;
   align-items: start;
 }
@@ -328,7 +328,7 @@ a{color:inherit;text-decoration:none}
 .nutri-sidebar-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   max-height: calc(100vh - 200px);
   overflow-y: auto;
   padding-right: 2px;
@@ -338,23 +338,22 @@ a{color:inherit;text-decoration:none}
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px;
-  border-radius: 12px;
+  padding: 12px;
+  border-radius: 14px;
   background: #f8faf8;
   border: 1px solid var(--border);
   transition: all .2s;
-  text-decoration: none;
 }
 .nutri-sidebar-item:hover {
-  background: var(--green-soft);
+  background: #f1f8f4;
   border-color: #b9d5ca;
-  transform: translateY(-1px);
 }
 .nutri-meta {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex: 1;
 }
 .nutri-avatar {
   width: 38px;
@@ -370,7 +369,7 @@ a{color:inherit;text-decoration:none}
   overflow: hidden;
 }
 .nutri-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.nutri-info-text { min-width: 0; }
+.nutri-info-text { min-width: 0; flex: 1; }
 .nutri-info-text strong {
   display: block;
   font-size: 13px;
@@ -416,21 +415,36 @@ a{color:inherit;text-decoration:none}
   display: inline-block;
   margin-top: 3px;
 }
-.chat-btn-mini {
-  background: var(--green);
-  color: #fff;
-  border: none;
+.nutri-actions-mini {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.action-btn-mini {
   width: 32px;
   height: 32px;
   border-radius: 8px;
   display: grid;
   place-items: center;
   font-size: 13px;
-  flex-shrink: 0;
-  transition: background .2s;
+  text-decoration: none;
+  transition: background .2s, transform .2s;
 }
-.nutri-sidebar-item:hover .chat-btn-mini {
+.action-btn-mini.chat {
+  background: var(--green);
+  color: #fff;
+}
+.action-btn-mini.chat:hover {
   background: #2e714e;
+  transform: translateY(-1px);
+}
+.action-btn-mini.book {
+  background: var(--navy);
+  color: #fff;
+}
+.action-btn-mini.book:hover {
+  background: #0f2620;
+  transform: translateY(-1px);
 }
 
 @media(max-width: 992px) {
@@ -528,7 +542,6 @@ a{color:inherit;text-decoration:none}
               $account_status = trim(strtolower($chat['account_status'] ?? 'active'));
               $last_active = $chat['last_active_at'] ?? null;
 
-              // Check if offline based on last_active_at (e.g., inactive for more than 15 minutes / 900 seconds)
               $is_offline_by_time = false;
               if ($last_active) {
                   $inactive_seconds = time() - strtotime($last_active);
@@ -665,7 +678,7 @@ a{color:inherit;text-decoration:none}
                     }
                 }
               ?>
-              <a href="chat.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="nutri-sidebar-item">
+              <div class="nutri-sidebar-item">
                 <div class="nutri-meta">
                   <div class="avatar-container" style="flex-shrink:0;">
                     <div class="nutri-avatar">
@@ -696,10 +709,16 @@ a{color:inherit;text-decoration:none}
                     <?php endif; ?>
                   </div>
                 </div>
-                <div class="chat-btn-mini">
-                  <i class="fa-solid fa-comment"></i>
+
+                <div class="nutri-actions-mini">
+                  <a href="book_appointment.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="action-btn-mini book" title="Book Appointment">
+                    <i class="fa-regular fa-calendar-plus"></i>
+                  </a>
+                  <a href="chat.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="action-btn-mini chat" title="Chat Nutritionist">
+                    <i class="fa-solid fa-comment"></i>
+                  </a>
                 </div>
-              </a>
+              </div>
             <?php endforeach; ?>
           <?php else: ?>
             <div style="text-align:center; padding:20px; color:var(--muted); font-size:13px;">
