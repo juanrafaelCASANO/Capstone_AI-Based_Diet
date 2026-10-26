@@ -487,7 +487,7 @@ a{color:inherit;text-decoration:none}
   .available-card { position: static; }
 }
 
-/* ENHANCED MODERN MODAL CARD STYLES */
+/* APPOINTMENT MODAL STYLES */
 .appointment-modal-overlay {
   position: fixed; inset: 0; background: rgba(15, 32, 25, 0.55); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -555,7 +555,7 @@ a{color:inherit;text-decoration:none}
 }
 .btn-modal-submit:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(59, 143, 99, 0.35); }
 
-/* LOGOUT MODAL STYLES */
+/* FIXED LOGOUT MODAL STYLES */
 .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -575,6 +575,17 @@ a{color:inherit;text-decoration:none}
 .logout-modal-card h3 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text); }
 .logout-modal-card p { margin: 0 0 24px; font-size: 14px; color: var(--muted); line-height: 1.5; }
 .logout-modal-actions { display: flex; gap: 12px; }
+.logout-modal-actions .btn-modal-cancel {
+  flex: 1; height: 44px; background: var(--cream); color: var(--text); border: 1px solid var(--border);
+  border-radius: 12px; font-weight: 650; font-size: 14px; cursor: pointer; transition: background 0.2s;
+}
+.logout-modal-actions .btn-modal-cancel:hover { background: var(--green-soft); }
+.logout-modal-actions .btn-modal-logout {
+  flex: 1; height: 44px; background: #b42318; color: #ffffff; border: none; border-radius: 12px;
+  font-weight: 650; font-size: 14px; display: inline-flex; align-items: center; justify-content: center;
+  text-decoration: none; transition: background 0.2s, transform 0.2s;
+}
+.logout-modal-actions .btn-modal-logout:hover { background: #901c12; transform: translateY(-1px); }
 
 /* ALERT NOTIFICATIONS IN INBOX */
 .alert-banner {
@@ -839,7 +850,7 @@ a{color:inherit;text-decoration:none}
   </main>
 </div>
 
-<!-- ENHANCED APPOINTMENT BOOKING MODAL -->
+<!-- APPOINTMENT BOOKING MODAL -->
 <div id="appointmentModal" class="appointment-modal-overlay">
   <div class="appointment-modal-card">
     <div class="modal-header-flex">
