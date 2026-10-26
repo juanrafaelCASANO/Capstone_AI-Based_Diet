@@ -9,6 +9,31 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
+// Handle appointment booking submission via modal
+$booking_success = "";
+$booking_error = "";
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment_submit'])) {
+    $nutri_id_target = $_POST['nutritionist_id'] ?? 0;
+    $app_date = $_POST['appointment_date'] ?? '';
+    $app_time = $_POST['appointment_time'] ?? '';
+    $notes = trim($_POST['notes'] ?? '');
+
+    if (empty($app_date) || empty($app_time)) {
+        $booking_error = "Please select both a preferred date and time.";
+    } else {
+        try {
+            $stmt = $conn->prepare("
+                INSERT INTO appointments (user_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
+                VALUES (?, ?, ?, ?, ?, 'pending')
+            ");
+            $stmt->execute([$user_id, $nutri_id_target, $app_date, $app_time, $notes]);
+            $booking_success = "Appointment request sent successfully! Waiting for nutritionist confirmation.";
+        } catch (Exception $e) {
+            $booking_error = "Failed to book appointment: " . $e->getMessage();
+        }
+    }
+}
+
 // Get user latitude and longitude
 $user_lat = 14.3498;
 $user_lng = 121.0794;
@@ -428,6 +453,8 @@ a{color:inherit;text-decoration:none}
   place-items: center;
   font-size: 13px;
   text-decoration: none;
+  cursor: pointer;
+  border: none;
   transition: background .2s, transform .2s;
 }
 .action-btn-mini.chat {
@@ -452,6 +479,7 @@ a{color:inherit;text-decoration:none}
   .available-card { position: static; }
 }
 
+/* MODAL STYLES */
 .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -459,7 +487,7 @@ a{color:inherit;text-decoration:none}
 }
 .logout-modal-overlay.active { opacity: 1; visibility: visible; }
 .logout-modal-card {
-  background: #ffffff; width: 90%; max-width: 380px; border-radius: 20px; padding: 28px 24px;
+  background: #ffffff; width: 90%; max-width: 400px; border-radius: 20px; padding: 28px 24px;
   text-align: center; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); transform: scale(0.85);
   transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -482,6 +510,14 @@ a{color:inherit;text-decoration:none}
   text-decoration: none; transition: background 0.2s, transform 0.2s;
 }
 .btn-modal-logout:hover { background: #901c12; transform: translateY(-1px); }
+
+/* ALERT NOTIFICATIONS IN INBOX */
+.alert-banner {
+  padding: 12px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 10px;
+}
+.alert-banner.success { background: #e6fffa; color: #0f766e; border: 1px solid #b2f5ea; }
+.alert-banner.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 </style>
 </head>
 <body>
@@ -517,6 +553,13 @@ a{color:inherit;text-decoration:none}
         <h1>Nutritionist Inbox</h1>
       </div>
     </header>
+
+    <?php if (!empty($booking_success)): ?>
+      <div class="alert-banner success"><i class="fa-solid fa-circle-check"></i> <?php echo $booking_success; ?></div>
+    <?php endif; ?>
+    <?php if (!empty($booking_error)): ?>
+      <div class="alert-banner error"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo $booking_error; ?></div>
+    <?php endif; ?>
 
     <!-- SEARCH & FILTER TOOLBAR -->
     <div class="inbox-toolbar">
@@ -711,9 +754,9 @@ a{color:inherit;text-decoration:none}
                 </div>
 
                 <div class="nutri-actions-mini">
-                  <a href="book_appointment.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="action-btn-mini book" title="Book Appointment">
+                  <button type="button" class="action-btn-mini book" onclick="openBookModal(<?php echo $nutri['id']; ?>, '<?php echo htmlspecialchars($nutri['fullname'], ENT_QUOTES); ?>')" title="Book Appointment">
                     <i class="fa-regular fa-calendar-plus"></i>
-                  </a>
+                  </button>
                   <a href="chat.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="action-btn-mini chat" title="Chat Nutritionist">
                     <i class="fa-solid fa-comment"></i>
                   </a>
@@ -731,6 +774,42 @@ a{color:inherit;text-decoration:none}
   </main>
 </div>
 
+<!-- APPOINTMENT BOOKING MODAL -->
+<div id="appointmentModal" class="logout-modal-overlay">
+  <div class="logout-modal-card" style="max-width: 440px; text-align: left;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h3 style="margin: 0; font-size: 20px;">Book Consultation</h3>
+      <button type="button" onclick="closeBookModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted);">&times;</button>
+    </div>
+    <p style="font-size: 13.5px; color: var(--muted); margin-bottom: 20px;">Schedule an appointment with <strong id="modalNutriName" style="color: var(--text);"></strong></p>
+    
+    <form method="POST">
+      <input type="hidden" name="nutritionist_id" id="modalNutriId">
+      
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text);">Preferred Date</label>
+        <input type="date" name="appointment_date" min="<?php echo date('Y-m-d'); ?>" required style="width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--cream); font-size: 14px; outline: none;">
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text);">Preferred Time</label>
+        <input type="time" name="appointment_time" required style="width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--cream); font-size: 14px; outline: none;">
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text);">Notes / Purpose of Consultation</label>
+        <textarea name="notes" placeholder="Sabihin sa nutritionist ang iyong layunin o concern..." style="width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--cream); font-size: 14px; outline: none; resize: vertical; min-height: 90px;"></textarea>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button type="button" class="btn-modal-cancel" onclick="closeBookModal()">Cancel</button>
+        <button type="submit" name="book_appointment_submit" style="flex: 1; height: 44px; background: var(--navy); color: #fff; border: none; border-radius: 12px; font-weight: 650; font-size: 14px; cursor: pointer; transition: background 0.2s;">Submit Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- LOGOUT MODAL -->
 <div id="logoutModal" class="logout-modal-overlay">
   <div class="logout-modal-card">
     <div class="logout-modal-icon">🚪</div>
@@ -776,6 +855,16 @@ function filterByStatus(status, btn) {
     filterInbox();
 }
 
+function openBookModal(nutriId, nutriName) {
+    document.getElementById('modalNutriId').value = nutriId;
+    document.getElementById('modalNutriName').textContent = nutriName;
+    document.getElementById('appointmentModal').classList.add('active');
+}
+
+function closeBookModal() {
+    document.getElementById('appointmentModal').classList.remove('active');
+}
+
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
 }
@@ -787,6 +876,12 @@ function closeLogoutModal() {
 document.getElementById('logoutModal').addEventListener('click', function(e) {
   if (e.target === this) {
     closeLogoutModal();
+  }
+});
+
+document.getElementById('appointmentModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeBookModal();
   }
 });
 </script>
