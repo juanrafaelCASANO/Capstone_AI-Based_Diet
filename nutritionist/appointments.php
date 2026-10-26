@@ -12,13 +12,20 @@ $nutritionist_id = $_SESSION['user_id'];
 $action_success = "";
 $action_error = "";
 
-// Handle status updates (Confirm, Cancel, Complete)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
+// Handle status updates securely using direct button actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $appointment_id = $_POST['appointment_id'] ?? 0;
-    $new_status = $_POST['new_status'] ?? '';
+    $new_status = '';
 
-    $allowed_statuses = ['confirmed', 'completed', 'cancelled'];
-    if (in_array($new_status, $allowed_statuses)) {
+    if (isset($_POST['action_confirm'])) {
+        $new_status = 'confirmed';
+    } elseif (isset($_POST['action_cancel'])) {
+        $new_status = 'cancelled';
+    } elseif (isset($_POST['action_complete'])) {
+        $new_status = 'completed';
+    }
+
+    if (!empty($new_status)) {
         try {
             $update_stmt = $conn->prepare("UPDATE appointments SET status = ? WHERE id = ? AND nutritionist_id = ?");
             $update_stmt->execute([$new_status, $appointment_id, $nutritionist_id]);
@@ -26,12 +33,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
         } catch (Exception $e) {
             $action_error = "Failed to update appointment: " . $e->getMessage();
         }
-    } else {
-        $action_error = "Invalid status selected.";
     }
 }
 
-// Fetch all appointments for this nutritionist (Fixed query without profile_pic dependency)
+// Fetch all appointments for this nutritionist
 try {
     $app_sql = "
         SELECT 
@@ -69,7 +74,6 @@ try {
     $unread_count = 0;
 }
 
-// Function to get initials
 function getInitials($name) {
     $words = explode(' ', trim($name));
     if (count($words) >= 2) {
@@ -270,7 +274,12 @@ a{color:inherit;text-decoration:none}
     <nav class="nav">
       <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="appointments.php" class="active"><span class="nav-icon">📅</span>Appointments</a>
-      <a href="inbox.php"><span class="nav-icon">📥</span>Client Inbox</a>
+      <a href="inbox.php">
+        <span class="nav-icon">📥</span>Inbox
+        <?php if($unread_count > 0): ?>
+          <span class="nav-badge"><?php echo $unread_count; ?></span>
+        <?php endif; ?>
+      </a>
       <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
     </nav>
     <div class="sidebar-bottom">
@@ -335,17 +344,17 @@ a{color:inherit;text-decoration:none}
                 <input type="hidden" name="appointment_id" value="<?php echo $app['id']; ?>">
                 
                 <?php if ($app['status'] === 'pending'): ?>
-                  <button type="submit" name="update_status" value="confirmed" class="btn-action btn-confirm" title="Confirm Appointment">
+                  <button type="submit" name="action_confirm" value="1" class="btn-action btn-confirm" title="Confirm Appointment">
                     <i class="fa-solid fa-check"></i> Confirm
                   </button>
-                  <button type="submit" name="update_status" value="cancelled" class="btn-action btn-cancel" title="Cancel Appointment">
+                  <button type="submit" name="action_cancel" value="1" class="btn-action btn-cancel" title="Cancel Appointment">
                     <i class="fa-solid fa-xmark"></i> Cancel
                   </button>
                 <?php elseif ($app['status'] === 'confirmed'): ?>
-                  <button type="submit" name="update_status" value="completed" class="btn-action btn-complete" title="Mark as Completed">
+                  <button type="submit" name="action_complete" value="1" class="btn-action btn-complete" title="Mark as Completed">
                     <i class="fa-solid fa-flag-checkered"></i> Complete
                   </button>
-                  <button type="submit" name="update_status" value="cancelled" class="btn-action btn-cancel" title="Cancel Appointment">
+                  <button type="submit" name="action_cancel" value="1" class="btn-action btn-cancel" title="Cancel Appointment">
                     <i class="fa-solid fa-xmark"></i> Cancel
                   </button>
                 <?php else: ?>
