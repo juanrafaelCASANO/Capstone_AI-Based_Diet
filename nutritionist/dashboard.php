@@ -33,7 +33,7 @@ if (isset($_POST['request_status_change'])) {
             // Supabase Credentials (Awtomatikong babasahin ang SUPABASE_SERVICE_KEY o SUPABASE_KEY)
             $supabaseUrl = getenv('SUPABASE_URL') ?: 'YOUR_SUPABASE_URL';
             $supabaseKey = getenv('SUPABASE_SERVICE_KEY') ?: (getenv('SUPABASE_KEY') ?: 'YOUR_SUPABASE_KEY');
-            $bucketName = 'nutritionist-files'; // Ang iyong bucket sa Supabase[cite: 13]
+            $bucketName = 'nutritionist-files'; // Ang iyong bucket sa Supabase
             
             $url = rtrim($supabaseUrl, '/') . "/storage/v1/object/$bucketName/$remote_filename";
             
@@ -108,6 +108,7 @@ try {
 
 $unread_count = 0; 
 $latest_message = null;
+$pending_appointments_count = 0;
 
 try {
     $stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
@@ -127,6 +128,14 @@ try {
     ");
     $msg_stmt->execute([$nutri_id]);
     $latest_message = $msg_stmt->fetch();
+
+    // Bilang ng mga pending appointments
+    $app_count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM appointments WHERE nutritionist_id = ? AND status = 'pending'");
+    $app_count_stmt->execute([$nutri_id]);
+    $app_row = $app_count_stmt->fetch();
+    if ($app_row) {
+        $pending_appointments_count = (int)$app_row['total'];
+    }
 } catch (Exception $e) {
     $unread_count = 0;
 }
@@ -274,7 +283,7 @@ a{color:inherit}
 .section-title h3{margin:0;font-size:18px}
 .section-title p{margin:0;color:var(--muted);font-size:13px}
 
-.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
 .card{ background:var(--card);border:1px solid var(--border);border-radius:var(--radius); padding:22px;box-shadow:0 5px 18px rgba(15,58,46,.04); transition:transform .2s,box-shadow .2s,border-color .2s; }
 .card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:#b2e3d8}
 .card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
@@ -367,6 +376,12 @@ a{color:inherit}
     <div class="nav-label">Menu</div>
     <nav class="nav">
       <a class="active" href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
+      <a href="appointments.php">
+        <span class="nav-icon">📅</span>Appointments
+        <?php if($pending_appointments_count > 0): ?>
+          <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
+        <?php endif; ?>
+      </a>
       <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
       <a href="inbox.php">
         <span class="nav-icon">📥</span>Inbox
@@ -477,11 +492,20 @@ a{color:inherit}
     <section class="cards">
       <article class="card">
         <div class="card-top">
+          <div class="card-icon">📅</div>
+        </div>
+        <h3>Appointments</h3>
+        <p>Review and confirm schedule consultation requests sent by registered users in real-time.</p>
+        <a class="btn btn-primary" href="appointments.php">Manage Bookings (<?php echo $pending_appointments_count; ?>) <span>→</span></a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
           <div class="card-icon">📬</div>
         </div>
         <h3>Client Messages</h3>
         <p>Review incoming inquiries from registered users seeking professional dietary guidance and plan adjustments.</p>
-        <a class="btn btn-primary" href="inbox.php">View Inbox (<?php echo $unread_count; ?>) <span>→</span></a>
+        <a class="btn btn-secondary" href="inbox.php">View Inbox (<?php echo $unread_count; ?>) <span>→</span></a>
       </article>
 
       <article class="card">
@@ -502,13 +526,13 @@ a{color:inherit}
     </div>
 
     <section class="quick-grid">
+      <a class="quick" href="appointments.php">
+        <b>📅 Manage Bookings</b>
+        <span>Confirm or cancel patient schedules.</span>
+      </a>
       <a class="quick" href="inbox.php">
         <b>📥 Patient Inbox</b>
         <span>Read & reply to active user chats.</span>
-      </a>
-      <a class="quick" href="profile.php">
-        <b>👤 Edit Credentials</b>
-        <span>Update practitioner settings.</span>
       </a>
       <a class="quick" href="javascript:void(0);" onclick="showLogoutModal();">
         <b>↪ End Session</b>
@@ -551,17 +575,31 @@ a{color:inherit}
   </div>
 </div>
 
+<!-- jQuery for background activity heartbeat -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+// Background Heartbeat para sa Dashboard at Inbox Status
+setInterval(function() {
+    $.post('update_activity.php', function(response) {
+        // Tahimik na nag-a-update sa background
+    });
+}, 60000);
+
 // File Upload Label Update (Shows filename when selected)
-document.querySelector('.file-upload-input').addEventListener('change', function(e) {
-    if(e.target.files.length > 0) {
-        let fileName = e.target.files[0].name;
-        if(fileName.length > 25) fileName = fileName.substring(0, 22) + '...';
-        
-        const smallText = this.parentElement.nextElementSibling;
-        smallText.innerHTML = '<span style="color:var(--teal-dark); font-weight:bold;">Attached: </span>' + fileName;
-    }
-});
+const fileInput = document.querySelector('.file-upload-input');
+if(fileInput) {
+    fileInput.addEventListener('change', function(e) {
+        if(e.target.files.length > 0) {
+            let fileName = e.target.files[0].name;
+            if(fileName.length > 25) fileName = fileName.substring(0, 22) + '...';
+            
+            const smallText = this.parentElement.nextElementSibling;
+            if(smallText) {
+                smallText.innerHTML = '<span style="color:var(--teal-dark); font-weight:bold;">Attached: </span>' + fileName;
+            }
+        }
+    });
+}
 
 function closeToast() {
   const toast = document.getElementById('notificationToast');
@@ -581,16 +619,21 @@ function closeLogoutModal() {
   document.getElementById('logoutModal').classList.remove('active');
 }
 
-document.getElementById('logoutModal').addEventListener('click', function(e) {
-  if (e.target === this) {
-    closeLogoutModal();
-  }
-});
+const logoutModalEl = document.getElementById('logoutModal');
+if(logoutModalEl) {
+    logoutModalEl.addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeLogoutModal();
+      }
+    });
+}
 
 (function(){
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
   const menuBtn = document.getElementById('menuBtn');
+
+  if(!sidebar || !overlay || !menuBtn) return;
 
   function setMenu(open){
     sidebar.classList.toggle('open', open);
@@ -615,14 +658,6 @@ document.getElementById('logoutModal').addEventListener('click', function(e) {
     if(window.innerWidth > 720) setMenu(false);
   });
 })();
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
-// Background Heartbeat para sa Dashboard at Inbox
-setInterval(function() {
-    $.post('update_activity.php', function(response) {
-        // Tahimik na nag-a-update sa background
-    });
-}, 60000);
 </script>
 
 </body>
