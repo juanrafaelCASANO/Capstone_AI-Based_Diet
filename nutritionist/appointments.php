@@ -2,7 +2,6 @@
 session_start();
 require_once '../config.php';
 
-// Tiyaking ang naka-log in ay isang nutritionist
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../auth/login.php");
     exit;
@@ -32,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     }
 }
 
-// Fetch all appointments for this nutritionist, joined with user details
+// Fetch all appointments for this nutritionist (Fixed query without profile_pic dependency)
 try {
     $app_sql = "
         SELECT 
@@ -43,8 +42,7 @@ try {
             a.notes, 
             a.created_at,
             u.fullname AS user_name,
-            u.email AS user_email,
-            u.profile_pic AS user_pic
+            u.email AS user_email
         FROM appointments a
         JOIN users u ON a.user_id = u.id
         WHERE a.nutritionist_id = ?
@@ -56,6 +54,19 @@ try {
 } catch (Exception $e) {
     $appointments = [];
     $action_error = "Error fetching appointments: " . $e->getMessage();
+}
+
+// Get unread count for sidebar badge
+$unread_count = 0;
+try {
+    $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
+    $count_stmt->execute([$nutritionist_id]);
+    $row = $count_stmt->fetch();
+    if ($row) {
+        $unread_count = (int)$row['total'];
+    }
+} catch (Exception $e) {
+    $unread_count = 0;
 }
 
 // Function to get initials
@@ -72,7 +83,7 @@ function getInitials($name) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Manage Appointments - AI Diet Planner</title>
+<title>Manage Appointments - NutriPanel</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
@@ -90,8 +101,6 @@ function getInitials($name) {
   --shadow:0 10px 30px rgba(27,61,48,.08);
   --radius:18px;
   --danger:#dc2626;
-  --warning:#d97706;
-  --success:#059669;
 }
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
@@ -114,6 +123,7 @@ a{color:inherit;text-decoration:none}
 .nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}
 .nav a.active{background:rgba(255,255,255,.14);color:#fff}
 .nav-icon{width:24px;text-align:center;font-size:17px}
+.nav-badge{margin-left:auto;background:var(--danger);color:#fff;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;}
 
 .sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
 .sidebar-bottom a.logout{
@@ -127,7 +137,6 @@ a{color:inherit;text-decoration:none}
 .eyebrow{font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.1em}
 .topbar h1{font-size:clamp(25px,3vw,34px);line-height:1.15;margin:5px 0 0;letter-spacing:-.7px}
 
-/* ALERT BANNERS */
 .alert-banner {
   padding: 12px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; margin-bottom: 18px;
   display: flex; align-items: center; gap: 10px;
@@ -135,7 +144,6 @@ a{color:inherit;text-decoration:none}
 .alert-banner.success { background: #e6fffa; color: #0f766e; border: 1px solid #b2f5ea; }
 .alert-banner.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 
-/* APPOINTMENTS GRID / LIST */
 .appointments-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -167,7 +175,6 @@ a{color:inherit;text-decoration:none}
   color: var(--green); font-weight: 700; display: grid; place-items: center; font-size: 15px; overflow: hidden;
   flex-shrink: 0;
 }
-.client-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .client-details strong { display: block; font-size: 15px; color: var(--text); }
 .client-details span { font-size: 12px; color: var(--muted); }
 
@@ -257,11 +264,10 @@ a{color:inherit;text-decoration:none}
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-icon">🥗</div>
-      <div><strong>AI Diet Planner</strong><span>Nutritionist Portal</span></div>
+      <div><strong>NutriPanel</strong><span>Nutritionist portal</span></div>
     </div>
     <div class="nav-label">Menu</div>
     <nav class="nav">
-      <!-- I-adjust ang mga links ayon sa folder structure ng nutritionist portal ninyo -->
       <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="appointments.php" class="active"><span class="nav-icon">📅</span>Appointments</a>
       <a href="inbox.php"><span class="nav-icon">📥</span>Client Inbox</a>
@@ -294,11 +300,7 @@ a{color:inherit;text-decoration:none}
             <div>
               <div class="client-info-row">
                 <div class="client-avatar">
-                  <?php if (!empty($app['user_pic']) && $app['user_pic'] !== 'default_avatar.png' && file_exists("../uploads/profile_pics/" . $app['user_pic'])): ?>
-                    <img src="../uploads/profile_pics/<?php echo htmlspecialchars($app['user_pic']); ?>" alt="<?php echo htmlspecialchars($app['user_name']); ?>">
-                  <?php else: ?>
-                    <?php echo getInitials($app['user_name']); ?>
-                  <?php endif; ?>
+                  <?php echo getInitials($app['user_name']); ?>
                 </div>
                 <div class="client-details">
                   <strong><?php echo htmlspecialchars($app['user_name']); ?></strong>
