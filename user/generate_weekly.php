@@ -642,7 +642,6 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .field input, .field select{width:100%;min-height:48px;padding:0 14px;border:1px solid var(--border);border-radius:12px;background:#f4f8f5;color:var(--muted);outline:none;font-size:16px;}
 .field input:disabled { cursor:not-allowed; }
 
-/* Tanging ang "How many days?" dropdown lang ang may kulay at pwedeng galawin */
 .field select.active-select { background:#fff; cursor:pointer; color:var(--text); border-color:var(--green); box-shadow: 0 4px 10px rgba(59,143,99,0.1); }
 
 .actions{display:flex;gap:10px;margin-top:24px; flex-wrap:wrap;}
@@ -693,6 +692,62 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .meal-checkbox-wrapper { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--green); cursor: pointer; }
 .meal-checkbox-wrapper input { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
 
+/* KABI LOADING OVERLAY STYLES */
+.kabi-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 59, 50, 0.92);
+  backdrop-filter: blur(12px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  flex-direction: column;
+  gap: 22px;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.kabi-loading-overlay.active {
+  display: flex;
+  opacity: 1;
+}
+.kabi-spinner-box {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kabi-ring {
+  position: absolute;
+  inset: 0;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top: 4px solid #3b8f63;
+  border-radius: 50%;
+  animation: kabiSpin 1.2s linear infinite;
+}
+.kabi-logo-center {
+  width: 84px;
+  height: 84px;
+  background: #ffffff;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 40px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  animation: kabiPulse 1.5s ease-in-out infinite;
+}
+@keyframes kabiSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes kabiPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
 /* MODALS */
 .modal-overlay {position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;opacity: 0; visibility: hidden; transition: 0.25s;}
 .modal-overlay.active { opacity: 1; visibility: visible; }
@@ -728,6 +783,21 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 <body>
 <div class="app">
   <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- KABI LOADING OVERLAY NA MAY COUNTDOWN TIMER -->
+  <div id="kabiLoadingOverlay" class="kabi-loading-overlay">
+    <div class="kabi-spinner-box">
+      <div class="kabi-ring"></div>
+      <div class="kabi-logo-center">🥗</div>
+    </div>
+    <div style="text-align: center; max-width: 360px; padding: 0 15px;">
+      <h3 style="margin: 0 0 6px; font-size: 21px; font-weight: 700; letter-spacing: -0.5px;">Nagluluto si Kabi ng meal plan...</h3>
+      <p style="margin: 0 0 14px; font-size: 13px; color: #b8d2c8; line-height: 1.5;">Please bear with us, building your custom nutrition strategy and delicious options!</p>
+      <div id="kabiCountdown" style="font-size: 13px; font-weight: 700; color: #9be4b8; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 6px 16px; border-radius: 99px; display: inline-block;">
+        Tinatayang natitira: ~12 segundo
+      </div>
+    </div>
+  </div>
 
   <!-- SIDEBAR NAVIGATION -->
   <aside class="sidebar" id="sidebar" aria-label="Main navigation">
@@ -777,7 +847,6 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
           <div class="form-grid">
             <div class="field">
               <label>How many days?</label>
-              <!-- Itong dropdown lang ang active at pwedeng galawin -->
               <select name="num_days" class="active-select" required>
                 <option value="1">1 Day Plan</option>
                 <option value="2">2 Days Plan</option>
@@ -794,21 +863,18 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
             <input type="hidden" name="age" value="<?php echo $userAge; ?>">
             <input type="hidden" name="activityLevel" value="<?php echo htmlspecialchars($userActivity); ?>">
             
-            <!-- GOAL (Read-only) -->
             <div class="field">
               <label>Goal</label>
               <input type="text" value="<?php echo htmlspecialchars($userGoal); ?>" disabled>
               <input type="hidden" name="goal" value="<?php echo htmlspecialchars($userGoal); ?>">
             </div>
 
-            <!-- DIET TYPE (Read-only) -->
             <div class="field">
               <label>Diet Type</label>
               <input type="text" value="<?php echo htmlspecialchars($userDietType); ?>" disabled>
               <input type="hidden" name="dietType" value="<?php echo htmlspecialchars($userDietType); ?>">
             </div>
             
-            <!-- FOOD ALLERGIES (Read-only) -->
             <div class="field">
               <label>Food Allergies</label>
               <input type="text" value="<?php echo htmlspecialchars($userAllergies); ?>" disabled>
@@ -984,6 +1050,37 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 function showModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
+// Countdown Timer para sa natitirang segundo habang nag-aantay mag-generate
+let loadingTimer = null;
+let remainingSeconds = 12;
+
+document.getElementById('plannerForm')?.addEventListener('submit', function() {
+  const overlay = document.getElementById('kabiLoadingOverlay');
+  if (overlay) {
+    overlay.classList.add('active');
+  }
+  
+  remainingSeconds = 12;
+  const counterEl = document.getElementById('kabiCountdown');
+  if (counterEl) {
+    counterEl.textContent = `Tinatayang natitira: ~${remainingSeconds} segundo`;
+  }
+  
+  if (loadingTimer) clearInterval(loadingTimer);
+  loadingTimer = setInterval(() => {
+    remainingSeconds--;
+    if (remainingSeconds > 0) {
+      if (counterEl) {
+        counterEl.textContent = `Tinatayang natitira: ~${remainingSeconds} segundo`;
+      }
+    } else {
+      if (counterEl) {
+        counterEl.textContent = `Malapit na pong matapos...`;
+      }
+    }
+  }, 1000);
+});
+
 function openShareModal() {
   showModal('shareModal');
 }
@@ -1014,7 +1111,6 @@ async function submitShareMealPlan() {
   try {
     const res = await fetch(window.location.href, { method: 'POST', body: formData });
     
-    // Tiyaking maayos ang pagbasa ng response bilang JSON kahit magkaroon ng maliit na warning sa server
     const textRes = await res.text();
     let data;
     try {
@@ -1273,6 +1369,7 @@ async function selectAlternative(mealJsonStr, btnElement) {
       article.querySelector('.m-car').textContent = data.meal.carbs;
       article.querySelector('.m-fat').textContent = data.meal.fats;
       
+      4
       const ingredientsDiv = article.querySelector('.ingredients');
       ingredientsDiv.innerHTML = data.meal.ingredients.map(i => `<span class="ingredient">${i}</span>`).join('');
       
