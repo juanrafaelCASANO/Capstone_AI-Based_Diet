@@ -20,7 +20,7 @@ if (!$user) {
     exit;
 }
 
-// Kunin ang lahat ng rehistradong user maliban sa admin, i-sort ayon sa pinakamataas na calories at completed meals
+// Kunin ang lahat ng rehistradong user maliban sa admin
 try {
     $leaderboard_stmt = $conn->prepare("
         SELECT id, fullname, 
@@ -33,7 +33,6 @@ try {
     $leaderboard_stmt->execute();
     $leaders = $leaderboard_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    // Fallback kung walang 'role' column sa users table
     try {
         $leaderboard_stmt = $conn->prepare("
             SELECT id, fullname, 
@@ -50,6 +49,34 @@ try {
     }
 }
 
+// Kunin ang leaderboard ng mga nutritionist batay sa average rating at total reviews
+$nutritionist_leaders = [];
+try {
+    $nutri_stmt = $conn->query("
+        SELECT 
+            n.id, 
+            n.fullname, 
+            n.profile_pic,
+            COUNT(r.id) AS total_reviews,
+            COALESCE(AVG(r.rating), 0) AS average_rating
+        FROM nutritionist n
+        LEFT JOIN nutritionist_reviews r ON n.id = r.nutritionist_id
+        WHERE n.status = 'active' OR n.status = 'approved' OR n.status IS NULL
+        GROUP BY n.id, n.fullname, n.profile_pic
+        ORDER BY average_rating DESC, total_reviews DESC
+    ");
+    $nutritionist_leaders = $nutri_stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $nutritionist_leaders = [];
+}
+
+function getInitials($name) {
+    $words = explode(' ', trim($name));
+    if (count($words) >= 2) {
+        return strtoupper(substr($words[0], 0, 1) . substr(end($words), 0, 1));
+    }
+    return strtoupper(substr($name, 0, 2));
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -121,6 +148,32 @@ a{color:inherit;text-decoration:none}
 .avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-weight:800}
 .profile-name{font-size:13px;font-weight:700;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* LEADERBOARD SUB-TABS */
+.leaderboard-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.lb-tab-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 10px 18px;
+  border-radius: 12px;
+  transition: all .2s;
+  box-shadow: var(--shadow);
+}
+.lb-tab-btn.active {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+.lb-tab-content { display: none; }
+.lb-tab-content.active { display: block; }
+
 .leaderboard-panel {
   background: var(--card);
   border: 1px solid var(--border);
@@ -177,6 +230,7 @@ a{color:inherit;text-decoration:none}
 .rank-3 { background: #ffedd5; color: #c2410c; border: 2px solid #fdba74; }
 .rank-other { background: #f8fafc; color: var(--muted); }
 .user-badge-icon { margin-left: 8px; font-size: 16px; }
+.star-rating { color: #f59e0b; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
 
 /* LOGOUT MODAL STYLES */
 .logout-modal-overlay {
@@ -261,73 +315,159 @@ a{color:inherit;text-decoration:none}
       </a>
     </header>
 
-    <section class="leaderboard-panel">
-      <div class="leaderboard-header">
-        <div>
-          <h2>Top Achievers</h2>
-          <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">List of all registered users in the system.</p>
-        </div>
-        <div style="font-size: 28px;">🌟</div>
-      </div>
+    <!-- LEADERBOARD SUB-TABS -->
+    <div class="leaderboard-tabs">
+      <button type="button" class="lb-tab-btn active" onclick="switchLbTab('users', this)">
+        <i class="fa-solid fa-users"></i> Users Ranking
+      </button>
+      <button type="button" class="lb-tab-btn" onclick="switchLbTab('nutritionists', this)">
+        <i class="fa-solid fa-user-doctor"></i> Nutritionists Leaderboard
+      </button>
+    </div>
 
-      <div style="overflow-x: auto;">
-        <table class="leaderboard-table">
-          <thead>
-            <tr>
-              <th style="width: 80px;">Rank</th>
-              <th>User Name</th>
-              <th>Completed Meals</th>
-              <th>Total Calories</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if (count($leaders) > 0): ?>
-              <?php foreach ($leaders as $index => $row): 
-                $rank = $index + 1;
-                $is_current = ($row['id'] == $user_id);
-                
-                if ($rank === 1 && $row['total_calories'] > 0) {
-                    $badgeClass = "rank-1";
-                    $badgeIcon = "👑";
-                } elseif ($rank === 2 && $row['total_calories'] > 0) {
-                    $badgeClass = "rank-2";
-                    $badgeIcon = "🥈";
-                } elseif ($rank === 3 && $row['total_calories'] > 0) {
-                    $badgeClass = "rank-3";
-                    $badgeIcon = "🥉";
-                } else {
-                    $badgeClass = "rank-other";
-                    $badgeIcon = ($rank <= 10 && $row['total_calories'] > 0) ? "⭐" : "";
-                }
-              ?>
-                <tr class="<?php echo $is_current ? 'current-user' : ''; ?>">
-                  <td>
-                    <div class="rank-badge <?php echo $badgeClass; ?>">
-                      <?php echo $rank; ?>
-                    </div>
-                  </td>
-                  <td>
-                    <?php echo htmlspecialchars($row['fullname']); ?>
-                    <?php if ($is_current): ?>
-                      <span style="font-size: 11px; background: var(--green); color: #fff; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">You</span>
-                    <?php endif; ?>
-                    <?php if (!empty($badgeIcon)): ?>
-                      <span class="user-badge-icon"><?php echo $badgeIcon; ?></span>
-                    <?php endif; ?>
-                  </td>
-                  <td><?php echo (int)$row['completed_meals']; ?> meals</td>
-                  <td><strong><?php echo number_format((int)$row['total_calories']); ?></strong> kcal</td>
-                </tr>
-              <?php endforeach; ?>
-            <?php else: ?>
+    <!-- TAB 1: USERS LEADERBOARD -->
+    <div id="lb-tab-users" class="lb-tab-content active">
+      <section class="leaderboard-panel">
+        <div class="leaderboard-header">
+          <div>
+            <h2>Top Achievers (Users)</h2>
+            <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">List of all registered users based on completed meals and calories.</p>
+          </div>
+          <div style="font-size: 28px;">🌟</div>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="leaderboard-table">
+            <thead>
               <tr>
-                <td colspan="4" style="text-align: center; color: var(--muted); padding: 40px;">No registered users found.</td>
+                <th style="width: 80px;">Rank</th>
+                <th>User Name</th>
+                <th>Completed Meals</th>
+                <th>Total Calories</th>
               </tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-    </section>
+            </thead>
+            <tbody>
+              <?php if (count($leaders) > 0): ?>
+                <?php foreach ($leaders as $index => $row): 
+                  $rank = $index + 1;
+                  $is_current = ($row['id'] == $user_id);
+                  
+                  if ($rank === 1 && $row['total_calories'] > 0) {
+                      $badgeClass = "rank-1";
+                      $badgeIcon = "👑";
+                  } elseif ($rank === 2 && $row['total_calories'] > 0) {
+                      $badgeClass = "rank-2";
+                      $badgeIcon = "🥈";
+                  } elseif ($rank === 3 && $row['total_calories'] > 0) {
+                      $badgeClass = "rank-3";
+                      $badgeIcon = "🥉";
+                  } else {
+                      $badgeClass = "rank-other";
+                      $badgeIcon = ($rank <= 10 && $row['total_calories'] > 0) ? "⭐" : "";
+                  }
+                ?>
+                  <tr class="<?php echo $is_current ? 'current-user' : ''; ?>">
+                    <td>
+                      <div class="rank-badge <?php echo $badgeClass; ?>">
+                        <?php echo $rank; ?>
+                      </div>
+                    </td>
+                    <td>
+                      <?php echo htmlspecialchars($row['fullname']); ?>
+                      <?php if ($is_current): ?>
+                        <span style="font-size: 11px; background: var(--green); color: #fff; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">You</span>
+                      <?php endif; ?>
+                      <?php if (!empty($badgeIcon)): ?>
+                        <span class="user-badge-icon"><?php echo $badgeIcon; ?></span>
+                      <?php endif; ?>
+                    </td>
+                    <td><?php echo (int)$row['completed_meals']; ?> meals</td>
+                    <td><strong><?php echo number_format((int)$row['total_calories']); ?></strong> kcal</td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <tr>
+                  <td colspan="4" style="text-align: center; color: var(--muted); padding: 40px;">No registered users found.</td>
+                </tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 2: NUTRITIONISTS LEADERBOARD -->
+    <div id="lb-tab-nutritionists" class="lb-tab-content">
+      <section class="leaderboard-panel">
+        <div class="leaderboard-header">
+          <div>
+            <h2>Top Nutritionists</h2>
+            <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">Rankings based on average star ratings and total reviews.</p>
+          </div>
+          <div style="font-size: 28px;">🏆</div>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th style="width: 80px;">Rank</th>
+                <th>Nutritionist Expert</th>
+                <th>Average Rating</th>
+                <th>Total Reviews</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (count($nutritionist_leaders) > 0): ?>
+                <?php $n_rank = 1; foreach ($nutritionist_leaders as $nutri): 
+                  if ($n_rank === 1) {
+                      $nBadgeClass = "rank-1";
+                  } elseif ($n_rank === 2) {
+                      $nBadgeClass = "rank-2";
+                  } elseif ($n_rank === 3) {
+                      $nBadgeClass = "rank-3";
+                  } else {
+                      $nBadgeClass = "rank-other";
+                  }
+                ?>
+                  <tr>
+                    <td>
+                      <div class="rank-badge <?php echo $nBadgeClass; ?>">
+                        <?php echo $n_rank; ?>
+                      </div>
+                    </td>
+                    <td>
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;">
+                          <?php if (!empty($nutri['profile_pic']) && $nutri['profile_pic'] !== 'default_avatar.png' && file_exists("../uploads/profile_pics/" . $nutri['profile_pic'])): ?>
+                            <img src="<?php echo htmlspecialchars($nutri['profile_pic']); ?>" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">
+                          <?php else: ?>
+                            <?php echo getInitials($nutri['fullname']); ?>
+                          <?php endif; ?>
+                        </div>
+                        <strong><?php echo htmlspecialchars($nutri['fullname']); ?></strong>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="star-rating">
+                        <i class="fa-solid fa-star"></i>
+                        <span><?php echo number_format($nutri['average_rating'], 2); ?> / 5.0</span>
+                      </div>
+                    </td>
+                    <td><strong><?php echo (int)$nutri['total_reviews']; ?></strong> reviews</td>
+                  </tr>
+                <?php $n_rank++; endforeach; ?>
+              <?php else: ?>
+                <tr>
+                  <td colspan="4" style="text-align: center; color: var(--muted); padding: 40px;">No nutritionist ratings recorded yet.</td>
+                </tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
   </main>
 </div>
 
@@ -358,6 +498,15 @@ overlay?.addEventListener('click', () => {
   sidebar.classList.remove('open');
   overlay.style.display = 'none';
 });
+
+// LEADERBOARD SUB-TABS SWITCHING
+function switchLbTab(tabName, btn) {
+    document.querySelectorAll('.lb-tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.lb-tab-btn').forEach(b => b.classList.remove('active'));
+    
+    document.getElementById('lb-tab-' + tabName).classList.add('active');
+    btn.classList.add('active');
+}
 
 // LOGOUT MODAL FUNCTIONS
 function showLogoutModal() {

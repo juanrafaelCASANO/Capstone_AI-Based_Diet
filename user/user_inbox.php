@@ -277,13 +277,6 @@ a{color:inherit;text-decoration:none}
   background: var(--card); font-size: 13.5px; color: var(--text); outline: none; box-shadow: var(--shadow);
 }
 .search-box input:focus { border-color: var(--green); }
-.filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
-.pill-btn {
-  padding: 8px 14px; border-radius: 99px; border: 1px solid var(--border); background: var(--card);
-  font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .2s; box-shadow: var(--shadow);
-}
-.pill-btn:hover { border-color: var(--green); color: var(--text); }
-.pill-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
 
 .inbox-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
 .inbox-list { display: flex; flex-direction: column; gap: 12px; }
@@ -300,22 +293,9 @@ a{color:inherit;text-decoration:none}
   color: var(--green); font-weight: 700; display: grid; place-items: center; font-size: 16px; overflow: hidden;
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
-.status-dot {
-  position: absolute; bottom: 1px; right: 1px; width: 11px; height: 11px;
-  border-radius: 50%; border: 2px solid #fff; z-index: 2;
-}
-.status-dot.available { background: #10b981; }
-.status-dot.on_leave { background: #f59e0b; }
-.status-dot.unavailable { background: #ef4444; }
-.status-dot.offline { background: #94a3b8; }
 .details { min-width: 0; }
 .name-status-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .details strong { font-size: 16px; color: var(--text); }
-.status-text-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; }
-.status-text-badge.available { background: #d1fae5; color: #065f46; }
-.status-text-badge.on_leave { background: #fef3c7; color: #92400e; }
-.status-text-badge.unavailable { background: #fee2e2; color: #991b1b; }
-.status-text-badge.offline { background: #f1f5f9; color: #475569; }
 .details p { font-size: 13px; color: var(--muted); margin: 4px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .appointments-tracker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
@@ -345,6 +325,7 @@ a{color:inherit;text-decoration:none}
   border-radius: 10px; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 
+/* RECOMMENDED NUTRITIONISTS SIDEBAR CARD WITH DISTANCE */
 .available-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); position: sticky; top: 26px; }
 .available-card h3 { font-size: 16px; margin: 0 0 4px; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .nutri-sidebar-list { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 200px); overflow-y: auto; padding-right: 2px; }
@@ -352,9 +333,11 @@ a{color:inherit;text-decoration:none}
 .nutri-sidebar-item:hover { background: #f1f8f4; border-color: #b9d5ca; }
 .nutri-meta { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .nutri-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: grid; place-items: center; font-size: 13px; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+.nutri-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .nutri-info-text { min-width: 0; flex: 1; }
 .nutri-info-text strong { display: block; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .license-sub { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.distance-badge { font-size: 10px; font-weight: 700; background: #e2f0e9; color: #08734a; padding: 2px 6px; border-radius: 6px; display: inline-block; margin-top: 3px; }
 .nutri-actions-mini { display: flex; gap: 6px; flex-shrink: 0; }
 .action-btn-mini { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; text-decoration: none; cursor: pointer; border: none; }
 .action-btn-mini.chat { background: var(--green); color: #fff; }
@@ -380,7 +363,7 @@ a{color:inherit;text-decoration:none}
 .modal-subtitle { font-size: 13.5px; color: var(--muted); margin-bottom: 24px; text-align: left; }
 .modal-form-group { margin-bottom: 16px; text-align: left; }
 .modal-form-group label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
-.modal-input-wrap position relative; }
+.modal-input-wrap { position: relative; }
 .modal-input-wrap input, .modal-input-wrap textarea {
   width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
   background: var(--cream); font-size: 14px; color: var(--text); outline: none; font-family: inherit;
@@ -461,7 +444,13 @@ a{color:inherit;text-decoration:none}
               <a href="chat.php?nutritionist_id=<?php echo $chat['nutritionist_id']; ?>" class="inbox-card" data-name="<?php echo strtolower(htmlspecialchars($chat['nutritionist_name'])); ?>">
                 <div class="nutritionist-info">
                   <div class="avatar-container">
-                    <div class="avatar"><?php echo getInitials($chat['nutritionist_name']); ?></div>
+                    <div class="avatar">
+                      <?php if (!empty($chat['profile_pic']) && $chat['profile_pic'] !== 'default_avatar.png' && file_exists("../uploads/profile_pics/" . $chat['profile_pic'])): ?>
+                        <img src="<?php echo htmlspecialchars($chat['profile_pic']); ?>" alt="">
+                      <?php else: ?>
+                        <?php echo getInitials($chat['nutritionist_name']); ?>
+                      <?php endif; ?>
+                    </div>
                   </div>
                   <div class="details">
                     <div class="name-status-row">
@@ -479,21 +468,31 @@ a{color:inherit;text-decoration:none}
 
         <aside class="available-card">
           <h3><i class="fa-solid fa-user-doctor" style="color:var(--green);"></i> Recommended Nutritionists</h3>
+          <span class="sidebar-subtitle" style="font-size: 11px; color: var(--muted); margin-bottom: 12px; display: block;">Sorted by proximity to your location</span>
           <div class="nutri-sidebar-list">
             <?php foreach ($all_nutritionists as $nutri): ?>
               <div class="nutri-sidebar-item">
                 <div class="nutri-meta">
-                  <div class="nutri-avatar"><?php echo getInitials($nutri['fullname']); ?></div>
+                  <div class="nutri-avatar">
+                    <?php if (!empty($nutri['profile_pic']) && $nutri['profile_pic'] !== 'default_avatar.png' && file_exists("../uploads/profile_pics/" . $nutri['profile_pic'])): ?>
+                      <img src="<?php echo htmlspecialchars($nutri['profile_pic']); ?>" alt="">
+                    <?php else: ?>
+                      <?php echo getInitials($nutri['fullname']); ?>
+                    <?php endif; ?>
+                  </div>
                   <div class="nutri-info-text">
                     <strong><?php echo htmlspecialchars($nutri['fullname']); ?></strong>
                     <span class="license-sub"><?php echo htmlspecialchars($nutri['specialization'] ?? 'Nutritionist'); ?></span>
+                    <?php if ($nutri['distance'] < 999999): ?>
+                      <span class="distance-badge"><i class="fa-solid fa-location-dot"></i> <?php echo number_format($nutri['distance'], 1); ?> km away</span>
+                    <?php endif; ?>
                   </div>
                 </div>
                 <div class="nutri-actions-mini">
-                  <button type="button" class="action-btn-mini book" onclick="openBookModal(<?php echo $nutri['id']; ?>, '<?php echo htmlspecialchars($nutri['fullname'], ENT_QUOTES); ?>')">
+                  <button type="button" class="action-btn-mini book" onclick="openBookModal(<?php echo $nutri['id']; ?>, '<?php echo htmlspecialchars($nutri['fullname'], ENT_QUOTES); ?>')" title="Book Appointment">
                     <i class="fa-regular fa-calendar-plus"></i>
                   </button>
-                  <a href="chat.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="action-btn-mini chat"><i class="fa-solid fa-comment"></i></a>
+                  <a href="chat.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="action-btn-mini chat" title="Chat Nutritionist"><i class="fa-solid fa-comment"></i></a>
                 </div>
               </div>
             <?php endforeach; ?>
