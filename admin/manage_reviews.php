@@ -34,7 +34,7 @@ try {
         $stmt = $conn->query($sql);
         $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($reviews as &$rev) {
-            $rev['review'] = 'No comment provided';
+            $rev['review'] = 'No Feedback provided';
         }
         unset($rev);
     } catch (PDOException $ex) {
@@ -137,7 +137,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                         <th>User (Client)</th>
                         <th>Nutritionist Expert</th>
                         <th>Rating</th>
-                        <th>Review / Comment</th>
+                        <th>Review / Feedback</th>
                         <th>Date Given</th>
                     </tr>
                 </thead>
@@ -162,7 +162,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                         <span style="font-weight: 700; color: #1e293b; margin-left: 5px;">(<?= $rating ?>/5)</span>
                                     </div>
                                 </td>
-                                <td><?= htmlspecialchars($rev['review'] ?? 'No comment provided') ?></td>
+                                <td><?= htmlspecialchars($rev['review'] ?? 'No feedback provided') ?></td>
                                 <td><?= date('M d, Y g:i a', strtotime($rev['created_at'])) ?></td>
                             </tr>
                         <?php endforeach; ?>

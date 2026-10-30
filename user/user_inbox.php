@@ -21,20 +21,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review_rating'
         $review_error = "Please select a star rating between 1 and 5.";
     } else {
         try {
-            // Sinusubukan isama ang review text column; kung sakaling wala pa sa DB, mag-fallback ito sa rating lamang
-            try {
-                $rev_stmt = $conn->prepare("
-                    INSERT INTO nutritionist_reviews (user_id, nutritionist_id, rating, review) 
-                    VALUES (?, ?, ?, ?)
-                ");
-                $rev_stmt->execute([$user_id, $nutritionist_id_target, $rating_val, $review_text]);
-            } catch (Exception $ex) {
-                $rev_stmt = $conn->prepare("
-                    INSERT INTO nutritionist_reviews (user_id, nutritionist_id, rating) 
-                    VALUES (?, ?, ?)
-                ");
-                $rev_stmt->execute([$user_id, $nutritionist_id_target, $rating_val]);
-            }
+            $rev_stmt = $conn->prepare("
+                INSERT INTO nutritionist_reviews (user_id, nutritionist_id, rating, review) 
+                VALUES (?, ?, ?, ?)
+            ");
+            $rev_stmt->execute([$user_id, $nutritionist_id_target, $rating_val, $review_text]);
             $review_success = "Thank you! Your rating and review have been submitted successfully.";
         } catch (Exception $e) {
             $review_error = "Failed to submit review: " . $e->getMessage();
@@ -100,7 +91,7 @@ try {
     $unread_count = 0;
 }
 
-// Kunin ang mga appointments ng user
+// Kunin ang mga appointments ng user kasama ang check kung nakapag-rate na siya sa nutritionist na ito
 $user_appointments = [];
 $debug_error = "";
 try {
@@ -113,13 +104,14 @@ try {
             a.status, 
             a.notes, 
             a.created_at,
-            COALESCE(n.fullname, 'Nutritionist') AS nutritionist_name
+            COALESCE(n.fullname, 'Nutritionist') AS nutritionist_name,
+            (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.user_id = ? AND r.nutritionist_id = a.nutritionist_id) AS has_reviewed
         FROM appointments a
         LEFT JOIN nutritionist n ON a.nutritionist_id = n.id
         WHERE a.user_id = ?
         ORDER BY a.appointment_date DESC, a.appointment_time DESC
     ");
-    $user_app_stmt->execute([$user_id]);
+    $user_app_stmt->execute([$user_id, $user_id]);
     $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $debug_error = $e->getMessage();
@@ -323,6 +315,11 @@ a{color:inherit;text-decoration:none}
   border-radius: 10px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background .2s;
 }
 .btn-rate-review:hover { background: #fde68a; }
+
+.btn-already-rated {
+  margin-top: 14px; width: 100%; height: 38px; background: #f1f5f9; color: #64748b; border: 1px solid #e2f8e9;
+  border-radius: 10px; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: default;
+}
 
 /* RECOMMENDED NUTRITIONISTS SIDEBAR CARD WITH DISTANCE */
 .available-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); position: sticky; top: 26px; }
@@ -534,9 +531,13 @@ a{color:inherit;text-decoration:none}
               </div>
 
               <?php if (strtolower($app['status']) === 'completed'): ?>
-                <button type="button" class="btn-rate-review" onclick="openRatingModal(<?php echo $app['nutritionist_id']; ?>, '<?php echo htmlspecialchars($app['nutritionist_name'], ENT_QUOTES); ?>')">
-                  <i class="fa-solid fa-star"></i> Rate & Review Session
-                </button>
+                <?php if ($app['has_reviewed'] > 0): ?>
+                  <div class="btn-already-rated"><i class="fa-solid fa-check" style="color:var(--green);"></i> Already Rated</div>
+                <?php else: ?>
+                  <button type="button" class="btn-rate-review" onclick="openRatingModal(<?php echo $app['nutritionist_id']; ?>, '<?php echo htmlspecialchars($app['nutritionist_name'], ENT_QUOTES); ?>')">
+                    <i class="fa-solid fa-star"></i> Rate & Review Session
+                  </button>
+                <?php endif; ?>
               <?php endif; ?>
             </div>
           <?php endforeach; ?>
@@ -668,7 +669,7 @@ function showLogoutModal() { document.getElementById('logoutModal').classList.ad
 function closeLogoutModal() { document.getElementById('logoutModal').classList.remove('active'); }
 
 document.getElementById('logoutModal').addEventListener('click', function(e) {
-  if (e.target === this) { closeLogoutModal(); }
+  if (e.target === this) { closeLogoutManager(); }
 });
 document.getElementById('appointmentModal').addEventListener('click', function(e) {
   if (e.target === this) { closeBookModal(); }
