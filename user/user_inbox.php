@@ -22,7 +22,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review_rating'
         $review_error = "Please select a star rating between 1 and 5.";
     } else {
         try {
-            // I-check muna kung nakapag-review na para sa appointment na ito
             $chk = $conn->prepare("SELECT id FROM nutritionist_reviews WHERE appointment_id = ? AND user_id = ?");
             $chk->execute([$appointment_id_target, $user_id]);
             if ($chk->fetch()) {
@@ -204,7 +203,7 @@ foreach ($all_nutritionists as &$nutri) {
 unset($nutri);
 
 usort($all_nutritionists, function($a, $b) {
-    return $a['distance'] <=>$b['distance'];
+    return $a['distance'] <=> $b['distance'];
 });
 ?>
 <!DOCTYPE html>
@@ -252,9 +251,7 @@ a{color:inherit;text-decoration:none}
 .nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}
 .nav a.active{background:rgba(255,255,255,.14);color:#fff}
 .nav-icon{width:24px;text-align:center;font-size:17px}
-.nav-badge{
-  margin-left:auto; background:var(--danger); color:#fff; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;
-}
+.nav-badge{ margin-left:auto; background:var(--danger); color:#fff; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; }
 .sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
 .sidebar-bottom a.logout{
   display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px;
@@ -267,14 +264,12 @@ a{color:inherit;text-decoration:none}
 .eyebrow{font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.1em}
 .topbar h1{font-size:clamp(25px,3vw,34px);line-height:1.15;margin:5px 0 0;letter-spacing:-.7px}
 
-/* TABS NAVIGATION */
 .inbox-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
 .tab-btn { background: transparent; border: none; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; padding: 8px 16px; border-radius: 10px; transition: all .2s; }
 .tab-btn.active { background: var(--navy); color: #fff; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-/* SEARCH & FILTER TOOLBAR */
 .inbox-toolbar { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 .search-box { position: relative; flex: 1; min-width: 220px; }
 .search-box input {
@@ -290,7 +285,6 @@ a{color:inherit;text-decoration:none}
 .pill-btn:hover { border-color: var(--green); color: var(--text); }
 .pill-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
 
-/* INBOX LAYOUT GRID */
 .inbox-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
 .inbox-list { display: flex; flex-direction: column; gap: 12px; }
 .inbox-card {
@@ -324,7 +318,6 @@ a{color:inherit;text-decoration:none}
 .status-text-badge.offline { background: #f1f5f9; color: #475569; }
 .details p { font-size: 13px; color: var(--muted); margin: 4px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* APPOINTMENTS TRACKER LIST STYLES */
 .appointments-tracker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
 .user-appointment-card {
   background: var(--card); border: 1px solid var(--border); border-radius: 16px;
@@ -342,7 +335,6 @@ a{color:inherit;text-decoration:none}
 .user-app-details i { color: var(--green); width: 16px; text-align: center; }
 .user-app-notes { background: var(--cream); padding: 10px; border-radius: 10px; font-size: 12.5px; color: var(--muted); border: 1px solid var(--border); }
 
-/* RATE & REVIEW BUTTON */
 .btn-rate-review {
   margin-top: 14px; width: 100%; height: 38px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;
   border-radius: 10px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background .2s;
@@ -353,76 +345,44 @@ a{color:inherit;text-decoration:none}
   border-radius: 10px; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 
-/* RECOMMENDED NUTRITIONISTS SIDEBAR CARD */
 .available-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); position: sticky; top: 26px; }
 .available-card h3 { font-size: 16px; margin: 0 0 4px; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 8px; }
-.sidebar-subtitle { font-size: 11px; color: var(--muted); margin-bottom: 14px; display: block; }
 .nutri-sidebar-list { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 200px); overflow-y: auto; padding-right: 2px; }
 .nutri-sidebar-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border-radius: 14px; background: #f8faf8; border: 1px solid var(--border); transition: all .2s; }
 .nutri-sidebar-item:hover { background: #f1f8f4; border-color: #b9d5ca; }
 .nutri-meta { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .nutri-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: grid; place-items: center; font-size: 13px; font-weight: 700; flex-shrink: 0; overflow: hidden; }
-.nutri-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .nutri-info-text { min-width: 0; flex: 1; }
 .nutri-info-text strong { display: block; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.certified-label { display: inline-block; font-size: 10px; font-weight: 700; color: var(--green); margin-right: 4px; }
-.nutri-status-mini { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 99px; display: inline-block; }
-.nutri-status-mini.available { background: #d1fae5; color: #065f46; }
-.nutri-status-mini.on_leave { background: #fef3c7; color: #92400e; }
-.nutri-status-mini.unavailable { background: #fee2e2; color: #991b1b; }
-.nutri-status-mini.offline { background: #f1f5f9; color: #475569; }
 .license-sub { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.distance-badge { font-size: 10px; font-weight: 700; background: #e2f0e9; color: #08734a; padding: 2px 6px; border-radius: 6px; display: inline-block; margin-top: 3px; }
 .nutri-actions-mini { display: flex; gap: 6px; flex-shrink: 0; }
-.action-btn-mini { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; text-decoration: none; cursor: pointer; border: none; transition: background .2s, transform .2s; }
+.action-btn-mini { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; text-decoration: none; cursor: pointer; border: none; }
 .action-btn-mini.chat { background: var(--green); color: #fff; }
-.action-btn-mini.chat:hover { background: #2e714e; transform: translateY(-1px); }
 .action-btn-mini.book { background: var(--navy); color: #fff; }
-.action-btn-mini.book:hover { background: #0f2620; transform: translateY(-1px); }
 
-/* STAR RATING MODAL STYLES */
-.rating-modal-overlay {
+.rating-modal-overlay, .appointment-modal-overlay, .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(15, 32, 25, 0.55); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
   opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease; padding: 16px;
 }
-.rating-modal-overlay.active { opacity: 1; visibility: visible; }
-.rating-modal-card {
+.rating-modal-overlay.active, .appointment-modal-overlay.active, .logout-modal-overlay.active { opacity: 1; visibility: visible; }
+.rating-modal-card, .appointment-modal-card, .logout-modal-card {
   background: #ffffff; width: 100%; max-width: 400px; border-radius: 24px; padding: 30px; text-align: center;
   box-shadow: 0 25px 60px rgba(10, 30, 20, 0.22); transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.rating-modal-overlay.active .rating-modal-card { transform: scale(1); }
+.rating-modal-overlay.active .rating-modal-card, .appointment-modal-overlay.active .appointment-modal-card, .logout-modal-overlay.active .logout-modal-card { transform: scale(1); }
 .star-rating-container { display: flex; justify-content: center; gap: 8px; font-size: 28px; color: #cbd5e1; cursor: pointer; margin: 16px 0; }
 .star-rating-container i.selected, .star-rating-container i:hover, .star-rating-container i:hover ~ i { color: #f59e0b; }
 
-@media(max-width: 992px) {
-  .inbox-layout { grid-template-columns: 1fr; }
-  .available-card { position: static; }
-}
-
-/* APPOINTMENT & LOGOUT MODALS */
-.appointment-modal-overlay, .logout-modal-overlay {
-  position: fixed; inset: 0; background: rgba(15, 32, 25, 0.55); backdrop-filter: blur(6px);
-  display: flex; align-items: center; justify-content: center; z-index: 9999;
-  opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease; padding: 16px;
-}
-.appointment-modal-overlay.active, .logout-modal-overlay.active { opacity: 1; visibility: visible; }
-.appointment-modal-card, .logout-modal-card {
-  background: #ffffff; width: 100%; max-width: 440px; border-radius: 24px; padding: 30px;
-  box-shadow: 0 25px 60px rgba(10, 30, 20, 0.22); transform: scale(0.9);
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.appointment-modal-overlay.active .appointment-modal-card, .logout-modal-overlay.active .logout-modal-card { transform: scale(1); }
 .modal-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .modal-title-wrap h3 { font-size: 22px; font-weight: 800; color: var(--navy); margin: 0; }
 .modal-close-btn { background: var(--cream); border: 1px solid var(--border); width: 34px; height: 34px; border-radius: 50%; font-size: 16px; cursor: pointer; color: var(--muted); display: grid; place-items: center; }
-.modal-subtitle { font-size: 13.5px; color: var(--muted); margin-bottom: 24px; }
+.modal-subtitle { font-size: 13.5px; color: var(--muted); margin-bottom: 24px; text-align: left; }
 .modal-form-group { margin-bottom: 16px; text-align: left; }
 .modal-form-group label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
-.modal-input-wrap { position: relative; }
-.modal-input-wrap i { position: absolute; top: 50%; left: 14px; transform: translateY(-50%); color: var(--muted); font-size: 14px; }
+.modal-input-wrap position relative; }
 .modal-input-wrap input, .modal-input-wrap textarea {
-  width: 100%; padding: 12px 14px 12px 42px; border-radius: 12px; border: 1px solid var(--border);
+  width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
   background: var(--cream); font-size: 14px; color: var(--text); outline: none; font-family: inherit;
 }
 .modal-input-wrap textarea { resize: vertical; min-height: 95px; }
@@ -448,7 +408,7 @@ a{color:inherit;text-decoration:none}
     <nav class="nav">
       <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="generate_weekly.php"><span class="nav-icon">▦</span>Weekly Meal Plan</a>
-      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+      <a href="leaderboard_nutritionist.php"><span class="nav-icon">🏆</span>Leaderboard</a>
       <a href="user_inbox.php" class="active">
         <span class="nav-icon">📥</span>Inbox & Bookings
         <?php if($unread_count > 0): ?>
@@ -471,13 +431,12 @@ a{color:inherit;text-decoration:none}
     </header>
 
     <?php if (!empty($booking_success) || !empty($review_success)): ?>
-      <div class="alert-banner success"><i class="fa-solid fa-circle-check"></i> <?php echo $booking_success .$review_success; ?></div>
+      <div class="alert-banner success"><i class="fa-solid fa-circle-check"></i> <?php echo $booking_success . $review_success; ?></div>
     <?php endif; ?>
     <?php if (!empty($booking_error) || !empty($review_error)): ?>
-      <div class="alert-banner error"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo $booking_error .$review_error; ?></div>
+      <div class="alert-banner error"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo $booking_error . $review_error; ?></div>
     <?php endif; ?>
 
-    <!-- NAVIGATION TABS -->
     <div class="inbox-tabs">
       <button type="button" class="tab-btn active" onclick="switchTab('messages', this)">
         <i class="fa-solid fa-comments"></i> Messages (<?php echo count($conversations); ?>)
@@ -491,51 +450,22 @@ a{color:inherit;text-decoration:none}
     <div id="tab-messages" class="tab-content active">
       <div class="inbox-toolbar">
         <div class="search-box">
-          <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px;"></i>
           <input type="text" id="inboxSearch" placeholder="Search nutritionist by name..." onkeyup="filterInbox()">
-        </div>
-        <div class="filter-pills">
-          <button type="button" class="pill-btn active" onclick="filterByStatus('all', this)">All</button>
-          <button type="button" class="pill-btn" onclick="filterByStatus('available', this)">Available</button>
-          <button type="button" class="pill-btn" onclick="filterByStatus('on_leave', this)">On Leave</button>
-          <button type="button" class="pill-btn" onclick="filterByStatus('unavailable', this)">Unavailable</button>
-          <button type="button" class="pill-btn" onclick="filterByStatus('offline', this)">Offline</button>
         </div>
       </div>
 
       <div class="inbox-layout">
         <div class="inbox-list" id="inboxListContainer">
           <?php if (count($conversations) > 0): ?>
-            <?php foreach ($conversations as$chat): ?>
-              <?php 
-                $raw_availability = trim(strtolower($chat['availability_status'] ?? 'available'));
-                $account_status = trim(strtolower($chat['account_status'] ?? 'active'));
-                $last_active =$chat['last_active_at'] ?? null;
-                $is_offline_by_time = ($last_active && (time() - strtotime($last_active) <= 900)) ? false : true;
-
-                if ($account_status !== 'active' && $account_status !== 'approved' ||$is_offline_by_time) {
-                    $status_class = 'offline';$status_label = 'Offline';
-                } else {
-                    $status_class = in_array($raw_availability, ['available', 'on_leave', 'unavailable']) ?$raw_availability : 'available';
-                    $status_label = ucwords(str_replace('_', ' ',$status_class));
-                }
-              ?>
-              <a href="chat.php?nutritionist_id=<?php echo $chat['nutritionist_id']; ?>" class="inbox-card" data-name="<?php echo strtolower(htmlspecialchars($chat['nutritionist_name'])); ?>" data-status="<?php echo $status_class; ?>">
+            <?php foreach ($conversations as $chat): ?>
+              <a href="chat.php?nutritionist_id=<?php echo $chat['nutritionist_id']; ?>" class="inbox-card" data-name="<?php echo strtolower(htmlspecialchars($chat['nutritionist_name'])); ?>">
                 <div class="nutritionist-info">
                   <div class="avatar-container">
-                    <div class="avatar">
-                      <?php if (!empty($chat['profile_pic']) && $chat['profile_pic'] !== 'default_avatar.png' && file_exists("../uploads/profile_pics/" . $chat['profile_pic'])): ?>
-                        <img src="<?php echo htmlspecialchars($chat['profile_pic']); ?>" alt="">
-                      <?php else: ?>
-                        <?php echo getInitials($chat['nutritionist_name']); ?>
-                      <?php endif; ?>
-                    </div>
-                    <span class="status-dot <?php echo $status_class; ?>"></span>
+                    <div class="avatar"><?php echo getInitials($chat['nutritionist_name']); ?></div>
                   </div>
                   <div class="details">
                     <div class="name-status-row">
                       <strong><?php echo htmlspecialchars($chat['nutritionist_name']); ?></strong>
-                      <span class="status-text-badge <?php echo $status_class; ?>"><?php echo $status_label; ?></span>
                     </div>
                     <p><?php echo htmlspecialchars($chat['last_message']); ?></p>
                   </div>
@@ -543,15 +473,14 @@ a{color:inherit;text-decoration:none}
               </a>
             <?php endforeach; ?>
           <?php else: ?>
-            <div class="empty-box">No messages yet. Select a recommended nutritionist on the right to start a conversation.</div>
+            <div class="empty-box">No messages yet.</div>
           <?php endif; ?>
         </div>
 
-        <!-- RECOMMENDED NUTRITIONISTS SIDEBAR -->
         <aside class="available-card">
           <h3><i class="fa-solid fa-user-doctor" style="color:var(--green);"></i> Recommended Nutritionists</h3>
           <div class="nutri-sidebar-list">
-            <?php foreach ($all_nutritionists as$nutri): ?>
+            <?php foreach ($all_nutritionists as $nutri): ?>
               <div class="nutri-sidebar-item">
                 <div class="nutri-meta">
                   <div class="nutri-avatar"><?php echo getInitials($nutri['fullname']); ?></div>
@@ -577,7 +506,7 @@ a{color:inherit;text-decoration:none}
     <div id="tab-appointments" class="tab-content">
       <div class="appointments-tracker-grid">
         <?php if (count($user_appointments) > 0): ?>
-          <?php foreach ($user_appointments as$app): ?>
+          <?php foreach ($user_appointments as $app): ?>
             <div class="user-appointment-card">
               <div>
                 <div class="user-app-header">
@@ -592,3 +521,156 @@ a{color:inherit;text-decoration:none}
                   <div class="user-app-notes"><strong>Notes:</strong> <?php echo htmlspecialchars($app['notes']); ?></div>
                 <?php endif; ?>
               </div>
+
+              <?php if (strtolower($app['status']) === 'completed'): ?>
+                <?php if ($app['has_reviewed'] > 0): ?>
+                  <div class="btn-rated-badge"><i class="fa-solid fa-check" style="color:var(--green);"></i> Rated & Reviewed</div>
+                <?php else: ?>
+                  <button type="button" class="btn-rate-review" onclick="openRatingModal(<?php echo $app['id']; ?>, <?php echo $app['nutritionist_id']; ?>, '<?php echo htmlspecialchars($app['nutritionist_name'], ENT_QUOTES); ?>')">
+                    <i class="fa-solid fa-star"></i> Rate & Review Session
+                  </button>
+                <?php endif; ?>
+              <?php endif; ?>
+            </div>
+          <?php endforeach; ?>
+        <?php else: ?>
+          <div class="empty-box" style="grid-column: 1 / -1;">You haven't booked any consultations yet.</div>
+        <?php endif; ?>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- RATING & REVIEW MODAL -->
+<div id="ratingModal" class="rating-modal-overlay">
+  <div class="rating-modal-card">
+    <div class="modal-header-flex">
+      <div class="modal-title-wrap"><h3>Rate Session</h3></div>
+      <button type="button" class="modal-close-btn" onclick="closeRatingModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-subtitle">How was your consultation with <strong id="ratingNutriName"></strong>?</div>
+    
+    <form method="POST">
+      <input type="hidden" name="appointment_id" id="ratingAppId">
+      <input type="hidden" name="nutritionist_id" id="ratingNutriId">
+      <input type="hidden" name="rating" id="ratingValue" value="5">
+
+      <div class="star-rating-container" id="starContainer">
+        <i class="fa-solid fa-star selected" data-value="1" onclick="setRating(1)"></i>
+        <i class="fa-solid fa-star selected" data-value="2" onclick="setRating(2)"></i>
+        <i class="fa-solid fa-star selected" data-value="3" onclick="setRating(3)"></i>
+        <i class="fa-solid fa-star selected" data-value="4" onclick="setRating(4)"></i>
+        <i class="fa-solid fa-star selected" data-value="5" onclick="setRating(5)"></i>
+      </div>
+
+      <div class="modal-form-group">
+        <label>Your Feedback / Review</label>
+        <div class="modal-input-wrap">
+          <textarea name="review_text" placeholder="Write your experience here..." required></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-modal-cancel" onclick="closeRatingModal()">Cancel</button>
+        <button type="submit" name="submit_review_rating" class="btn-modal-submit">Submit Review</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- APPOINTMENT BOOKING MODAL -->
+<div id="appointmentModal" class="appointment-modal-overlay">
+  <div class="appointment-modal-card">
+    <div class="modal-header-flex">
+      <div class="modal-title-wrap"><h3>Book Consultation</h3></div>
+      <button type="button" class="modal-close-btn" onclick="closeBookModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-subtitle">Schedule an appointment with <strong id="modalNutriName"></strong></div>
+    <form method="POST">
+      <input type="hidden" name="nutritionist_id" id="modalNutriId">
+      <div class="modal-form-group">
+        <label>Preferred Date</label>
+        <div class="modal-input-wrap"><input type="date" name="appointment_date" min="<?php echo date('Y-m-d'); ?>" required></div>
+      </div>
+      <div class="modal-form-group">
+        <label>Preferred Time</label>
+        <div class="modal-input-wrap"><input type="time" name="appointment_time" required></div>
+      </div>
+      <div class="modal-form-group">
+        <label>Notes / Purpose</label>
+        <div class="modal-input-wrap"><textarea name="notes" required></textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-modal-cancel" onclick="closeBookModal()">Cancel</button>
+        <button type="submit" name="book_appointment_submit" class="btn-modal-submit">Submit Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- LOGOUT MODAL -->
+<div id="logoutModal" class="logout-modal-overlay">
+  <div class="logout-modal-card">
+    <div class="logout-modal-icon">🚪</div>
+    <h3>Confirm Logout</h3>
+    <p>Are you sure you want to logout of your session?</p>
+    <div class="logout-modal-actions">
+      <button class="btn-modal-cancel" onclick="closeLogoutModal();">Cancel</button>
+      <a href="../auth/logout.php" class="btn-modal-logout">Yes, Logout</a>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(tabName, btn) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
+    btn.classList.add('active');
+}
+
+function openRatingModal(appId, nutriId, nutriName) {
+    document.getElementById('ratingAppId').value = appId;
+    document.getElementById('ratingNutriId').value = nutriId;
+    document.getElementById('ratingNutriName').textContent = nutriName;
+    setRating(5);
+    document.getElementById('ratingModal').classList.add('active');
+}
+
+function closeRatingModal() {
+    document.getElementById('ratingModal').classList.remove('active');
+}
+
+function setRating(score) {
+    document.getElementById('ratingValue').value = score;
+    const stars = document.querySelectorAll('#starContainer i');
+    stars.forEach((star, index) => {
+        if (index < score) {
+            star.classList.add('selected');
+        } else {
+            star.classList.remove('selected');
+        }
+    });
+}
+
+function openBookModal(nutriId, nutriName) {
+    document.getElementById('modalNutriId').value = nutriId;
+    document.getElementById('modalNutriName').textContent = nutriName;
+    document.getElementById('appointmentModal').classList.add('active');
+}
+function closeBookModal() { document.getElementById('appointmentModal').classList.remove('active'); }
+function showLogoutModal() { document.getElementById('logoutModal').classList.add('active'); }
+function closeLogoutModal() { document.getElementById('logoutModal').classList.remove('active'); }
+
+document.getElementById('logoutModal').addEventListener('click', function(e) {
+  if (e.target === this) { closeLogoutModal(); }
+});
+document.getElementById('appointmentModal').addEventListener('click', function(e) {
+  if (e.target === this) { closeBookModal(); }
+});
+document.getElementById('ratingModal').addEventListener('click', function(e) {
+  if (e.target === this) { closeRatingModal(); }
+});
+</script>
+</body>
+</html>
