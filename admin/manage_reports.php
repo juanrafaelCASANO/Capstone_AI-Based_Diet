@@ -201,20 +201,32 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
         .title-icon { width: 58px; height: 58px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #dc2626, #991b1b); color: white; font-size: 23px; box-shadow: 0 10px 25px rgba(220,38,38,.25); }
         .title-area h1 { font-size: 28px; font-weight: 800; color: #111827; margin-bottom: 4px; }
         .title-area p { color: #64748b; font-size: 13px; }
-        .main-card { background: white; border-radius: 20px; border: 1px solid #e5e7eb; box-shadow: 0 10px 35px rgba(15,23,42,.06); overflow: hidden; margin-bottom: 30px; }
-        .toolbar { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eef2f7; background: #ffffff; }
-        .toolbar-title h2 { font-size: 17px; font-weight: 800; color: #111827; }
-        .toolbar-title span { display: block; margin-top: 3px; color: #94a3b8; font-size: 12px; }
+        
+        /* BINAGONG SPACING AT DESIGN PARA MAS MALINIS ANG SEPARASYON NG MGA TABLES */
+        .main-card { 
+            background: white; 
+            border-radius: 20px; 
+            border: 1px solid #e5e7eb; 
+            box-shadow: 0 10px 35px rgba(15,23,42,.05); 
+            overflow: hidden; 
+            margin-bottom: 35px; /* Dinagdagan ang agwat para mas magkakahiwalay sila */
+        }
+        .toolbar { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eef2f7; background: #ffffff; }
+        .toolbar-title h2 { font-size: 17px; font-weight: 800; color: #111827; display: flex; align-items: center; gap: 10px; }
+        .toolbar-title span { display: inline-block; background: #f1f5f9; color: #475569; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-top: 5px; }
+        
         .table-wrapper { overflow-x: auto; }
         .report-table { width: 100%; border-collapse: collapse; min-width: 900px; }
-        .report-table th { padding: 14px 20px; background: #f8fafc; color: #64748b; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-        .report-table td { padding: 14px 20px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; font-size: 13px; color: #1e293b; }
+        .report-table th { padding: 14px 24px; background: #f8fafc; color: #64748b; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
+        .report-table td { padding: 14px 24px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; font-size: 13px; color: #1e293b; }
         .report-table tbody tr:hover { background: #f8fbff; }
+        
         .status-badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
         .status-pending { background: #fef3c7; color: #d97706; }
         .status-reviewed { background: #e0f2fe; color: #0284c7; }
         .status-resolved, .status-approved { background: #dcfce7; color: #15803d; }
         .status-rejected { background: #fee2e2; color: #b91c1c; }
+        
         .action-dropdown { padding: 6px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
         .btn-action-link { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; border: none; }
         .btn-view { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
@@ -298,7 +310,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
             <section class="main-card">
                 <div class="toolbar">
                     <div class="toolbar-title">
-                        <h2>Nutritionist Availability Status Requests</h2>
+                        <h2><i class="fa-solid fa-clock-rotate-left" style="color:#2563eb; font-size:15px;"></i> Nutritionist Availability Status Requests</h2>
                         <span>Total Requests: <?= count($status_requests) ?></span>
                     </div>
                 </div>
@@ -391,7 +403,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
             <section class="main-card">
                 <div class="toolbar">
                     <div class="toolbar-title">
-                        <h2>Nutritionist Reactivation Appeals</h2>
+                        <h2><i class="fa-solid fa-user-shield" style="color:#16a34a; font-size:15px;"></i> Nutritionist Reactivation Appeals</h2>
                         <span>Total Requests: <?= count($reactivations) ?></span>
                     </div>
                 </div>
@@ -424,7 +436,6 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                                 </button>
                                             <?php endif; ?>
                                         </td>
-                                        <!-- BINAGO: GINAMITAN NG MODAL VIEW BUTTON PARA SA MULTIPLE FILES -->
                                         <td>
                                             <?php if (!empty($req['attachment'])): ?>
                                                 <?php 
@@ -480,7 +491,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
             <section class="main-card">
                 <div class="toolbar">
                     <div class="toolbar-title">
-                        <h2>Submitted Violations & Complaints</h2>
+                        <h2><i class="fa-solid fa-triangle-exclamation" style="color:#dc2626; font-size:15px;"></i> Submitted Violations & Complaints</h2>
                         <span>Total Reports: <?= count($reports) ?></span>
                     </div>
                 </div>

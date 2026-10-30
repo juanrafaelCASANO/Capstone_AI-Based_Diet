@@ -282,7 +282,6 @@ setInterval(function() {
     });
 }, 60000);
 </script>
-</script>
 
 </body>
 </html>
