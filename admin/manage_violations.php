@@ -176,8 +176,9 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                             </button>
                                         <?php else: ?>
                                             <span style="color:#94a3b8; font-style:italic;">No attachment</span>
-                                        <?php else: ?>
-                                            <span style="color:#94a3b8; font-style:italic;">No attachment</span>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span style="color:#94a3b8; font-style:italic;">No attachment</span>
                                     <?php endif; ?>
                                 </td>
                                 <td><?= date('M d, Y g:i a', strtotime($rep['created_at'])) ?></td>
