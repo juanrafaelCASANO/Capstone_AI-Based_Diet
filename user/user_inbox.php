@@ -9,6 +9,38 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
+// Handle Review / Rating Submission
+$review_success = "";
+$review_error = "";
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review_rating'])) {
+    $appointment_id_target = (int)($_POST['appointment_id'] ?? 0);
+    $nutritionist_id_target = (int)($_POST['nutritionist_id'] ?? 0);
+    $rating_val = (int)($_POST['rating'] ?? 0);
+    $review_text = trim($_POST['review_text'] ?? '');
+
+    if ($rating_val < 1 || $rating_val > 5) {
+        $review_error = "Please select a star rating between 1 and 5.";
+    } else {
+        try {
+            // I-check muna kung nakapag-review na para sa appointment na ito
+            $chk = $conn->prepare("SELECT id FROM nutritionist_reviews WHERE appointment_id = ? AND user_id = ?");
+            $chk->execute([$appointment_id_target, $user_id]);
+            if ($chk->fetch()) {
+                $review_error = "You have already submitted a review for this consultation.";
+            } else {
+                $rev_stmt = $conn->prepare("
+                    INSERT INTO nutritionist_reviews (appointment_id, user_id, nutritionist_id, rating, review) 
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                $rev_stmt->execute([$appointment_id_target, $user_id, $nutritionist_id_target, $rating_val, $review_text]);
+                $review_success = "Thank you! Your rating and review have been submitted successfully.";
+            }
+        } catch (Exception $e) {
+            $review_error = "Failed to submit review: " . $e->getMessage();
+        }
+    }
+}
+
 // Handle appointment booking submission via modal with past date/time validation
 $booking_success = "";
 $booking_error = "";
@@ -21,7 +53,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment_subm
     if (empty($app_date) || empty($app_time)) {
         $booking_error = "Please select both a preferred date and time.";
     } else {
-        // Validation: Siguraduhing hindi past date/time ang napili
         $selected_datetime = strtotime($app_date . ' ' . $app_time);
         $current_datetime = time();
 
@@ -53,9 +84,7 @@ try {
         $user_lat = floatval($user_data['latitude']);
         $user_lng = floatval($user_data['longitude']);
     }
-} catch (Exception $e) {
-    // Use default if error occurs
-}
+} catch (Exception $e) {}
 
 // Get total unread messages for sidebar badge
 $unread_count = 0;
@@ -70,23 +99,26 @@ try {
     $unread_count = 0;
 }
 
-// Kunin ang mga appointments ng user para sa status tracker
+// Kunin ang mga appointments ng user kasama ang kung may review na ba ito
 $user_appointments = [];
 try {
     $user_app_stmt = $conn->prepare("
         SELECT 
             a.id, 
+            a.nutritionist_id,
             a.appointment_date, 
             a.appointment_time, 
             a.status, 
             a.notes, 
-            n.fullname AS nutritionist_name
+            a.created_at,
+            n.fullname AS nutritionist_name,
+            (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.appointment_id = a.id AND r.user_id = ?) AS has_reviewed
         FROM appointments a
         JOIN nutritionist n ON a.nutritionist_id = n.id
         WHERE a.user_id = ?
         ORDER BY a.appointment_date DESC, a.appointment_time DESC
     ");
-    $user_app_stmt->execute([$user_id]);
+    $user_app_stmt->execute([$user_id, $user_id]);
     $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $user_appointments = [];
@@ -138,7 +170,7 @@ $inbox_stmt = $conn->prepare($inbox_sql);
 $inbox_stmt->execute(['user_id' => $user_id]);
 $conversations = $inbox_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get all active nutritionists with lat/lng and last_active_at for distance and status calculation
+// Get all active nutritionists with lat/lng
 $nutri_list_sql = "
     SELECT n.id, n.fullname, n.profile_pic, n.certification, n.latitude, n.longitude, n.status AS account_status, n.availability_status, n.last_active_at, p.specialty AS specialization 
     FROM nutritionist n
@@ -172,7 +204,7 @@ foreach ($all_nutritionists as &$nutri) {
 unset($nutri);
 
 usort($all_nutritionists, function($a, $b) {
-    return $a['distance'] <=> $b['distance'];
+    return $a['distance'] <=>$b['distance'];
 });
 ?>
 <!DOCTYPE html>
@@ -236,35 +268,14 @@ a{color:inherit;text-decoration:none}
 .topbar h1{font-size:clamp(25px,3vw,34px);line-height:1.15;margin:5px 0 0;letter-spacing:-.7px}
 
 /* TABS NAVIGATION */
-.inbox-tabs {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 10px;
-}
-.tab-btn {
-  background: transparent;
-  border: none;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 8px 16px;
-  border-radius: 10px;
-  transition: all .2s;
-}
-.tab-btn.active {
-  background: var(--navy);
-  color: #fff;
-}
+.inbox-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+.tab-btn { background: transparent; border: none; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; padding: 8px 16px; border-radius: 10px; transition: all .2s; }
+.tab-btn.active { background: var(--navy); color: #fff; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
 /* SEARCH & FILTER TOOLBAR */
-.inbox-toolbar {
-  display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; justify-content: space-between;
-}
+.inbox-toolbar { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 .search-box { position: relative; flex: 1; min-width: 220px; }
 .search-box input {
   width: 100%; padding: 11px 16px 11px 40px; border-radius: 12px; border: 1px solid var(--border);
@@ -280,9 +291,7 @@ a{color:inherit;text-decoration:none}
 .pill-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
 
 /* INBOX LAYOUT GRID */
-.inbox-layout {
-  display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start;
-}
+.inbox-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
 .inbox-list { display: flex; flex-direction: column; gap: 12px; }
 .inbox-card {
   background: var(--card); border: 1px solid var(--border); border-radius: 16px;
@@ -308,9 +317,7 @@ a{color:inherit;text-decoration:none}
 .details { min-width: 0; }
 .name-status-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .details strong { font-size: 16px; color: var(--text); }
-.status-text-badge {
-  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: uppercase;
-}
+.status-text-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; }
 .status-text-badge.available { background: #d1fae5; color: #065f46; }
 .status-text-badge.on_leave { background: #fef3c7; color: #92400e; }
 .status-text-badge.unavailable { background: #fee2e2; color: #991b1b; }
@@ -318,38 +325,14 @@ a{color:inherit;text-decoration:none}
 .details p { font-size: 13px; color: var(--muted); margin: 4px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* APPOINTMENTS TRACKER LIST STYLES */
-.appointments-tracker-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
+.appointments-tracker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
 .user-appointment-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+  padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: space-between;
 }
-.user-app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
-}
+.user-app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .user-app-header strong { font-size: 15px; color: var(--text); }
-.appointment-status-badge {
-  font-size: 10.5px;
-  font-weight: 800;
-  padding: 3px 10px;
-  border-radius: 99px;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-}
+.appointment-status-badge { font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 99px; text-transform: uppercase; letter-spacing: .05em; }
 .appointment-status-badge.pending { background: #fef3c7; color: #b45309; }
 .appointment-status-badge.confirmed { background: #d1fae5; color: #065f46; }
 .appointment-status-badge.completed { background: #e0f2fe; color: #0369a1; }
@@ -357,33 +340,28 @@ a{color:inherit;text-decoration:none}
 
 .user-app-details { font-size: 13px; color: var(--muted); display: grid; gap: 6px; margin-bottom: 12px; }
 .user-app-details i { color: var(--green); width: 16px; text-align: center; }
-.user-app-notes {
-  background: var(--cream);
-  padding: 10px;
-  border-radius: 10px;
-  font-size: 12.5px;
-  color: var(--muted);
-  border: 1px solid var(--border);
+.user-app-notes { background: var(--cream); padding: 10px; border-radius: 10px; font-size: 12.5px; color: var(--muted); border: 1px solid var(--border); }
+
+/* RATE & REVIEW BUTTON */
+.btn-rate-review {
+  margin-top: 14px; width: 100%; height: 38px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;
+  border-radius: 10px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background .2s;
+}
+.btn-rate-review:hover { background: #fde68a; }
+.btn-rated-badge {
+  margin-top: 14px; width: 100%; height: 38px; background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;
+  border-radius: 10px; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 
 /* RECOMMENDED NUTRITIONISTS SIDEBAR CARD */
-.available-card {
-  background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px;
-  box-shadow: var(--shadow); position: sticky; top: 26px;
-}
+.available-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); position: sticky; top: 26px; }
 .available-card h3 { font-size: 16px; margin: 0 0 4px; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .sidebar-subtitle { font-size: 11px; color: var(--muted); margin-bottom: 14px; display: block; }
 .nutri-sidebar-list { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 200px); overflow-y: auto; padding-right: 2px; }
-.nutri-sidebar-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px;
-  border-radius: 14px; background: #f8faf8; border: 1px solid var(--border); transition: all .2s;
-}
+.nutri-sidebar-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border-radius: 14px; background: #f8faf8; border: 1px solid var(--border); transition: all .2s; }
 .nutri-sidebar-item:hover { background: #f1f8f4; border-color: #b9d5ca; }
 .nutri-meta { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
-.nutri-avatar {
-  width: 38px; height: 38px; border-radius: 50%; background: var(--green-soft); color: var(--green);
-  display: grid; place-items: center; font-size: 13px; font-weight: 700; flex-shrink: 0; overflow: hidden;
-}
+.nutri-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: grid; place-items: center; font-size: 13px; font-weight: 700; flex-shrink: 0; overflow: hidden; }
 .nutri-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .nutri-info-text { min-width: 0; flex: 1; }
 .nutri-info-text strong { display: block; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -396,103 +374,63 @@ a{color:inherit;text-decoration:none}
 .license-sub { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .distance-badge { font-size: 10px; font-weight: 700; background: #e2f0e9; color: #08734a; padding: 2px 6px; border-radius: 6px; display: inline-block; margin-top: 3px; }
 .nutri-actions-mini { display: flex; gap: 6px; flex-shrink: 0; }
-.action-btn-mini {
-  width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 13px;
-  text-decoration: none; cursor: pointer; border: none; transition: background .2s, transform .2s;
-}
+.action-btn-mini { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; text-decoration: none; cursor: pointer; border: none; transition: background .2s, transform .2s; }
 .action-btn-mini.chat { background: var(--green); color: #fff; }
 .action-btn-mini.chat:hover { background: #2e714e; transform: translateY(-1px); }
 .action-btn-mini.book { background: var(--navy); color: #fff; }
 .action-btn-mini.book:hover { background: #0f2620; transform: translateY(-1px); }
+
+/* STAR RATING MODAL STYLES */
+.rating-modal-overlay {
+  position: fixed; inset: 0; background: rgba(15, 32, 25, 0.55); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+  opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease; padding: 16px;
+}
+.rating-modal-overlay.active { opacity: 1; visibility: visible; }
+.rating-modal-card {
+  background: #ffffff; width: 100%; max-width: 400px; border-radius: 24px; padding: 30px; text-align: center;
+  box-shadow: 0 25px 60px rgba(10, 30, 20, 0.22); transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.rating-modal-overlay.active .rating-modal-card { transform: scale(1); }
+.star-rating-container { display: flex; justify-content: center; gap: 8px; font-size: 28px; color: #cbd5e1; cursor: pointer; margin: 16px 0; }
+.star-rating-container i.selected, .star-rating-container i:hover, .star-rating-container i:hover ~ i { color: #f59e0b; }
 
 @media(max-width: 992px) {
   .inbox-layout { grid-template-columns: 1fr; }
   .available-card { position: static; }
 }
 
-/* APPOINTMENT MODAL STYLES */
-.appointment-modal-overlay {
+/* APPOINTMENT & LOGOUT MODALS */
+.appointment-modal-overlay, .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(15, 32, 25, 0.55); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
   opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease; padding: 16px;
 }
-.appointment-modal-overlay.active { opacity: 1; visibility: visible; }
-.appointment-modal-card {
+.appointment-modal-overlay.active, .logout-modal-overlay.active { opacity: 1; visibility: visible; }
+.appointment-modal-card, .logout-modal-card {
   background: #ffffff; width: 100%; max-width: 440px; border-radius: 24px; padding: 30px;
   box-shadow: 0 25px 60px rgba(10, 30, 20, 0.22); transform: scale(0.9);
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid rgba(255, 255, 255, 0.8);
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.appointment-modal-overlay.active .appointment-modal-card { transform: scale(1); }
+.appointment-modal-overlay.active .appointment-modal-card, .logout-modal-overlay.active .logout-modal-card { transform: scale(1); }
 .modal-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.modal-title-wrap h3 { font-size: 22px; font-weight: 800; color: var(--navy); margin: 0; letter-spacing: -0.5px; }
-.modal-close-btn {
-  background: var(--cream); border: 1px solid var(--border); width: 34px; height: 34px;
-  border-radius: 50%; font-size: 16px; cursor: pointer; color: var(--muted);
-  display: grid; place-items: center; transition: background .2s, color .2s;
-}
-.modal-close-btn:hover { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
-.modal-subtitle { font-size: 13.5px; color: var(--muted); margin-bottom: 24px; line-height: 1.4; }
+.modal-title-wrap h3 { font-size: 22px; font-weight: 800; color: var(--navy); margin: 0; }
+.modal-close-btn { background: var(--cream); border: 1px solid var(--border); width: 34px; height: 34px; border-radius: 50%; font-size: 16px; cursor: pointer; color: var(--muted); display: grid; place-items: center; }
+.modal-subtitle { font-size: 13.5px; color: var(--muted); margin-bottom: 24px; }
 .modal-form-group { margin-bottom: 16px; text-align: left; }
 .modal-form-group label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
 .modal-input-wrap { position: relative; }
 .modal-input-wrap i { position: absolute; top: 50%; left: 14px; transform: translateY(-50%); color: var(--muted); font-size: 14px; }
 .modal-input-wrap input, .modal-input-wrap textarea {
   width: 100%; padding: 12px 14px 12px 42px; border-radius: 12px; border: 1px solid var(--border);
-  background: var(--cream); font-size: 14px; color: var(--text); outline: none; transition: all .2s; font-family: inherit;
+  background: var(--cream); font-size: 14px; color: var(--text); outline: none; font-family: inherit;
 }
 .modal-input-wrap textarea { resize: vertical; min-height: 95px; }
-.modal-input-wrap input:focus, .modal-input-wrap textarea:focus {
-  border-color: var(--green); background: #fff; box-shadow: 0 0 0 3px rgba(59, 143, 99, 0.12);
-}
 .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
-.btn-modal-cancel {
-  flex: 1; height: 46px; background: var(--cream); color: var(--text); border: 1px solid var(--border);
-  border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; transition: background 0.2s;
-}
-.btn-modal-cancel:hover { background: var(--green-soft); }
-.btn-modal-submit {
-  flex: 1.3; height: 46px; background: linear-gradient(135deg, var(--green), #2e714e); color: #fff;
-  border: none; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer;
-  box-shadow: 0 8px 20px rgba(59, 143, 99, 0.25); transition: transform 0.2s, box-shadow 0.2s;
-}
-.btn-modal-submit:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(59, 143, 99, 0.35); }
+.btn-modal-cancel { flex: 1; height: 46px; background: var(--cream); color: var(--text); border: 1px solid var(--border); border-radius: 12px; font-weight: 700; cursor: pointer; }
+.btn-modal-submit { flex: 1.3; height: 46px; background: var(--green); color: #fff; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; }
 
-/* LOGOUT MODAL */
-.logout-modal-overlay {
-  position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center; z-index: 9999;
-  opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease;
-}
-.logout-modal-overlay.active { opacity: 1; visibility: visible; }
-.logout-modal-card {
-  background: #ffffff; width: 90%; max-width: 380px; border-radius: 20px; padding: 28px 24px;
-  text-align: center; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); transform: scale(0.85);
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.logout-modal-overlay.active .logout-modal-card { transform: scale(1); }
-.logout-modal-icon {
-  width: 56px; height: 56px; background: #fff3f1; color: #b42318; font-size: 26px;
-  border-radius: 50%; display: grid; place-items: center; margin: 0 auto 16px;
-}
-.logout-modal-card h3 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text); }
-.logout-modal-card p { margin: 0 0 24px; font-size: 14px; color: var(--muted); line-height: 1.5; }
-.logout-modal-actions { display: flex; gap: 12px; }
-.logout-modal-actions .btn-modal-cancel {
-  flex: 1; height: 44px; background: var(--cream); color: var(--text); border: 1px solid var(--border);
-  border-radius: 12px; font-weight: 650; font-size: 14px; cursor: pointer; transition: background 0.2s;
-}
-.logout-modal-actions .btn-modal-cancel:hover { background: var(--green-soft); }
-.logout-modal-actions .btn-modal-logout {
-  flex: 1; height: 44px; background: #b42318; color: #ffffff; border: none; border-radius: 12px;
-  font-weight: 650; font-size: 14px; display: inline-flex; align-items: center; justify-content: center;
-  text-decoration: none; transition: background 0.2s, transform 0.2s;
-}
-.logout-modal-actions .btn-modal-logout:hover { background: #901c12; transform: translateY(-1px); }
-
-.alert-banner {
-  padding: 12px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; margin-bottom: 18px;
-  display: flex; align-items: center; gap: 10px;
-}
+.alert-banner { padding: 12px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
 .alert-banner.success { background: #e6fffa; color: #0f766e; border: 1px solid #b2f5ea; }
 .alert-banner.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 .empty-box { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; background: #fff; border-radius: 16px; border: 1px solid var(--border); }
@@ -532,14 +470,14 @@ a{color:inherit;text-decoration:none}
       </div>
     </header>
 
-    <?php if (!empty($booking_success)): ?>
-      <div class="alert-banner success"><i class="fa-solid fa-circle-check"></i> <?php echo $booking_success; ?></div>
+    <?php if (!empty($booking_success) || !empty($review_success)): ?>
+      <div class="alert-banner success"><i class="fa-solid fa-circle-check"></i> <?php echo $booking_success .$review_success; ?></div>
     <?php endif; ?>
-    <?php if (!empty($booking_error)): ?>
-      <div class="alert-banner error"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo $booking_error; ?></div>
+    <?php if (!empty($booking_error) || !empty($review_error)): ?>
+      <div class="alert-banner error"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo $booking_error .$review_error; ?></div>
     <?php endif; ?>
 
-    <!-- NAVIGATION TABS FOR MESSAGES & APPOINTMENTS -->
+    <!-- NAVIGATION TABS -->
     <div class="inbox-tabs">
       <button type="button" class="tab-btn active" onclick="switchTab('messages', this)">
         <i class="fa-solid fa-comments"></i> Messages (<?php echo count($conversations); ?>)
@@ -568,192 +506,78 @@ a{color:inherit;text-decoration:none}
       <div class="inbox-layout">
         <div class="inbox-list" id="inboxListContainer">
           <?php if (count($conversations) > 0): ?>
-            <?php foreach ($conversations as $chat): ?>
+            <?php foreach ($conversations as$chat): ?>
               <?php 
                 $raw_availability = trim(strtolower($chat['availability_status'] ?? 'available'));
                 $account_status = trim(strtolower($chat['account_status'] ?? 'active'));
-                $last_active = $chat['last_active_at'] ?? null;
+                $last_active =$chat['last_active_at'] ?? null;
+                $is_offline_by_time = ($last_active && (time() - strtotime($last_active) <= 900)) ? false : true;
 
-                $is_offline_by_time = false;
-                if ($last_active) {
-                    $inactive_seconds = time() - strtotime($last_active);
-                    if ($inactive_seconds > 900) { $is_offline_by_time = true; }
+                if ($account_status !== 'active' && $account_status !== 'approved' ||$is_offline_by_time) {
+                    $status_class = 'offline';$status_label = 'Offline';
                 } else {
-                    $is_offline_by_time = true;
-                }
-
-                if ($account_status !== 'active' && $account_status !== 'approved') {
-                    $status_class = 'offline'; $status_label = 'Offline';
-                } elseif ($is_offline_by_time) {
-                    $status_class = 'offline'; $status_label = 'Offline';
-                } else {
-                    if (in_array($raw_availability, ['available', 'on_leave', 'unavailable'])) {
-                        $status_class = $raw_availability;
-                        $status_label = ucwords(str_replace('_', ' ', $raw_availability));
-                    } else {
-                        $status_class = 'available'; $status_label = 'Available';
-                    }
+                    $status_class = in_array($raw_availability, ['available', 'on_leave', 'unavailable']) ?$raw_availability : 'available';
+                    $status_label = ucwords(str_replace('_', ' ',$status_class));
                 }
               ?>
-              <a href="chat.php?nutritionist_id=<?php echo $chat['nutritionist_id']; ?>" 
-                 class="inbox-card" 
-                 data-name="<?php echo strtolower(htmlspecialchars($chat['nutritionist_name'])); ?>" 
-                 data-status="<?php echo $status_class; ?>">
+              <a href="chat.php?nutritionist_id=<?php echo $chat['nutritionist_id']; ?>" class="inbox-card" data-name="<?php echo strtolower(htmlspecialchars($chat['nutritionist_name'])); ?>" data-status="<?php echo $status_class; ?>">
                 <div class="nutritionist-info">
                   <div class="avatar-container">
                     <div class="avatar">
                       <?php if (!empty($chat['profile_pic']) && $chat['profile_pic'] !== 'default_avatar.png' && file_exists("../uploads/profile_pics/" . $chat['profile_pic'])): ?>
-                        <?php 
-                          $filename = trim($chat['profile_pic']);
-                          $imgSrc = (strpos($filename, 'http') === 0 || strpos($filename, '/') === 0) ? $filename : '../uploads/profile_pics/' . $filename;
-                        ?>
-                        <img src="<?php echo htmlspecialchars($imgSrc); ?>" alt="<?php echo htmlspecialchars($chat['nutritionist_name']); ?>">
+                        <img src="<?php echo htmlspecialchars($chat['profile_pic']); ?>" alt="">
                       <?php else: ?>
                         <?php echo getInitials($chat['nutritionist_name']); ?>
                       <?php endif; ?>
                     </div>
-                    <span class="status-dot <?php echo $status_class; ?>" title="Status: <?php echo $status_label; ?>"></span>
+                    <span class="status-dot <?php echo $status_class; ?>"></span>
                   </div>
-
                   <div class="details">
                     <div class="name-status-row">
                       <strong><?php echo htmlspecialchars($chat['nutritionist_name']); ?></strong>
                       <span class="status-text-badge <?php echo $status_class; ?>"><?php echo $status_label; ?></span>
                     </div>
-                    <p>
-                      <?php if ($chat['last_sender_id'] == $user_id): ?>
-                        <span style="color:var(--green);">You: </span>
-                      <?php endif; ?>
-                      <?php 
-                        if (strpos($chat['last_message'], 'Weekly Meal Plan') !== false) {
-                            echo '🥗 Shared a Weekly Meal Plan';
-                        } else {
-                            echo htmlspecialchars($chat['last_message']);
-                        }
-                      ?>
-                    </p>
+                    <p><?php echo htmlspecialchars($chat['last_message']); ?></p>
                   </div>
-                </div>
-
-                <div style="text-align:right; flex-shrink:0; margin-left:12px;">
-                  <span class="time-stamp" style="font-size:11px; color:var(--muted); margin-bottom:4px; display:block;">
-                    <?php echo date('M d, g:i a', strtotime($chat['last_message_time'])); ?>
-                  </span>
-                  <?php if ($chat['unread_count'] > 0): ?>
-                    <span class="badge" style="background:var(--danger); color:#fff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px;"><?php echo $chat['unread_count']; ?> new</span>
-                  <?php endif; ?>
                 </div>
               </a>
             <?php endforeach; ?>
           <?php else: ?>
-            <div class="empty-box" id="emptyInboxMsg">
-              <i class="fa-solid fa-inbox" style="font-size:32px; margin-bottom:12px; display:block;"></i>
-              No messages yet. Select a recommended nutritionist on the right to start a conversation.
-            </div>
+            <div class="empty-box">No messages yet. Select a recommended nutritionist on the right to start a conversation.</div>
           <?php endif; ?>
         </div>
 
         <!-- RECOMMENDED NUTRITIONISTS SIDEBAR -->
         <aside class="available-card">
           <h3><i class="fa-solid fa-user-doctor" style="color:var(--green);"></i> Recommended Nutritionists</h3>
-          <span class="sidebar-subtitle">Closest to your location</span>
           <div class="nutri-sidebar-list">
-            <?php if (count($all_nutritionists) > 0): ?>
-              <?php foreach ($all_nutritionists as $nutri): ?>
-                <?php 
-                  $license_text = trim($nutri['certification'] ?? '');
-                  if (empty($license_text)) { $license_text = trim($nutri['specialization'] ?? ''); }
-                  $dist_label = "";
-                  if ($nutri['distance'] < 999999) {
-                      if ($nutri['distance'] < 1) {
-                          $dist_label = round($nutri['distance'] * 1000) . " m away";
-                      } else {
-                          $dist_label = round($nutri['distance'], 1) . " km away";
-                      }
-                  }
-
-                  $raw_s = trim(strtolower($nutri['availability_status'] ?? 'available'));
-                  $acc_s = trim(strtolower($nutri['account_status'] ?? 'active'));
-                  $nutri_last_active = $nutri['last_active_at'] ?? null;
-
-                  $nutri_offline_by_time = false;
-                  if ($nutri_last_active) {
-                      $nutri_inactive_sec = time() - strtotime($nutri_last_active);
-                      if ($nutri_inactive_sec > 900) { $nutri_offline_by_time = true; }
-                  } else {
-                      $nutri_offline_by_time = true;
-                  }
-
-                  if ($acc_s !== 'active' && $acc_s !== 'approved' && $acc_s !== '') {
-                      $s_class = 'offline'; $s_label = 'Offline';
-                  } elseif ($nutri_offline_by_time) {
-                      $s_class = 'offline'; $s_label = 'Offline';
-                  } else {
-                      if (in_array($raw_s, ['available', 'on_leave', 'unavailable'])) {
-                          $s_class = $raw_s;
-                          $s_label = ucwords(str_replace('_', ' ', $raw_s));
-                      } else {
-                          $s_class = 'available'; $s_label = 'Available';
-                      }
-                  }
-                ?>
-                <div class="nutri-sidebar-item">
-                  <div class="nutri-meta">
-                    <div class="avatar-container" style="flex-shrink:0;">
-                      <div class="nutri-avatar">
-                        <?php if (!empty($nutri['profile_pic']) && $nutri['profile_pic'] !== 'default_avatar.png' && file_exists("../uploads/profile_pics/" . $nutri['profile_pic'])): ?>
-                          <?php 
-                            $filename = trim($nutri['profile_pic']);
-                            $imgSrc = (strpos($filename, 'http') === 0 || strpos($filename, '/') === 0) ? $filename : '../uploads/profile_pics/' . $filename;
-                          ?>
-                          <img src="<?php echo htmlspecialchars($imgSrc); ?>" alt="<?php echo htmlspecialchars($nutri['fullname']); ?>">
-                        <?php else: ?>
-                          <?php echo getInitials($nutri['fullname']); ?>
-                        <?php endif; ?>
-                      </div>
-                      <span class="status-dot <?php echo $s_class; ?>" style="width:10px; height:10px;" title="Status: <?php echo $s_label; ?>"></span>
-                    </div>
-
-                    <div class="nutri-info-text">
-                      <strong><?php echo htmlspecialchars($nutri['fullname']); ?></strong>
-                      <div>
-                        <span class="certified-label">Certified</span>
-                        <span class="nutri-status-mini <?php echo $s_class; ?>"><?php echo $s_label; ?></span>
-                      </div>
-                      <?php if (!empty($license_text)): ?>
-                        <span class="license-sub"><?php echo htmlspecialchars($license_text); ?></span>
-                      <?php endif; ?>
-                      <?php if (!empty($dist_label)): ?>
-                        <span class="distance-badge"><i class="fa-solid fa-location-dot"></i> <?php echo $dist_label; ?></span>
-                      <?php endif; ?>
-                    </div>
-                  </div>
-
-                  <div class="nutri-actions-mini">
-                    <button type="button" class="action-btn-mini book" onclick="openBookModal(<?php echo $nutri['id']; ?>, '<?php echo htmlspecialchars($nutri['fullname'], ENT_QUOTES); ?>')" title="Book Appointment">
-                      <i class="fa-regular fa-calendar-plus"></i>
-                    </button>
-                    <a href="chat.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="action-btn-mini chat" title="Chat Nutritionist">
-                      <i class="fa-solid fa-comment"></i>
-                    </a>
+            <?php foreach ($all_nutritionists as$nutri): ?>
+              <div class="nutri-sidebar-item">
+                <div class="nutri-meta">
+                  <div class="nutri-avatar"><?php echo getInitials($nutri['fullname']); ?></div>
+                  <div class="nutri-info-text">
+                    <strong><?php echo htmlspecialchars($nutri['fullname']); ?></strong>
+                    <span class="license-sub"><?php echo htmlspecialchars($nutri['specialization'] ?? 'Nutritionist'); ?></span>
                   </div>
                 </div>
-              <?php endforeach; ?>
-            <?php else: ?>
-              <div style="text-align:center; padding:20px; color:var(--muted); font-size:13px;">
-                No available nutritionists at the moment.
+                <div class="nutri-actions-mini">
+                  <button type="button" class="action-btn-mini book" onclick="openBookModal(<?php echo $nutri['id']; ?>, '<?php echo htmlspecialchars($nutri['fullname'], ENT_QUOTES); ?>')">
+                    <i class="fa-regular fa-calendar-plus"></i>
+                  </button>
+                  <a href="chat.php?nutritionist_id=<?php echo $nutri['id']; ?>" class="action-btn-mini chat"><i class="fa-solid fa-comment"></i></a>
+                </div>
               </div>
-            <?php endif; ?>
+            <?php endforeach; ?>
           </div>
         </aside>
       </div>
     </div>
 
-    <!-- TAB 2: MY APPOINTMENTS TRACKER -->
+    <!-- TAB 2: MY APPOINTMENTS TRACKER & RATE BUTTON -->
     <div id="tab-appointments" class="tab-content">
       <div class="appointments-tracker-grid">
         <?php if (count($user_appointments) > 0): ?>
-          <?php foreach ($user_appointments as $app): ?>
+          <?php foreach ($user_appointments as$app): ?>
             <div class="user-appointment-card">
               <div>
                 <div class="user-app-header">
@@ -765,150 +589,6 @@ a{color:inherit;text-decoration:none}
                   <div><i class="fa-regular fa-clock"></i> <strong>Time:</strong> <?php echo date('g:i A', strtotime($app['appointment_time'])); ?></div>
                 </div>
                 <?php if (!empty($app['notes'])): ?>
-                  <div class="user-app-notes">
-                    <strong style="display:block; font-size:11px; text-transform:uppercase; margin-bottom:2px; color:var(--text);">Your Notes:</strong>
-                    <?php echo htmlspecialchars($app['notes']); ?>
-                  </div>
+                  <div class="user-app-notes"><strong>Notes:</strong> <?php echo htmlspecialchars($app['notes']); ?></div>
                 <?php endif; ?>
               </div>
-              <div style="margin-top: 14px; font-size: 11px; color: var(--muted); text-align: right;">
-                Requested on: <?php echo date('M d, Y g:i a', strtotime($app['created_at'] ?? 'now')); ?>
-              </div>
-            </div>
-          <?php endforeach; ?>
-        <?php else: ?>
-          <div class="empty-box" style="grid-column: 1 / -1;">
-            <i class="fa-regular fa-calendar-xmark" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
-            You haven't booked any consultations yet. Click the calendar icon on any recommended nutritionist to schedule one!
-          </div>
-        <?php endif; ?>
-      </div>
-    </div>
-  </main>
-</div>
-
-<!-- APPOINTMENT BOOKING MODAL -->
-<div id="appointmentModal" class="appointment-modal-overlay">
-  <div class="appointment-modal-card">
-    <div class="modal-header-flex">
-      <div class="modal-title-wrap">
-        <h3>Book Consultation</h3>
-      </div>
-      <button type="button" class="modal-close-btn" onclick="closeBookModal()"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-    <div class="modal-subtitle">Schedule an appointment with <strong id="modalNutriName" style="color: var(--text);"></strong></div>
-    
-    <form method="POST">
-      <input type="hidden" name="nutritionist_id" id="modalNutriId">
-      
-      <div class="modal-form-group">
-        <label>Preferred Date</label>
-        <div class="modal-input-wrap">
-          <i class="fa-regular fa-calendar"></i>
-          <input type="date" name="appointment_date" min="<?php echo date('Y-m-d'); ?>" required>
-        </div>
-      </div>
-
-      <div class="modal-form-group">
-        <label>Preferred Time</label>
-        <div class="modal-input-wrap">
-          <i class="fa-regular fa-clock"></i>
-          <input type="time" name="appointment_time" required>
-        </div>
-      </div>
-
-      <div class="modal-form-group">
-        <label>Notes / Purpose of Consultation</label>
-        <div class="modal-input-wrap">
-          <i class="fa-regular fa-comment-dots" style="top: 22px;"></i>
-          <textarea name="notes" placeholder="Tell the nutritionist your goal or concern..." required></textarea>
-        </div>
-      </div>
-
-      <div class="modal-actions">
-        <button type="button" class="btn-modal-cancel" onclick="closeBookModal()">Cancel</button>
-        <button type="submit" name="book_appointment_submit" class="btn-modal-submit">Submit Request</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- LOGOUT MODAL -->
-<div id="logoutModal" class="logout-modal-overlay">
-  <div class="logout-modal-card">
-    <div class="logout-modal-icon">🚪</div>
-    <h3>Confirm Logout</h3>
-    <p>Are you sure you want to logout of your session?</p>
-    <div class="logout-modal-actions">
-      <button class="btn-modal-cancel" onclick="closeLogoutModal();">Cancel</button>
-      <a href="../auth/logout.php" class="btn-modal-logout">Yes, Logout</a>
-    </div>
-  </div>
-</div>
-
-<script>
-let currentStatusFilter = 'all';
-
-function switchTab(tabName, btn) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    
-    document.getElementById('tab-' + tabName).classList.add('active');
-    btn.classList.add('active');
-}
-
-function filterInbox() {
-    const query = document.getElementById('inboxSearch').value.toLowerCase().trim();
-    const cards = document.querySelectorAll('.inbox-card');
-    
-    cards.forEach(card => {
-        const name = card.getAttribute('data-name');
-        const status = card.getAttribute('data-status');
-        
-        const matchesSearch = name.includes(query);
-        const matchesStatus = (currentStatusFilter === 'all' || status === currentStatusFilter);
-
-        if (matchesSearch && matchesStatus) {
-            card.style.display = 'flex';
-        } else {
-            card.style.display = 'none';
-        }
-    });
-}
-
-function filterByStatus(status, btn) {
-    currentStatusFilter = status;
-    document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
-    event.currentTarget.classList.add('active');
-    filterInbox();
-}
-
-function openBookModal(nutriId, nutriName) {
-    document.getElementById('modalNutriId').value = nutriId;
-    document.getElementById('modalNutriName').textContent = nutriName;
-    document.getElementById('appointmentModal').classList.add('active');
-}
-
-function closeBookModal() {
-    document.getElementById('appointmentModal').classList.remove('active');
-}
-
-function showLogoutModal() {
-  document.getElementById('logoutModal').classList.add('active');
-}
-
-function closeLogoutModal() {
-  document.getElementById('logoutModal').classList.remove('active');
-}
-
-document.getElementById('logoutModal').addEventListener('click', function(e) {
-  if (e.target === this) { closeLogoutModal(); }
-});
-
-document.getElementById('appointmentModal').addEventListener('click', function(e) {
-  if (e.target === this) { closeBookModal(); }
-});
-</script>
-
-</body>
-</html>
