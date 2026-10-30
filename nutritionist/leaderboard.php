@@ -2,22 +2,17 @@
 session_start();
 require_once '../config.php';
 
-if (!isset($_SESSION['nutritionist_id']) && isset($_SESSION['user_id'])) {
-    // Kung sakaling user ang napadpad dito, i-redirect sa tamang path
-    header("Location: ../user/leaderboard.php");
-    exit;
-}
-
-if (!isset($_SESSION['nutritionist_id'])) {
+// Tiyaking ang nakaka-access lang ay ang logged-in nutritionist
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'nutritionist') {
     header("Location: ../auth/login.php");
     exit;
 }
 
-$nutritionist_id = $_SESSION['nutritionist_id'];
+$nutri_id = $_SESSION['user_id'];
 
 // Kunin ang profile ng kasalukuyang nutritionist
 $stmt = $conn->prepare("SELECT fullname, profile_pic FROM nutritionist WHERE id = ?");
-$stmt->execute([$nutritionist_id]);
+$stmt->execute([$nutri_id]);
 $nutri_user = $stmt->fetch();
 
 if (!$nutri_user) {
@@ -39,20 +34,7 @@ try {
     $leaderboard_stmt->execute();
     $leaders = $leaderboard_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    try {
-        $leaderboard_stmt = $conn->prepare("
-            SELECT id, fullname, 
-                   COALESCE(total_calories, 0) as total_calories, 
-                   COALESCE(completed_meals, 0) as completed_meals 
-        FROM users 
-        WHERE email NOT LIKE '%admin%' 
-        ORDER BY total_calories DESC, completed_meals DESC, fullname ASC
-    ");
-        $leaderboard_stmt->execute();
-        $leaders = $leaderboard_stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $ex) {
-        $leaders = [];
-    }
+    $leaders = [];
 }
 
 // Kunin ang leaderboard ng mga nutritionist batay sa average rating at total reviews
@@ -76,6 +58,22 @@ try {
     $nutritionist_leaders = [];
 }
 
+$unread_count = 0;
+$pending_appointments_count = 0;
+try {
+    $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
+    $count_stmt->execute([$nutri_id]);
+    if ($row = $count_stmt->fetch()) {
+        $unread_count = (int)$row['total'];
+    }
+
+    $app_count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM appointments WHERE nutritionist_id = ? AND status = 'pending'");
+    $app_count_stmt->execute([$nutri_id]);
+    if ($app_row = $app_count_stmt->fetch()) {
+        $pending_appointments_count = (int)$app_row['total'];
+    }
+} catch (Exception $e) {}
+
 function getInitials($name) {
     $words = explode(' ', trim($name));
     if (count($words) >= 2) {
@@ -89,27 +87,30 @@ function getInitials($name) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI-Based Diet & Nutritional Planner - Leaderboard</title>
+<title>Leaderboard | Nutritionist Portal</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏆</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 <style>
 :root{
-  --navy:#173b32;
-  --navy-2:#245848;
-  --green:#3b8f63;
-  --green-soft:#e8f5ed;
-  --cream:#f7faf6;
+  --navy:#0f3a2e;
+  --navy-2:#165242;
+  --teal:#0d9488;
+  --teal-soft:#ccfbf1;
+  --teal-dark:#0f766e;
+  --cream:#f4fbf7;
   --card:#ffffff;
-  --text:#193028;
-  --muted:#6c7b75;
-  --border:#e3ebe6;
-  --shadow:0 10px 30px rgba(27,61,48,.08);
+  --text:#112d25;
+  --muted:#5c736c;
+  --border:#dbece5;
+  --shadow:0 10px 30px rgba(15,58,46,.08);
   --radius:18px;
+  --danger:#dc2626;
 }
 *{box-sizing:border-box}
 body{
   margin:0;
-  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   background:var(--cream);
   color:var(--text);
 }
@@ -117,41 +118,36 @@ a{color:inherit;text-decoration:none}
 .app{min-height:100vh;display:flex;position:relative;}
 
 .sidebar{
-  width:260px;flex:0 0 260px;min-height:100vh;position:sticky;top:0;align-self:flex-start;
-  background:linear-gradient(180deg,var(--navy),#123027);color:#fff;padding:24px 18px;
-  display:flex;flex-direction:column;z-index:20;
+  width:260px; flex:0 0 260px; height:100vh; position:sticky; top:0; align-self:flex-start;
+  background:linear-gradient(180deg,var(--navy),#0a2820); color:#fff;
+  padding:24px 18px; display:flex; flex-direction:column; overflow:hidden; z-index:20;
 }
-.brand{display:flex;align-items:center;gap:12px;padding:6px 10px 28px;}
-.brand-icon{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:rgba(255,255,255,.12);font-size:23px;}
-.brand strong{display:block;font-size:17px}
-.brand span{display:block;color:#b9d5ca;font-size:12px;margin-top:2px}
-.nav-label{padding:0 12px 8px;color:#9fc2b4;text-transform:uppercase;letter-spacing:.11em;font-size:10px;font-weight:800;}
-.nav{display:grid;gap:6px}
-.nav a{
-  display:flex;align-items:center;gap:12px;padding:13px 12px;border-radius:12px;
-  color:#d9ebe4;font-size:14px;font-weight:650;transition:background .2s,transform .2s;
-}
+.brand{ display:flex;align-items:center;gap:12px; padding:6px 10px 28px; flex-shrink:0; }
+.brand-icon{ width:42px;height:42px;border-radius:13px; display:grid;place-items:center;background:rgba(255,255,255,.12); font-size:23px; }
+.brand strong{display:block;font-size:17px;letter-spacing:-.2px;}
+.brand span{display:block;color:#99f6e4;font-size:12px;margin-top:2px;}
+.nav-label{ padding:0 12px 8px;color:#80e0d0; text-transform:uppercase;letter-spacing:.11em;font-size:10px;font-weight:800; flex-shrink:0; }
+.nav{display:grid;gap:6px;flex-shrink:0}
+.nav a{ display:flex;align-items:center;gap:12px; text-decoration:none;padding:13px 12px;border-radius:12px; color:#e6fffa;font-size:14px;font-weight:650; transition:background .2s,transform .2s; position:relative; }
 .nav a:hover{background:rgba(255,255,255,.09);transform:translateX(2px)}
 .nav a.active{background:rgba(255,255,255,.14);color:#fff}
 .nav-icon{width:24px;text-align:center;font-size:17px}
-.sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
-.sidebar-bottom a.logout{
-  display:flex;align-items:center;gap:12px;padding:13px 12px;
-  border-radius:12px;color:#f8d7da!important;font-size:14px;font-weight:650;transition:background .2s,transform .2s;
-}
+.nav-badge{ margin-left:auto; background:var(--danger); color:#fff; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; }
+.sidebar-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding-top:16px;flex-shrink:0}
+.sidebar-bottom a.logout{ display:flex;align-items:center;gap:12px;text-decoration:none;padding:13px 12px; border-radius:12px;color:#f8d7da!important;font-size:14px;font-weight:650; transition:background .2s,transform .2s; }
 .sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
 
 .main{min-width:0;flex:1;padding:26px clamp(18px,4vw,48px) 48px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}
 .menu-btn{display:none;border:1px solid var(--border);background:#fff;width:44px;height:44px;border-radius:12px;cursor:pointer;color:var(--text)}
-.eyebrow{font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.1em}
+.eyebrow{font-size:12px;font-weight:800;color:var(--teal);text-transform:uppercase;letter-spacing:.1em}
 .welcome h1{font-size:clamp(25px,3vw,36px);line-height:1.15;margin:5px 0 0;letter-spacing:-.8px}
 
 .profile{
   display:flex;align-items:center;gap:10px;padding:7px 11px 7px 7px;
   background:#fff;border:1px solid var(--border);border-radius:999px;
 }
-.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-weight:800;overflow:hidden;}
+.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--teal-soft);color:var(--teal-dark);font-weight:800;overflow:hidden;}
 .profile-name{font-size:13px;font-weight:700;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* LEADERBOARD SUB-TABS */
@@ -173,9 +169,9 @@ a{color:inherit;text-decoration:none}
   box-shadow: var(--shadow);
 }
 .lb-tab-btn.active {
-  background: var(--navy);
+  background: var(--teal);
   color: #fff;
-  border-color: var(--navy);
+  border-color: var(--teal);
 }
 .lb-tab-content { display: none; }
 .lb-tab-content.active { display: block; }
@@ -189,20 +185,20 @@ a{color:inherit;text-decoration:none}
 }
 .leaderboard-header {
   padding: 24px;
-  background: linear-gradient(135deg, #eaf6ee 0%, #f8fbf7 70%);
+  background: linear-gradient(135deg, #e6fffa 0%, #f0fdfa 70%);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.leaderboard-header h2 { margin: 0; font-size: 20px; }
+.leaderboard-header h2 { margin: 0; font-size: 20px; color: var(--navy); }
 .leaderboard-table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
 }
 .leaderboard-table th {
-  background: #f4f8f5;
+  background: #f8fafc;
   padding: 14px 20px;
   font-size: 12px;
   text-transform: uppercase;
@@ -218,7 +214,7 @@ a{color:inherit;text-decoration:none}
 }
 .leaderboard-table tr:last-child td { border-bottom: none; }
 .leaderboard-table tr.current-nutritionist {
-  background: var(--green-soft);
+  background: var(--teal-soft);
 }
 
 .rank-badge {
@@ -240,7 +236,7 @@ a{color:inherit;text-decoration:none}
 
 /* LOGOUT MODAL STYLES */
 .logout-modal-overlay {
-  position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
+  position: fixed; inset: 0; background: rgba(15, 58, 46, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
   opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease;
 }
@@ -252,23 +248,23 @@ a{color:inherit;text-decoration:none}
 }
 .logout-modal-overlay.active .logout-modal-card { transform: scale(1); }
 .logout-modal-icon {
-  width: 56px; height: 56px; background: #fff3f1; color: #b42318; font-size: 26px;
+  width: 56px; height: 56px; background: #fef2f2; color: #dc2626; font-size: 26px;
   border-radius: 50%; display: grid; place-items: center; margin: 0 auto 16px;
 }
-.logout-modal-card h3 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text); }
-.logout-modal-card p { margin: 0 0 24px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.logout-modal-card h3 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #112d25; }
+.logout-modal-card p { margin: 0 0 24px; font-size: 14px; color: #5c736c; line-height: 1.5; }
 .logout-modal-actions { display: flex; gap: 12px; }
 .btn-modal-cancel {
-  flex: 1; height: 44px; background: var(--cream); color: var(--text); border: 1px solid var(--border);
+  flex: 1; height: 44px; background: #f4fbf7; color: #112d25; border: 1px solid #dbece5;
   border-radius: 12px; font-weight: 650; font-size: 14px; cursor: pointer; transition: background 0.2s;
 }
-.btn-modal-cancel:hover { background: var(--green-soft); }
+.btn-modal-cancel:hover { background: #e6fffa; }
 .btn-modal-logout {
-  flex: 1; height: 44px; background: #b42318; color: #ffffff; border: none; border-radius: 12px;
+  flex: 1; height: 44px; background: #dc2626; color: #ffffff; border: none; border-radius: 12px;
   font-weight: 650; font-size: 14px; display: inline-flex; align-items: center; justify-content: center;
   text-decoration: none; transition: background 0.2s, transform 0.2s;
 }
-.btn-modal-logout:hover { background: #901c12; transform: translateY(-1px); }
+.btn-modal-logout:hover { background: #b91c1c; transform: translateY(-1px); }
 
 @media(max-width:720px){
   .app{display:block}
@@ -283,19 +279,20 @@ a{color:inherit;text-decoration:none}
 <div class="app">
   <div class="overlay" id="overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:15;"></div>
 
+  <!-- NUTRITIONIST SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <div class="brand-icon">🥗</div>
+      <div class="brand-icon">🩺</div>
       <div>
-        <strong>AI Diet Planner</strong>
-        <span>Nutritionist Portal</span>
+        <strong>NutriPanel</strong>
+        <span>Nutritionist portal</span>
       </div>
     </div>
 
     <div class="nav-label">Menu</div>
     <nav class="nav">
-      <a class="active" href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
-      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+      <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
+      <a href="leaderboard.php" class="active"><span class="nav-icon">🏆</span>Leaderboard</a>
       <a href="appointments.php">
         <span class="nav-icon">📅</span>Appointments
         <?php if($pending_appointments_count > 0): ?>
@@ -439,7 +436,7 @@ a{color:inherit;text-decoration:none}
             <tbody>
               <?php if (count($nutritionist_leaders) > 0): ?>
                 <?php $n_rank = 1; foreach ($nutritionist_leaders as $nutri): 
-                  $is_current_nutri = ($nutri['id'] == $nutritionist_id);
+                  $is_current_nutri = ($nutri['id'] == $nutri_id);
 
                   if ($n_rank === 1) {
                       $nBadgeClass = "rank-1";
@@ -469,7 +466,7 @@ a{color:inherit;text-decoration:none}
                         <div>
                           <strong><?php echo htmlspecialchars($nutri['fullname']); ?></strong>
                           <?php if ($is_current_nutri): ?>
-                            <span style="font-size: 11px; background: var(--green); color: #fff; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">You</span>
+                            <span style="font-size: 11px; background: var(--teal); color: #fff; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">You</span>
                           <?php endif; ?>
                         </div>
                       </div>
@@ -502,7 +499,7 @@ a{color:inherit;text-decoration:none}
   <div class="logout-modal-card">
     <div class="logout-modal-icon">🚪</div>
     <h3>Confirm Logout</h3>
-    <p>Are you sure you want to logout of your session?</p>
+    <p>Are you sure you want to log out of your session?</p>
     <div class="logout-modal-actions">
       <button class="btn-modal-cancel" onclick="closeLogoutModal();">Cancel</button>
       <a href="../auth/logout.php" class="btn-modal-logout">Yes, Logout</a>
