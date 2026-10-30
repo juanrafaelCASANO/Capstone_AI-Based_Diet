@@ -376,6 +376,7 @@ a{color:inherit}
     <div class="nav-label">Menu</div>
     <nav class="nav">
       <a class="active" href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
+      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
       <a href="appointments.php">
         <span class="nav-icon">📅</span>Appointments
         <?php if($pending_appointments_count > 0): ?>
