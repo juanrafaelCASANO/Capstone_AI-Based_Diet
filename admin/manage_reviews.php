@@ -9,7 +9,6 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 
 $reviews = [];
 try {
-    // Sinusubukan munang kunin kasama ang review column
     $sql = "
         SELECT r.id, r.rating, r.review, r.created_at,
                u.fullname AS user_name, u.email AS user_email,
@@ -22,7 +21,6 @@ try {
     $stmt = $conn->query($sql);
     $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // Fallback kung sakaling wala pa ang review column sa database table
     try {
         $sql = "
             SELECT r.id, r.rating, r.created_at,
@@ -151,7 +149,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                 <td><strong><?= htmlspecialchars($rev['nutritionist_name']) ?></strong><br><span style="font-size:11px; color:#64748b;"><?= htmlspecialchars($rev['nutritionist_email']) ?></span></td>
                                 <td>
                                     <div class="star-rating">
-                                        <?> 
+                                        <?php 
                                             $rating = (int)$rev['rating'];
                                             for ($i = 1; $i <= 5; $i++) {
                                                 if ($i <= $rating) {
