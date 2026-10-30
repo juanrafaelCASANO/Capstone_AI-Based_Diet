@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                     $new_filename = 'report_' . time() . '_' . mt_rand(1000, 9999) . '.' . $file_ext;
                     $destination = $reports_upload_dir . $new_filename;
                     
-                    if (move_uploaded_file($file_tmp, $destination)) {
+                    if (@move_uploaded_file($file_tmp, $destination)) {
                         $uploaded_files[] = $new_filename;
                     }
                 }
