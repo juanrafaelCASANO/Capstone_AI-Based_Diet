@@ -18,7 +18,7 @@ if ($nutritionist_id <= 0) {
 $report_msg = "";
 $report_error = "";
 
-// Handle Report Submission (Na may awtomatikong paggawa ng folder kung wala pa)
+// Handle Report Submission (Gamit ang tamang relative path na ../uploads/reports/)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     $category = trim($_POST['category'] ?? '');
     $reason = trim($_POST['reason'] ?? '');
@@ -27,13 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     if (isset($_FILES['attachments']) && !empty($_FILES['attachments']['name'][0])) {
         $file_count = count($_FILES['attachments']['name']);
         
-        // Siguraduhing gawa ang uploads at reports folder sa root
-        $base_upload_dir = dirname(__DIR__) . '/uploads/';
-        if (!file_exists($base_upload_dir)) {
-            @mkdir($base_upload_dir, 0777, true);
-        }
-
-        $reports_upload_dir = $base_upload_dir . 'reports/';
+        $reports_upload_dir = __DIR__ . '/../uploads/reports/';
+        
         if (!file_exists($reports_upload_dir)) {
             @mkdir($reports_upload_dir, 0777, true);
         }
@@ -67,7 +62,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             $rep_stmt->execute([$user_id, $nutritionist_id, $category, $reason, $attachment_json]);
             $report_msg = "Your report has been successfully submitted to the administrator for review.";
         } catch (Exception $e) {
-            // I-display ang mismong database error para madaling ma-trace kung sakali
             $report_error = "Failed to submit report: " . $e->getMessage();
         }
     }
