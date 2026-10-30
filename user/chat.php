@@ -18,7 +18,7 @@ if ($nutritionist_id <= 0) {
 $report_msg = "";
 $report_error = "";
 
-// Handle Report Submission (Gamit ang tamang relative path na ../uploads/reports/)
+// Handle Report Submission with Supabase Storage Bucket Upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     $category = trim($_POST['category'] ?? '');
     $reason = trim($_POST['reason'] ?? '');
@@ -27,26 +27,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     if (isset($_FILES['attachments']) && !empty($_FILES['attachments']['name'][0])) {
         $file_count = count($_FILES['attachments']['name']);
         
-        // Gamitin ang dirname(__DIR__) para maging tiyak ang patutunguhan sa /var/www/html/uploads/reports/
-        $reports_upload_dir = dirname(__DIR__) . '/uploads/reports/';
-        
-        if (!file_exists($reports_upload_dir)) {
-            @mkdir($reports_upload_dir, 0777, true);
-        }
+        // Supabase Credentials
+        $supabaseUrl = getenv('SUPABASE_URL') ?: 'YOUR_SUPABASE_URL';
+        $supabaseKey = getenv('SUPABASE_SERVICE_KEY') ?: (getenv('SUPABASE_KEY') ?: 'YOUR_SUPABASE_KEY');
+        $bucketName = 'nutritionist-files'; // Ang iyong Supabase bucket
 
         for ($i = 0; $i < $file_count; $i++) {
             if ($_FILES['attachments']['error'][$i] === UPLOAD_ERR_OK) {
-                $file_tmp = $_FILES['attachments']['tmp_name'][$i];
-                $file_name = basename($_FILES['attachments']['name'][$i]);
-                $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+                $fileTmpPath = $_FILES['attachments']['tmp_name'][$i];
+                $fileName = $_FILES['attachments']['name'][$i];
+                $fileType = $_FILES['attachments']['type'][$i];
+                $file_extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
                 
                 $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'webp'];
-                if (in_array($file_ext, $allowed_extensions)) {
-                    $new_filename = 'report_' . time() . '_' . mt_rand(1000, 9999) . '.' . $file_ext;
-                    $destination = $reports_upload_dir . $new_filename;
+                if (in_array($file_extension, $allowed_extensions)) {
+                    // Unique filename para sa Supabase storage
+                    $remote_filename = 'report_' . $user_id . '_' . time() . '_' . mt_rand(1000, 9999) . '.' . $file_extension;
                     
-                    if (@move_uploaded_file($file_tmp, $destination)) {
-                        $uploaded_files[] = $new_filename;
+                    $url = rtrim($supabaseUrl, '/') . "/storage/v1/object/$bucketName/$remote_filename";
+                    $fileData = file_get_contents($fileTmpPath);
+                    
+                    $headers = [
+                        "Authorization: Bearer $supabaseKey",
+                        "Content-Type: $fileType",
+                        "x-upsert: true"
+                    ];
+                    
+                    $ch = curl_init();
+                    curl_setopt($ch, CURLOPT_URL, $url);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $fileData);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+                    
+                    $response = curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+                    
+                    if ($httpCode === 200 || $httpCode === 201) {
+                        // Kunin ang Public URL para diretsong mabasa sa admin panel
+                        $publicUrl = rtrim($supabaseUrl, '/') . "/storage/v1/object/public/$bucketName/$remote_filename";
+                        $uploaded_files[] = $publicUrl;
                     }
                 }
             }
@@ -79,9 +100,7 @@ try {
         $user_lat = floatval($user_data['latitude']);
         $user_lng = floatval($user_data['longitude']);
     }
-} catch (Exception $e) {
-    // Use default if error occurs
-}
+} catch (Exception $e) {}
 
 // Get specific nutritionist information including availability status and last_active_at
 $nutri_stmt = $conn->prepare("
@@ -100,7 +119,6 @@ if (!$nutri) {
     exit;
 }
 
-// Function to get initials (e.g. "Juan Dela Cruz" -> "JC")
 function getInitials($name) {
     $words = explode(' ', trim($name));
     if (count($words) >= 2) {
@@ -109,7 +127,6 @@ function getInitials($name) {
     return strtoupper(substr($name, 0, 2));
 }
 
-// Function using Haversine formula to calculate distance in kilometers
 function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     if (!$lat1 || !$lon1 || !$lat2 || !$lon2) return 999999; 
     $earthRadius = 6371; 
@@ -130,7 +147,6 @@ if ($distance_val < 999999) {
     }
 }
 
-// Count total unread messages for sidebar badge
 $unread_count = 0;
 try {
     $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
@@ -143,7 +159,6 @@ try {
     $unread_count = 0;
 }
 
-// SMART RIVE PATH RESOLVER
 $possible_riv_paths = [
     '../assets/rive/uploads/kabi.riv',
     '../assets/uploads/kabi.riv',
@@ -223,7 +238,6 @@ button{cursor:pointer}
 }
 .sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
 
-/* MODAL STYLES */
 .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -355,7 +369,6 @@ button{cursor:pointer}
 .detail-item span{display:block;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase}
 .detail-item strong{display:block;font-size:12px;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* RIVE MASCOT STYLING SA CHAT INFO CARD */
 .chat-mascot-box {
   background: #f9fbfa;
   border: 1px solid var(--border);
@@ -410,7 +423,6 @@ button{cursor:pointer}
 .chat-footer button:hover{transform:translateY(-1px);box-shadow:0 7px 16px rgba(59,143,99,.18)}
 .chat-footer button:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
 
-/* REPORT MODAL STYLING */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -620,7 +632,7 @@ button{cursor:pointer}
   </main>
 </div>
 
-<!-- REPORT MODAL (NA MAY ENCTYPE AT FILE ATTACHMENTS INPUT) -->
+<!-- REPORT MODAL -->
 <div id="reportModal" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header">
