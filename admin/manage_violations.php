@@ -54,7 +54,13 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
         .sidebar-link { display: flex; align-items: center; gap: 12px; padding: 12px 13px; border-radius: 11px; color: #cbd5e1; font-size: 13px; font-weight: 600; text-decoration: none; }
         .sidebar-link:hover, .sidebar-link.active { background: rgba(37,99,235,.22); color: #93c5fd; }
         .main-content { flex: 1; margin-left: 255px; padding: 32px 40px; }
-        .main-card { background: white; border-radius: 20px; border: 1px solid #e5e7eb; box-shadow: 0 10px 35px rgba(15,23,42,.05); overflow: hidden; margin-top: 20px; }
+        
+        .quick-nav-bar { display: flex; gap: 12px; margin-bottom: 24px; background: #ffffff; padding: 14px 18px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(15,23,42,.03); }
+        .quick-nav-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; font-weight: 700; text-decoration: none; transition: all .2s; }
+        .quick-nav-btn:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; transform: translateY(-1px); }
+        .quick-nav-btn.active { background: #eff6ff; color: #2563eb; border-color: #2563eb; }
+
+        .main-card { background: white; border-radius: 20px; border: 1px solid #e5e7eb; box-shadow: 0 10px 35px rgba(15,23,42,.05); overflow: hidden; }
         .toolbar { padding: 20px 24px; border-bottom: 1px solid #eef2f7; display: flex; justify-content: space-between; align-items: center; }
         .report-table { width: 100%; border-collapse: collapse; }
         .report-table th { padding: 14px 24px; background: #f8fafc; color: #64748b; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; }
@@ -80,17 +86,33 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
         </div>
         <nav class="sidebar-nav">
             <a href="dashboard.php" class="sidebar-link"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
-            <a href="manage_availability.php" class="sidebar-link"><i class="fa-solid fa-clock-rotate-left"></i> Availability Requests</a>
-            <a href="manage_reactivations.php" class="sidebar-link"><i class="fa-solid fa-user-shield"></i> Reactivation Appeals</a>
-            <a href="manage_violations.php" class="sidebar-link active"><i class="fa-solid fa-triangle-exclamation"></i> Violations & Reports</a>
+            <a href="meals.php" class="sidebar-link"><i class="fa-solid fa-utensils"></i> Meal Management</a>
+            <a href="manage_account.php" class="sidebar-link"><i class="fa-solid fa-users-gear"></i> Accounts</a>
+            <a href="manage_reports.php" class="sidebar-link active"><i class="fa-solid fa-triangle-exclamation"></i> Reports</a>
+            <a href="activity_logs.php" class="sidebar-link"><i class="fa-solid fa-clock-rotate-left"></i> Activity Logs</a>
         </nav>
     </aside>
     <main class="main-content">
-        <h1>Submitted Violations & Complaints</h1>
-        <p style="color:#64748b; margin-top:5px;">Review user reports and attached evidentiary files against nutritionists.</p>
+        <h1>Reports & Requests</h1>
+        <p style="color:#64748b; margin-top:5px; margin-bottom: 20px;">Review nutritionist availability status requests, appeals, and violation reports.</p>
+
+        <!-- NAVIGATION TABS -->
+        <div class="quick-nav-bar">
+            <a href="manage_reports.php" class="quick-nav-btn">
+                <i class="fa-solid fa-clock-rotate-left" style="color:#2563eb;"></i> Availability Requests
+            </a>
+            <a href="manage_reactivations.php" class="quick-nav-btn">
+                <i class="fa-solid fa-user-shield" style="color:#16a34a;"></i> Reactivation Appeals
+            </a>
+            <a href="manage_violations.php" class="quick-nav-btn active">
+                <i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Violations & Complaints
+            </a>
+        </div>
+
         <div class="main-card">
             <div class="toolbar">
-                <h2>Total Reports: <?= count($reports) ?></h2>
+                <h2><i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Submitted Violations & Complaints</h2>
+                <span>Total Reports: <?= count($reports) ?></span>
             </div>
             <table class="report-table">
                 <thead>
@@ -116,16 +138,35 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                 <td>
                                     <?php if (!empty($rep['attachment'])): ?>
                                         <?php 
-                                            $repAttachments = json_decode($rep['attachment'], true);
-                                            if (!is_array($repAttachments)) { $repAttachments = [$rep['attachment']]; }
+                                            $rawAtt = trim($rep['attachment']);
+                                            $repAttachments = [];
+                                            
+                                            // Suriin kung JSON array o string
+                                            $decoded = json_decode($rawAtt, true);
+                                            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                                                $repAttachments = $decoded;
+                                            } elseif (strpos($rawAtt, ',') !== false) {
+                                                $repAttachments = array_map('trim', explode(',', $rawAtt));
+                                            } else {
+                                                $repAttachments = [$rawAtt];
+                                            }
+                                            
                                             $formatted = array_map(function($f) {
                                                 $f = trim($f);
-                                                return (strpos($f, 'http') === 0) ? $f : '../uploads/reports/' . $f;
-                                            }, $repAttachments);
+                                                if (empty($f)) return '';
+                                                if (strpos($f, 'http') === 0) {
+                                                    return $f;
+                                                }
+                                                return '../uploads/reports/' . ltrim($f, '/');
+                                            }, array_filter($repAttachments));
                                         ?>
-                                        <button type="button" class="btn-action-link btn-view" onclick='openDocsModal(<?= json_encode($formatted) ?>, "Violation Report #<?= $rep['id'] ?>")'>
-                                            <i class="fa-solid fa-folder-open"></i> View Files (<?= count($repAttachments) ?>)
-                                        </button>
+                                        <?php if (!empty($formatted)): ?>
+                                            <button type="button" class="btn-action-link btn-view" onclick='openDocsModal(<?= json_encode(array_values($formatted)) ?>, "Violation Report #<?= $rep['id'] ?>")'>
+                                                <i class="fa-solid fa-folder-open"></i> View Files (<?= count($formatted) ?>)
+                                            </button>
+                                        <?php else: ?>
+                                            <span style="color:#94a3b8; font-style:italic;">No attachment</span>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <span style="color:#94a3b8; font-style:italic;">No attachment</span>
                                     <?php endif; ?>

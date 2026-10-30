@@ -75,7 +75,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Availability Requests | Admin</title>
+    <title>Reports & Requests | Admin</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -90,10 +90,11 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
         .sidebar-link:hover, .sidebar-link.active { background: rgba(37,99,235,.22); color: #93c5fd; }
         .main-content { flex: 1; margin-left: 255px; padding: 32px 40px; }
         
-        /* TOP TABS NAVIGATION PARA SA TATLONG URI NG REPORTS */
-        .quick-nav-bar { display: flex; gap: 12px; margin-bottom: 24px; background: #ffffff; padding: 14px 18px; border-radius: 16px; border: 1px solid #e2e8f0; }
-        .quick-nav-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; font-weight: 700; text-decoration: none; transition: .2s; }
-        .quick-nav-btn:hover, .quick-nav-btn.active { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+        /* QUICK JUMP TABS NAVIGATION */
+        .quick-nav-bar { display: flex; gap: 12px; margin-bottom: 24px; background: #ffffff; padding: 14px 18px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(15,23,42,.03); }
+        .quick-nav-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; font-weight: 700; text-decoration: none; transition: all .2s; }
+        .quick-nav-btn:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; transform: translateY(-1px); }
+        .quick-nav-btn.active { background: #eff6ff; color: #2563eb; border-color: #2563eb; }
 
         .main-card { background: white; border-radius: 20px; border: 1px solid #e5e7eb; box-shadow: 0 10px 35px rgba(15,23,42,.05); overflow: hidden; }
         .toolbar { padding: 20px 24px; border-bottom: 1px solid #eef2f7; display: flex; justify-content: space-between; align-items: center; }
@@ -129,7 +130,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
         <h1>Reports & Requests</h1>
         <p style="color:#64748b; margin-top:5px; margin-bottom: 20px;">Review nutritionist availability status requests, appeals, and violation reports.</p>
 
-        <!-- NAVIGATION TABS -->
+        <!-- NAVIGATION TABS NA KAPAREHO NG SA IBA -->
         <div class="quick-nav-bar">
             <a href="manage_reports.php" class="quick-nav-btn active">
                 <i class="fa-solid fa-clock-rotate-left" style="color:#2563eb;"></i> Availability Requests
@@ -201,12 +202,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <tr>
-                            <td colspan="8" style="text-align:center; padding:50px; color:#94a3b8;">
-                                <i class="fa-solid fa-circle-check" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
-                                No availability status requests found.
-                            </td>
-                        </tr>
+                        <tr><td colspan="8" style="text-align:center; padding:40px; color:#94a3b8;">No requests found.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
