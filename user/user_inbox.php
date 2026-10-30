@@ -597,11 +597,11 @@ a{color:inherit;text-decoration:none}
       <input type="hidden" name="nutritionist_id" id="modalNutriId">
       <div class="modal-form-group">
         <label>Preferred Date</label>
-        <div class="modal-input-wrap"><input type="date" name="appointment_date" min="<?php echo date('Y-m-d'); ?>" required></div>
+        <div class="modal-input-wrap"><input type="date" id="appointmentDate" name="appointment_date" min="<?php echo date('Y-m-d'); ?>" required></div>
       </div>
       <div class="modal-form-group">
         <label>Preferred Time</label>
-        <div class="modal-input-wrap"><input type="time" name="appointment_time" required></div>
+        <div class="modal-input-wrap"><input type="time" id="appointmentTime" name="appointment_time" required></div>
       </div>
       <div class="modal-form-group">
         <label>Notes / Purpose</label>
@@ -662,14 +662,41 @@ function setRating(score) {
 function openBookModal(nutriId, nutriName) {
     document.getElementById('modalNutriId').value = nutriId;
     document.getElementById('modalNutriName').textContent = nutriName;
+    
+    // Set default date to today and check min time constraints immediately
+    const dateInput = document.getElementById('appointmentDate');
+    const timeInput = document.getElementById('appointmentTime');
+    const todayStr = new Date().toISOString().split('T')[0];
+    dateInput.value = todayStr;
+    
+    updateMinTime();
+    
     document.getElementById('appointmentModal').classList.add('active');
 }
+
+function updateMinTime() {
+    const dateInput = document.getElementById('appointmentDate');
+    const timeInput = document.getElementById('appointmentTime');
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (dateInput.value === todayStr) {
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        timeInput.min = `${hours}:${minutes}`;
+    } else {
+        timeInput.removeAttribute('min');
+    }
+}
+
+document.getElementById('appointmentDate').addEventListener('change', updateMinTime);
+
 function closeBookModal() { document.getElementById('appointmentModal').classList.remove('active'); }
 function showLogoutModal() { document.getElementById('logoutModal').classList.add('active'); }
 function closeLogoutModal() { document.getElementById('logoutModal').classList.remove('active'); }
 
 document.getElementById('logoutModal').addEventListener('click', function(e) {
-  if (e.target === this) { closeLogoutManager(); }
+  if (e.target === this) { closeLogoutModal(); }
 });
 document.getElementById('appointmentModal').addEventListener('click', function(e) {
   if (e.target === this) { closeBookModal(); }
