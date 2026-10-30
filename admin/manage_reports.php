@@ -513,7 +513,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                 </div>
             </section>
 
-            <!-- SECTION 2: VIOLATION REPORTS (MAY VIEW FILE NA RIN NGAYON) -->
+            <!-- SECTION 2: VIOLATION REPORTS (NA MAY TAMANG LOCAL PATH VIEWING) -->
             <section id="section-violations" class="main-card">
                 <div class="toolbar">
                     <div class="toolbar-title">
@@ -563,7 +563,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                                 </button>
                                             <?php endif; ?>
                                         </td>
-                                        <!-- IDINAGDAG ANG VIEW FILE ATTRIBUTE PARA SA VIOLATIONS -->
+                                        <!-- TAMA NA ANG PATH PARA SA LOCAL UPLOADED FILES NG REPORTS -->
                                         <td>
                                             <?php if (!empty($rep['attachment'])): ?>
                                                 <?php 
@@ -571,8 +571,16 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                                     if (!is_array($repAttachments)) {
                                                         $repAttachments = [$rep['attachment']];
                                                     }
+                                                    
+                                                    $formattedAttachments = array_map(function($file) {
+                                                        $file = trim($file);
+                                                        if (strpos($file, 'http') === 0) {
+                                                            return $file;
+                                                        }
+                                                        return '../uploads/reports/' . $file;
+                                                    }, $repAttachments);
                                                 ?>
-                                                <button type="button" class="btn-action-link btn-view" onclick='openReactivationDocsModal(<?= json_encode($repAttachments) ?>, "Violation Report #<?= $rep['id'] ?>")'>
+                                                <button type="button" class="btn-action-link btn-view" onclick='openReactivationDocsModal(<?= json_encode($formattedAttachments) ?>, "Violation Report #<?= $rep['id'] ?>")'>
                                                     <i class="fa-solid fa-folder-open"></i> View Files (<?= count($repAttachments) ?>)
                                                 </button>
                                             <?php else: ?>
@@ -735,8 +743,8 @@ function openReactivationDocsModal(docList, expertName) {
         noDocText.style.display = 'none';
         docList.forEach(function(doc, index) {
             let fileUrl = doc.trim();
-            if (fileUrl.indexOf('http') !== 0) {
-                fileUrl = 'https://mbsjtesmrowfilvxcaqb.supabase.co/storage/v1/object/public/nutritionist-files/' + fileUrl;
+            if (fileUrl.indexOf('http') !== 0 && fileUrl.indexOf('../') !== 0) {
+                fileUrl = '../uploads/reports/' + fileUrl;
             }
 
             const ext = fileUrl.split('.').pop().toLowerCase();
