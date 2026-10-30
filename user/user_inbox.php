@@ -59,7 +59,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment_subm
             $booking_error = "You cannot book an appointment in the past. Please select a valid future date and time.";
         } else {
             try {
-                // Subukan munang gumamit ng user_id, kung magka-error ay susubukan ang client_id
                 try {
                     $stmt = $conn->prepare("
                         INSERT INTO appointments (user_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
@@ -107,9 +106,29 @@ try {
     $unread_count = 0;
 }
 
-// Kunin ang mga appointments ng user (sumusubok sa user_id o client_id)
+// Kunin ang mga appointments ng user (Sumusubok sa iba't ibang posibleng kolum at table name)
 $user_appointments = [];
+$debug_error = "";
 try {
+    $user_app_stmt = $conn->prepare("
+        SELECT 
+            a.id, 
+            a.nutritionist_id,
+            a.appointment_date, 
+            a.appointment_time, 
+            a.status, 
+            a.notes, 
+            a.created_at,
+            COALESCE(n.fullname, 'Nutritionist') AS nutritionist_name,
+            (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.appointment_id = a.id AND r.user_id = ?) AS has_reviewed
+        FROM appointments a
+        LEFT JOIN nutritionist n ON a.nutritionist_id = n.id
+        WHERE a.user_id = ? OR a.client_id = ?
+        ORDER BY a.appointment_date DESC, a.appointment_time DESC
+    ");
+    $user_app_stmt->execute([$user_id, $user_id, $user_id]);
+    $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
     try {
         $user_app_stmt = $conn->prepare("
             SELECT 
@@ -120,37 +139,18 @@ try {
                 a.status, 
                 a.notes, 
                 a.created_at,
-                n.fullname AS nutritionist_name,
-                (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.appointment_id = a.id AND r.user_id = ?) AS has_reviewed
+                'Nutritionist' AS nutritionist_name,
+                0 AS has_reviewed
             FROM appointments a
-            JOIN nutritionist n ON a.nutritionist_id = n.id
-            WHERE a.user_id = ?
+            WHERE a.user_id = ? OR a.client_id = ?
             ORDER BY a.appointment_date DESC, a.appointment_time DESC
         ");
         $user_app_stmt->execute([$user_id, $user_id]);
         $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $ex) {
-        $user_app_stmt = $conn->prepare("
-            SELECT 
-                a.id, 
-                a.nutritionist_id,
-                a.appointment_date, 
-                a.appointment_time, 
-                a.status, 
-                a.notes, 
-                a.created_at,
-                n.fullname AS nutritionist_name,
-                (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.appointment_id = a.id AND r.user_id = ?) AS has_reviewed
-            FROM appointments a
-            JOIN nutritionist n ON a.nutritionist_id = n.id
-            WHERE a.client_id = ?
-            ORDER BY a.appointment_date DESC, a.appointment_time DESC
-        ");
-        $user_app_stmt->execute([$user_id, $user_id]);
-        $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
+        $debug_error = $ex->getMessage();
+        $user_appointments = [];
     }
-} catch (Exception $e) {
-    $user_appointments = [];
 }
 
 // Query to get the user's latest conversations with different nutritionists
@@ -456,6 +456,9 @@ a{color:inherit;text-decoration:none}
       </div>
     </header>
 
+    <?php if (!empty($debug_error)): ?>
+      <div class="alert-banner error"><i class="fa-solid fa-triangle-exclamation"></i> DB Error: <?php echo $debug_error; ?></div>
+    <?php endif; ?>
     <?php if (!empty($booking_success) || !empty($review_success)): ?>
       <div class="alert-banner success"><i class="fa-solid fa-circle-check"></i> <?php echo $booking_success . $review_success; ?></div>
     <?php endif; ?>
