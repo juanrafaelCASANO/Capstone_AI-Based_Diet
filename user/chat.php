@@ -18,17 +18,47 @@ if ($nutritionist_id <= 0) {
 $report_msg = "";
 $report_error = "";
 
-// Handle Report Submission
+// Handle Report Submission (May kasama nang file attachment)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     $category = trim($_POST['category'] ?? '');
     $reason = trim($_POST['reason'] ?? '');
+    $uploaded_files = [];
+
+    // Proseso sa pag-upload ng file attachments kung meron man
+    if (isset($_FILES['attachments']) && !empty($_FILES['attachments']['name'][0])) {
+        $file_count = count($_FILES['attachments']['name']);
+        $upload_dir = '../uploads/reports/';
+        if (!file_exists($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
+        }
+
+        for ($i = 0; $i < $file_count; $i++) {
+            if ($_FILES['attachments']['error'][$i] === UPLOAD_ERR_OK) {
+                $file_tmp = $_FILES['attachments']['tmp_name'][$i];
+                $file_name = basename($_FILES['attachments']['name'][$i]);
+                $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+                
+                $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'webp'];
+                if (in_array($file_ext, $allowed_extensions)) {
+                    $new_filename = 'report_' . time() . '_' . mt_rand(1000, 9999) . '.' . $file_ext;
+                    $destination = $upload_dir . $new_filename;
+                    
+                    if (move_uploaded_file($file_tmp, $destination)) {
+                        $uploaded_files[] = $new_filename;
+                    }
+                }
+            }
+        }
+    }
 
     if (empty($category) || empty($reason)) {
         $report_error = "Please select a category and provide a reason for the report.";
     } else {
         try {
-            $rep_stmt = $conn->prepare("INSERT INTO nutritionist_reports (user_id, nutritionist_id, category, reason, status) VALUES (?, ?, ?, ?, 'pending')");
-            $rep_stmt->execute([$user_id, $nutritionist_id, $category, $reason]);
+            $attachment_json = !empty($uploaded_files) ? json_encode($uploaded_files) : null;
+
+            $rep_stmt = $conn->prepare("INSERT INTO nutritionist_reports (user_id, nutritionist_id, category, reason, attachment, status) VALUES (?, ?, ?, ?, ?, 'pending')");
+            $rep_stmt->execute([$user_id, $nutritionist_id, $category, $reason, $attachment_json]);
             $report_msg = "Your report has been successfully submitted to the administrator for review.";
         } catch (Exception $e) {
             $report_error = "Failed to submit report. Please try again.";
@@ -398,12 +428,13 @@ button{cursor:pointer}
 
 .modal-form-group { margin-bottom: 14px; }
 .modal-form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
-.modal-form-group select, .modal-form-group textarea {
+.modal-form-group select, .modal-form-group textarea, .modal-form-group input[type=file] {
   width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px;
   outline: none; font-size: 14px; color: var(--text); background: #f9fbfa;
 }
 .modal-form-group select:focus, .modal-form-group textarea:focus { border-color: var(--green); background: #fff; }
-.modal-form-group textarea { resize: vertical; min-height: 90px; }
+.modal-form-group textarea { resize: vertical; min-height: 80px; }
+.modal-form-group input[type=file] { padding: 9px; cursor: pointer; background: #fff; }
 
 .btn-submit-report {
   width: 100%; height: 46px; background: #dc2626; color: #fff; border: none; border-radius: 10px;
@@ -496,21 +527,20 @@ button{cursor:pointer}
           </div>
           <div style="display: flex; align-items: center; gap: 12px;">
             <?php 
-              // Dynamic Last Active calculation
               $last_active = $nutri['last_active_at'] ?? null;
               $status_text = "Offline";
-              $dot_color = "#94a3b8"; // Gray
+              $dot_color = "#94a3b8";
 
               if ($last_active) {
                   $time_diff = time() - strtotime($last_active);
-                  if ($time_diff < 180) { // Wala pang 3 minuto
+                  if ($time_diff < 180) {
                       $status_text = "Active";
-                      $dot_color = "#10b981"; // Green
-                  } else if ($time_diff < 3600) { // Wala pang 1 oras
+                      $dot_color = "#10b981";
+                  } else if ($time_diff < 3600) {
                       $mins = round($time_diff / 60);
                       $status_text = "Active {$mins}m ago";
-                      $dot_color = "#f59e0b"; // Yellow
-                  } else if ($time_diff < 86400) { // Wala pang 1 araw
+                      $dot_color = "#f59e0b";
+                  } else if ($time_diff < 86400) {
                       $hours = round($time_diff / 3600);
                       $status_text = "Active {$hours}h ago";
                       $dot_color = "#94a3b8";
@@ -537,7 +567,6 @@ button{cursor:pointer}
       </section>
 
       <aside class="info-card">
-        <!-- Back to Inbox Button -->
         <a href="user_inbox.php" class="back-inbox-btn">
           <i class="fa-solid fa-arrow-left"></i> Back to Inbox
         </a>
@@ -574,7 +603,6 @@ button{cursor:pointer}
           </div>
         </div>
 
-        <!-- RIVE MASCOT COMPANION KABI -->
         <div class="chat-mascot-box">
           <div class="chat-mascot-container">
             <canvas id="kabiChatCanvas" width="130" height="130"></canvas>
@@ -582,7 +610,6 @@ button{cursor:pointer}
           <span style="font-size: 11px; color: var(--muted); display: block; margin-top: 4px; font-weight: 600;">Kabi • AI Companion</span>
         </div>
 
-        <!-- Report Nutritionist Button -->
         <button type="button" class="report-nutri-btn" onclick="openReportModal()">
           <i class="fa-solid fa-triangle-exclamation"></i> Report Nutritionist
         </button>
@@ -591,7 +618,7 @@ button{cursor:pointer}
   </main>
 </div>
 
-<!-- REPORT MODAL -->
+<!-- REPORT MODAL (NA MAY ENCTYPE PARA SA FILE ATTACHMENTS) -->
 <div id="reportModal" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header">
@@ -606,7 +633,7 @@ button{cursor:pointer}
       <div class="alert-box-error"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo htmlspecialchars($report_error); ?></div>
     <?php endif; ?>
 
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
       <div class="modal-form-group">
         <label>Violation Category</label>
         <select name="category" required>
@@ -621,6 +648,13 @@ button{cursor:pointer}
       <div class="modal-form-group">
         <label>Detailed Explanation</label>
         <textarea name="reason" placeholder="Describe the issue or violation in detail..." required></textarea>
+      </div>
+
+      <!-- IDINAGDAG NA FILE UPLOAD INPUT -->
+      <div class="modal-form-group">
+        <label>Attach Supporting Files (Screenshots / Documents)</label>
+        <input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.gif,.pdf,.webp">
+        <small style="font-size: 11px; color: var(--muted); display: block; margin-top: 4px;">You can select multiple images or PDF files.</small>
       </div>
 
       <button type="submit" name="submit_report" class="btn-submit-report">Submit Report to Admin</button>
@@ -641,7 +675,6 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- INTERACTIVE RIVE SCRIPT (TINANGGAL ANG MALING STATE MACHINE PARAM PARA HINDI MAG-404 O ERROR) -->
 <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
@@ -656,37 +689,25 @@ window.addEventListener('DOMContentLoaded', () => {
       canvas: document.getElementById("kabiChatCanvas"),
       autoplay: true,
       onLoad: () => {
-        console.log("SUCCESS: Tagumpay na nag-load si Kabi!");
         kabiRive.resizeDrawingSurfaceToCanvas();
-
-        // Subukan nating kunin ang inputs kung available sa default state machine
         try {
           const inputs = kabiRive.stateMachineInputs(kabiRive.activeStateMachineName);
           if (inputs) {
             typingInput = inputs.find(i => i.name === 'isTyping' || i.name === 'Typing' || i.name === 'isLooking');
             sendTrigger = inputs.find(i => i.name === 'send' || i.name === 'Trigger' || i.name === 'success');
           }
-        } catch (e) {
-          console.log("Note: Walang custom inputs/state machine, default artboard animation ang ginagamit.");
-        }
-      },
-      onError: (err) => {
-        console.error("Rive Load Error:", err);
+        } catch (e) {}
       }
     });
-  } catch (err) {
-    console.error("Rive Exception:", err);
-  }
+  } catch (err) {}
 });
 
-// Habang nagti-type ang user sa message box
 $('#message').on('input', function() {
   if (typingInput) {
     typingInput.value = $(this).val().trim().length > 0;
   }
 });
 
-// Kapag nagpadala ng mensahe
 function triggerKabiReaction() {
   if (sendTrigger) {
     if (sendTrigger.type === 'trigger') {
