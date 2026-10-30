@@ -27,7 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     if (isset($_FILES['attachments']) && !empty($_FILES['attachments']['name'][0])) {
         $file_count = count($_FILES['attachments']['name']);
         
-        $reports_upload_dir = __DIR__ . '/../uploads/reports/';
+        // Gamitin ang dirname(__DIR__) para maging tiyak ang patutunguhan sa /var/www/html/uploads/reports/
+        $reports_upload_dir = dirname(__DIR__) . '/uploads/reports/';
         
         if (!file_exists($reports_upload_dir)) {
             @mkdir($reports_upload_dir, 0777, true);
