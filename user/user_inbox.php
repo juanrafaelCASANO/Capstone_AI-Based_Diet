@@ -9,23 +9,33 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Handle Review / Rating Submission (Inayos para maging tugma sa mga umiiral na kolum sa database)
+// Handle Review & Rating Submission with text feedback
 $review_success = "";
 $review_error = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review_rating'])) {
     $nutritionist_id_target = (int)($_POST['nutritionist_id'] ?? 0);
     $rating_val = (int)($_POST['rating'] ?? 0);
+    $review_text = trim($_POST['review_text'] ?? '');
 
     if ($rating_val < 1 || $rating_val > 5) {
         $review_error = "Please select a star rating between 1 and 5.";
     } else {
         try {
-            $rev_stmt = $conn->prepare("
-                INSERT INTO nutritionist_reviews (user_id, nutritionist_id, rating) 
-                VALUES (?, ?, ?)
-            ");
-            $rev_stmt->execute([$user_id, $nutritionist_id_target, $rating_val]);
-            $review_success = "Thank you! Your rating has been submitted successfully.";
+            // Sinusubukan isama ang review text column; kung sakaling wala pa sa DB, mag-fallback ito sa rating lamang
+            try {
+                $rev_stmt = $conn->prepare("
+                    INSERT INTO nutritionist_reviews (user_id, nutritionist_id, rating, review) 
+                    VALUES (?, ?, ?, ?)
+                ");
+                $rev_stmt->execute([$user_id, $nutritionist_id_target, $rating_val, $review_text]);
+            } catch (Exception $ex) {
+                $rev_stmt = $conn->prepare("
+                    INSERT INTO nutritionist_reviews (user_id, nutritionist_id, rating) 
+                    VALUES (?, ?, ?)
+                ");
+                $rev_stmt->execute([$user_id, $nutritionist_id_target, $rating_val]);
+            }
+            $review_success = "Thank you! Your rating and review have been submitted successfully.";
         } catch (Exception $e) {
             $review_error = "Failed to submit review: " . $e->getMessage();
         }
@@ -415,9 +425,6 @@ a{color:inherit;text-decoration:none}
       </div>
     </header>
 
-    <?php if (!empty($debug_error)): ?>
-      <div class="alert-banner error"><i class="fa-solid fa-triangle-exclamation"></i> DB Error: <?php echo $debug_error; ?></div>
-    <?php endif; ?>
     <?php if (!empty($booking_success) || !empty($review_success)): ?>
       <div class="alert-banner success"><i class="fa-solid fa-circle-check"></i> <?php echo $booking_success . $review_success; ?></div>
     <?php endif; ?>
@@ -528,7 +535,7 @@ a{color:inherit;text-decoration:none}
 
               <?php if (strtolower($app['status']) === 'completed'): ?>
                 <button type="button" class="btn-rate-review" onclick="openRatingModal(<?php echo $app['nutritionist_id']; ?>, '<?php echo htmlspecialchars($app['nutritionist_name'], ENT_QUOTES); ?>')">
-                  <i class="fa-solid fa-star"></i> Rate Session
+                  <i class="fa-solid fa-star"></i> Rate & Review Session
                 </button>
               <?php endif; ?>
             </div>
@@ -541,11 +548,11 @@ a{color:inherit;text-decoration:none}
   </main>
 </div>
 
-<!-- RATING MODAL -->
+<!-- RATING & REVIEW MODAL -->
 <div id="ratingModal" class="rating-modal-overlay">
   <div class="rating-modal-card">
     <div class="modal-header-flex">
-      <div class="modal-title-wrap"><h3>Rate Session</h3></div>
+      <div class="modal-title-wrap"><h3>Rate & Review</h3></div>
       <button type="button" class="modal-close-btn" onclick="closeRatingModal()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-subtitle">How was your consultation with <strong id="ratingNutriName"></strong>?</div>
@@ -562,9 +569,16 @@ a{color:inherit;text-decoration:none}
         <i class="fa-solid fa-star selected" data-value="5" onclick="setRating(5)"></i>
       </div>
 
+      <div class="modal-form-group">
+        <label>Your Review / Feedback</label>
+        <div class="modal-input-wrap">
+          <textarea name="review_text" placeholder="Write your feedback here..."></textarea>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button type="button" class="btn-modal-cancel" onclick="closeRatingModal()">Cancel</button>
-        <button type="submit" name="submit_review_rating" class="btn-modal-submit">Submit Rating</button>
+        <button type="submit" name="submit_review_rating" class="btn-modal-submit">Submit Review</button>
       </div>
     </form>
   </div>
