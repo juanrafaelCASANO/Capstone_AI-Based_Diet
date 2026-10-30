@@ -10,7 +10,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 $reviews = [];
 try {
     $sql = "
-        SELECT r.id, r.rating, r.created_at,
+        SELECT r.id, r.rating, r.review, r.created_at,
                u.fullname AS user_name, u.email AS user_email,
                n.fullname AS nutritionist_name, n.email AS nutritionist_email
         FROM nutritionist_reviews r
@@ -117,6 +117,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                         <th>User (Client)</th>
                         <th>Nutritionist Expert</th>
                         <th>Rating</th>
+                        <th>Review / Comment</th>
                         <th>Date Given</th>
                     </tr>
                 </thead>
@@ -141,11 +142,12 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                         <span style="font-weight: 700; color: #1e293b; margin-left: 5px;">(<?= $rating ?>/5)</span>
                                     </div>
                                 </td>
+                                <td><?= htmlspecialchars($rev['review'] ?? '') ?></td>
                                 <td><?= date('M d, Y g:i a', strtotime($rev['created_at'])) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <tr><td colspan="4" style="text-align:center; padding:40px; color:#94a3b8;">No reviews or ratings found yet.</td></tr>
+                        <tr><td colspan="5" style="text-align:center; padding:40px; color:#94a3b8;">No reviews or ratings found yet.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
