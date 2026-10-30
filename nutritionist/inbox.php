@@ -183,21 +183,9 @@ a { color: inherit; text-decoration: none; }
     </div>
     <div class="nav-label">Menu</div>
     <nav class="nav">
-      <a class="active" href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
-      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
-      <a href="appointments.php">
-        <span class="nav-icon">📅</span>Appointments
-        <?php if($pending_appointments_count > 0): ?>
-          <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
-        <?php endif; ?>
-      </a>
+      <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
-      <a href="inbox.php">
-        <span class="nav-icon">📥</span>Inbox
-        <?php if($unread_count > 0): ?>
-          <span class="nav-badge"><?php echo $unread_count; ?></span>
-        <?php endif; ?>
-      </a>
+      <a href="inbox.php" class="active"><span class="nav-icon">📥</span>Inbox</a>
       <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
     </nav>
     <div class="sidebar-bottom">
