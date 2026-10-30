@@ -18,18 +18,18 @@ if ($nutritionist_id <= 0) {
 $report_msg = "";
 $report_error = "";
 
-// Handle Report Submission (May kasama nang file attachment)
+// Handle Report Submission (May kasama nang file attachment gamit ang absolute path)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     $category = trim($_POST['category'] ?? '');
     $reason = trim($_POST['reason'] ?? '');
     $uploaded_files = [];
 
-    // Proseso sa pag-upload ng file attachments kung meron man
     if (isset($_FILES['attachments']) && !empty($_FILES['attachments']['name'][0])) {
         $file_count = count($_FILES['attachments']['name']);
-        $upload_dir = '../uploads/reports/';
+        $upload_dir = __DIR__ . '/../uploads/reports/';
+        
         if (!file_exists($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
+            @mkdir($upload_dir, 0777, true);
         }
 
         for ($i = 0; $i < $file_count; $i++) {
@@ -618,7 +618,7 @@ button{cursor:pointer}
   </main>
 </div>
 
-<!-- REPORT MODAL (NA MAY ENCTYPE PARA SA FILE ATTACHMENTS) -->
+<!-- REPORT MODAL (NA MAY ENCTYPE AT FILE ATTACHMENTS INPUT) -->
 <div id="reportModal" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header">
@@ -650,7 +650,6 @@ button{cursor:pointer}
         <textarea name="reason" placeholder="Describe the issue or violation in detail..." required></textarea>
       </div>
 
-      <!-- IDINAGDAG NA FILE UPLOAD INPUT -->
       <div class="modal-form-group">
         <label>Attach Supporting Files (Screenshots / Documents)</label>
         <input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.gif,.pdf,.webp">
