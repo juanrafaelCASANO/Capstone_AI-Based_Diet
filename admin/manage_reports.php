@@ -32,52 +32,6 @@ function sendTextBeeSMS($phoneNumber, $message) {
     return $response;
 }
 
-if (isset($_GET['update_status']) && isset($_GET['id'])) {
-    $report_id = (int)$_GET['id'];
-    $new_status = $_GET['update_status'];
-    if (in_array($new_status, ['pending', 'reviewed', 'resolved'])) {
-        $stmt = $conn->prepare("UPDATE nutritionist_reports SET status = ? WHERE id = ?");
-        $stmt->execute([$new_status, $report_id]);
-    }
-    header("Location: manage_reports.php?msg=status_updated");
-    exit();
-}
-
-if (isset($_GET['reactivate_id']) && isset($_GET['action'])) {
-    $req_id = (int)$_GET['reactivate_id'];
-    $action = $_GET['action'];
-
-    $reqStmt = $conn->prepare("SELECT r.*, n.fullname, n.phone FROM reactivation_requests r JOIN nutritionist n ON r.nutritionist_id = n.id WHERE r.id = ?");
-    $reqStmt->execute([$req_id]);
-    $reqData = $reqStmt->fetch(PDO::FETCH_ASSOC);
-
-    if ($reqData) {
-        $nutri_id = $reqData['nutritionist_id'];
-        $phone = $reqData['phone'];
-        $fullname = $reqData['fullname'];
-
-        if ($action === 'approve') {
-            $upNutri = $conn->prepare("UPDATE nutritionist SET status = 'active' WHERE id = ?");
-            $upNutri->execute([$nutri_id]);
-
-            $upReq = $conn->prepare("UPDATE reactivation_requests SET status = 'approved' WHERE id = ?");
-            $upReq->execute([$req_id]);
-
-            $message = "Hello " . $fullname . ", great news! Your reactivation request has been APPROVED by the admin. Your account is now active.";
-            sendTextBeeSMS($phone, $message);
-
-        } elseif ($action === 'reject') {
-            $upReq = $conn->prepare("UPDATE reactivation_requests SET status = 'rejected' WHERE id = ?");
-            $upReq->execute([$req_id]);
-
-            $message = "Hello " . $fullname . ", we regret to inform you that your reactivation request has been rejected by the admin.";
-            sendTextBeeSMS($phone, $message);
-        }
-    }
-    header("Location: manage_reports.php?msg=reactivation_handled");
-    exit();
-}
-
 if (isset($_GET['status_req_id']) && isset($_GET['action'])) {
     $req_id = (int)$_GET['status_req_id'];
     $action = $_GET['action'];
@@ -115,34 +69,6 @@ if (isset($_GET['status_req_id']) && isset($_GET['action'])) {
     exit();
 }
 
-$reports = [];
-try {
-    $sql = "
-        SELECT r.id, r.category, r.reason, r.status, r.created_at, r.attachment,
-               u.fullname AS user_name, u.email AS user_email,
-               n.id AS nutritionist_id, n.fullname AS nutritionist_name, n.email AS nutritionist_email, n.status AS nutritionist_status
-        FROM nutritionist_reports r
-        JOIN users u ON r.user_id = u.id
-        JOIN nutritionist n ON r.nutritionist_id = n.id
-        ORDER BY r.created_at DESC
-    ";
-    $stmt = $conn->query($sql);
-    $reports = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {}
-
-$reactivations = [];
-try {
-    $reqSql = "
-        SELECT r.id, r.email, r.reason, r.status, r.created_at, r.attachment,
-               n.id AS nutritionist_id, n.fullname AS nutritionist_name, n.phone AS nutritionist_phone
-        FROM reactivation_requests r
-        JOIN nutritionist n ON r.nutritionist_id = n.id
-        ORDER BY r.created_at DESC
-    ";
-    $reqStmt = $conn->query($reqSql);
-    $reactivations = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {}
-
 $status_requests = [];
 try {
     $statusSql = "
@@ -163,12 +89,12 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Reports | Admin</title>
+    <title>Availability Requests | Admin</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #f4f7ff 0%, #eef3ff 50%, #f8fafc 100%); color: #172033; min-height: 100vh; scroll-behavior: smooth; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #f4f7ff 0%, #eef3ff 50%, #f8fafc 100%); color: #172033; min-height: 100vh; }
         a { text-decoration: none; }
         button { font-family: inherit; }
 
@@ -196,33 +122,15 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
 
         .main-content { flex: 1; min-width: 0; margin-left: 255px; }
         .page { width: 100%; padding: 32px 40px 50px; }
-        .top-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+        .top-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
         .title-area { display: flex; align-items: center; gap: 15px; }
-        .title-icon { width: 58px; height: 58px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #dc2626, #991b1b); color: white; font-size: 23px; box-shadow: 0 10px 25px rgba(220,38,38,.25); }
+        .title-icon { width: 58px; height: 58px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; font-size: 23px; box-shadow: 0 10px 25px rgba(37,99,235,.25); }
         .title-area h1 { font-size: 28px; font-weight: 800; color: #111827; margin-bottom: 4px; }
         .title-area p { color: #64748b; font-size: 13px; }
-
-        /* QUICK JUMP BUTTONS / TABS NAVIGATION STYLES */
-        .quick-nav-bar {
-            display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; background: #ffffff; padding: 14px 18px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(15,23,42,.03);
-        }
-        .quick-nav-btn {
-            display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .2s; text-decoration: none;
-        }
-        .quick-nav-btn:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; transform: translateY(-1px); }
-        .quick-nav-btn span.badge-count { background: #e2e8f0; color: #1e293b; padding: 2px 7px; border-radius: 99px; font-size: 11px; font-weight: 800; }
         
-        .main-card { 
-            background: white; 
-            border-radius: 20px; 
-            border: 1px solid #e5e7eb; 
-            box-shadow: 0 10px 35px rgba(15,23,42,.05); 
-            overflow: hidden; 
-            margin-bottom: 35px;
-            scroll-margin-top: 25px; /* Para sakto ang pwesto kapag kinlik ang jump button */
-        }
+        .main-card { background: white; border-radius: 20px; border: 1px solid #e5e7eb; box-shadow: 0 10px 35px rgba(15,23,42,.05); overflow: hidden; margin-bottom: 30px; }
         .toolbar { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eef2f7; background: #ffffff; }
-        .toolbar-title h2 { font-size: 17px; font-weight: 800; color: #111827; display: flex; align-items: center; gap: 10px; }
+        .toolbar-title h2 { font-size: 17px; font-weight: 800; color: #111827; }
         .toolbar-title span { display: inline-block; background: #f1f5f9; color: #475569; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-top: 5px; }
         
         .table-wrapper { overflow-x: auto; }
@@ -233,11 +141,9 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
         
         .status-badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
         .status-pending { background: #fef3c7; color: #d97706; }
-        .status-reviewed { background: #e0f2fe; color: #0284c7; }
-        .status-resolved, .status-approved { background: #dcfce7; color: #15803d; }
+        .status-approved { background: #dcfce7; color: #15803d; }
         .status-rejected { background: #fee2e2; color: #b91c1c; }
         
-        .action-dropdown { padding: 6px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
         .btn-action-link { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; border: none; }
         .btn-view { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
         .btn-view:hover { background: #dbeafe; }
@@ -255,7 +161,6 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
         .confirm-icon-approve { background: #f0fdf4; color: #16a34a; }
         .confirm-icon-reject { background: #fef2f2; color: #dc2626; }
         .confirm-icon-info { background: #eff6ff; color: #2563eb; }
-        .confirm-icon-logout { background: #fef2f2; color: #dc2626; }
         .confirm-modal-box h3 { font-size: 20px; font-weight: 800; color: #111827; margin-bottom: 8px; }
         .confirm-modal-box p { font-size: 13.5px; color: #475569; line-height: 1.6; margin-bottom: 25px; text-align: left; background: #f8fafc; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; max-height: 250px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
         .confirm-modal-actions { display: flex; gap: 12px; }
@@ -280,7 +185,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
             <a href="dashboard.php" class="sidebar-link"><i class="fa-solid fa-chart-pie"></i><span>Dashboard</span></a>
             <a href="meals.php" class="sidebar-link"><i class="fa-solid fa-utensils"></i><span>Meal Management</span></a>
             <a href="manage_account.php" class="sidebar-link"><i class="fa-solid fa-users-gear"></i><span>Accounts</span></a>
-            <a href="manage_reports.php" class="sidebar-link active"><i class="fa-solid fa-triangle-exclamation"></i><span>Reports</span></a>
+            <a href="manage_reports.php" class="sidebar-link active"><i class="fa-solid fa-triangle-exclamation"></i><span>Reports & Requests</span></a>
             <a href="activity_logs.php" class="sidebar-link"><i class="fa-solid fa-clock-rotate-left"></i><span>Activity Logs</span></a>
         </nav>
 
@@ -308,35 +213,19 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
         <div class="page">
             <header class="top-header">
                 <div class="title-area">
-                    <div class="title-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                    <div class="title-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
                     <div>
-                        <h1>Reports & Requests</h1>
-                        <p>Review user violation reports, account reactivation appeals, and availability status requests.</p>
+                        <h1>Availability Status Requests</h1>
+                        <p>Review and manage nutritionist availability status change requests.</p>
                     </div>
                 </div>
             </header>
 
-            <!-- QUICK JUMP NAVIGATION BAR (MAY MGA TOTAL REPORTS KASAMA) -->
-            <div class="quick-nav-bar">
-                <a href="#section-status-requests" class="quick-nav-btn">
-                    <i class="fa-solid fa-clock-rotate-left" style="color:#2563eb;"></i> Availability Requests 
-                    <span class="badge-count"><?= count($status_requests) ?></span>
-                </a>
-                <a href="#section-reactivations" class="quick-nav-btn">
-                    <i class="fa-solid fa-user-shield" style="color:#16a34a;"></i> Reactivation Appeals 
-                    <span class="badge-count"><?= count($reactivations) ?></span>
-                </a>
-                <a href="#section-violations" class="quick-nav-btn">
-                    <i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Violations & Complaints 
-                    <span class="badge-count"><?= count($reports) ?></span>
-                </a>
-            </div>
-
-            <!-- SECTION 0: AVAILABILITY STATUS REQUESTS -->
-            <section id="section-status-requests" class="main-card">
+            <!-- NUTRITIONIST AVAILABILITY STATUS REQUESTS TABLE -->
+            <section class="main-card">
                 <div class="toolbar">
                     <div class="toolbar-title">
-                        <h2><i class="fa-solid fa-clock-rotate-left" style="color:#2563eb; font-size:15px;"></i> Nutritionist Availability Status Requests</h2>
+                        <h2>Nutritionist Availability Status Requests</h2>
                         <span>Total Requests: <?= count($status_requests) ?></span>
                     </div>
                 </div>
@@ -424,197 +313,6 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                     </table>
                 </div>
             </section>
-
-            <!-- SECTION 1: REACTIVATION REQUESTS -->
-            <section id="section-reactivations" class="main-card">
-                <div class="toolbar">
-                    <div class="toolbar-title">
-                        <h2><i class="fa-solid fa-user-shield" style="color:#16a34a; font-size:15px;"></i> Nutritionist Reactivation Appeals</h2>
-                        <span>Total Requests: <?= count($reactivations) ?></span>
-                    </div>
-                </div>
-                <div class="table-wrapper">
-                    <table class="report-table">
-                        <thead>
-                            <tr>
-                                <th>Nutritionist Expert</th>
-                                <th>Email</th>
-                                <th>Reason for Reactivation</th>
-                                <th>Attachment</th>
-                                <th>Date Requested</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($reactivations)): ?>
-                                <?php foreach ($reactivations as $req): ?>
-                                    <tr>
-                                        <td><strong><?= htmlspecialchars($req['nutritionist_name']) ?></strong></td>
-                                        <td><?= htmlspecialchars($req['email']) ?></td>
-                                        <td style="max-width: 220px;">
-                                            <div style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 13px; color: #1e293b;">
-                                                <?= htmlspecialchars($req['reason']) ?>
-                                            </div>
-                                            <?php if (strlen($req['reason']) > 60): ?>
-                                                <button type="button" style="background: none; border: none; color: #2563eb; font-size: 11px; font-weight: 700; cursor: pointer; padding: 0; margin-top: 4px;" onclick="openReasonModal('Reactivation Reason - ' + <?= htmlspecialchars(json_encode($req['nutritionist_name']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($req['reason']), ENT_QUOTES) ?>)">
-                                                    View Full Reason &rarr;
-                                                </button>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if (!empty($req['attachment'])): ?>
-                                                <?php 
-                                                    $attachments = json_decode($req['attachment'], true);
-                                                    if (!is_array($attachments)) {
-                                                        $attachments = [$req['attachment']];
-                                                    }
-                                                ?>
-                                                <button type="button" class="btn-action-link btn-view" onclick='openReactivationDocsModal(<?= json_encode($attachments) ?>, <?= json_encode($req['nutritionist_name']) ?>)'>
-                                                    <i class="fa-solid fa-folder-open"></i> View Files (<?= count($attachments) ?>)
-                                                </button>
-                                            <?php else: ?>
-                                                <span style="font-size: 11px; color: #94a3b8; font-style: italic;">No attachment</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td><?= date('M d, Y g:i a', strtotime($req['created_at'])) ?></td>
-                                        <td>
-                                            <?php if ($req['status'] === 'pending'): ?>
-                                                <span class="status-badge status-pending">Pending</span>
-                                            <?php elseif ($req['status'] === 'approved'): ?>
-                                                <span class="status-badge status-approved">Approved</span>
-                                            <?php else: ?>
-                                                <span class="status-badge status-rejected">Rejected</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if ($req['status'] === 'pending'): ?>
-                                                <div style="display: flex; gap: 6px;">
-                                                    <button type="button" class="btn-action-link btn-approve" onclick="openConfirmModal('approve', <?= $req['id'] ?>, '<?= htmlspecialchars($req['nutritionist_name'], ENT_QUOTES) ?>')"><i class="fa-solid fa-check"></i> Approve</button>
-                                                    <button type="button" class="btn-action-link btn-reject" onclick="openConfirmModal('reject', <?= $req['id'] ?>, '<?= htmlspecialchars($req['nutritionist_name'], ENT_QUOTES) ?>')"><i class="fa-solid fa-xmark"></i> Reject</button>
-                                                </div>
-                                            <?php else: ?>
-                                                <span style="font-size: 11px; color: #94a3b8; font-style: italic;">Processed</span>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="7" class="empty-state">
-                                        <div class="empty-icon"><i class="fa-solid fa-circle-check"></i></div>
-                                        <h3 style="color:#475569; margin-bottom:5px;">No Reactivation Requests</h3>
-                                        <p style="font-size:13px;">No deactivated nutritionists have submitted an appeal yet.</p>
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- SECTION 2: VIOLATION REPORTS (MAY VIEW FILE NA RIN NGAYON) -->
-            <section id="section-violations" class="main-card">
-                <div class="toolbar">
-                    <div class="toolbar-title">
-                        <h2><i class="fa-solid fa-triangle-exclamation" style="color:#dc2626; font-size:15px;"></i> Submitted Violations & Complaints</h2>
-                        <span>Total Reports: <?= count($reports) ?></span>
-                    </div>
-                </div>
-                <div class="table-wrapper">
-                    <table class="report-table">
-                        <thead>
-                            <tr>
-                                <th>Reporter (User)</th>
-                                <th>Reported Expert</th>
-                                <th>Category / Violation</th>
-                                <th>Reason / Details</th>
-                                <th>Attachment</th>
-                                <th>Date</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($reports)): ?>
-                                <?php foreach ($reports as $rep): ?>
-                                    <tr>
-                                        <td>
-                                            <strong><?= htmlspecialchars($rep['user_name']) ?></strong>
-                                            <div style="font-size:11px; color:#64748b;"><?= htmlspecialchars($rep['user_email']) ?></div>
-                                        </td>
-                                        <td>
-                                            <strong><?= htmlspecialchars($rep['nutritionist_name']) ?></strong>
-                                            <div style="font-size:11px; color:#64748b;"><?= htmlspecialchars($rep['nutritionist_email']) ?></div>
-                                            <div style="margin-top:2px;">
-                                                <span class="status-badge <?= $rep['nutritionist_status'] === 'active' ? 'status-approved' : 'status-pending' ?>">
-                                                    <?= ucfirst($rep['nutritionist_status']) ?>
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td><span style="font-weight: 700; color: #b91c1c;"><?= htmlspecialchars($rep['category']) ?></span></td>
-                                        <td style="max-width: 220px;">
-                                            <div style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 13px; color: #1e293b;">
-                                                <?= htmlspecialchars($rep['reason']) ?>
-                                            </div>
-                                            <?php if (strlen($rep['reason']) > 60): ?>
-                                                <button type="button" style="background: none; border: none; color: #2563eb; font-size: 11px; font-weight: 700; cursor: pointer; padding: 0; margin-top: 4px;" onclick="openReasonModal('Violation Details (' + <?= htmlspecialchars(json_encode($rep['category']), ENT_QUOTES) ?> + ')', <?= htmlspecialchars(json_encode($rep['reason']), ENT_QUOTES) ?>)">
-                                                    View Full Details &rarr;
-                                                </button>
-                                            <?php endif; ?>
-                                        </td>
-                                        <!-- IDINAGDAG ANG VIEW FILE ATTRIBUTE PARA SA VIOLATIONS -->
-                                        <td>
-                                            <?php if (!empty($rep['attachment'])): ?>
-                                                <?php 
-                                                    $repAttachments = json_decode($rep['attachment'], true);
-                                                    if (!is_array($repAttachments)) {
-                                                        $repAttachments = [$rep['attachment']];
-                                                    }
-                                                ?>
-                                                <button type="button" class="btn-action-link btn-view" onclick='openReactivationDocsModal(<?= json_encode($repAttachments) ?>, "Violation Report #<?= $rep['id'] ?>")'>
-                                                    <i class="fa-solid fa-folder-open"></i> View Files (<?= count($repAttachments) ?>)
-                                                </button>
-                                            <?php else: ?>
-                                                <span style="font-size: 11px; color: #94a3b8; font-style: italic;">No attachment</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td><?= date('M d, Y g:i a', strtotime($rep['created_at'])) ?></td>
-                                        <td>
-                                            <?php if ($rep['status'] === 'pending'): ?>
-                                                <span class="status-badge status-pending">Pending</span>
-                                            <?php elseif ($rep['status'] === 'reviewed'): ?>
-                                                <span class="status-badge status-reviewed">Reviewed</span>
-                                            <?php else: ?>
-                                                <span class="status-badge status-resolved">Resolved</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <div style="display: flex; flex-direction: column; gap: 6px;">
-                                                <select class="action-dropdown" onchange="location.href='manage_reports.php?id=<?= $rep['id'] ?>&update_status=' + this.value">
-                                                    <option value="" disabled selected>Change Status...</option>
-                                                    <option value="pending">Pending</option>
-                                                    <option value="reviewed">Reviewed</option>
-                                                    <option value="resolved">Resolved</option>
-                                                </select>
-                                                <a href="manage_account.php" class="btn-action-link btn-view"><i class="fa-solid fa-user-gear"></i> Manage Account</a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="8" class="empty-state">
-                                        <div class="empty-icon"><i class="fa-solid fa-circle-check"></i></div>
-                                        <h3 style="color:#475569; margin-bottom:5px;">No Reports Found</h3>
-                                        <p style="font-size:13px;">There are currently no active complaints or reports against nutritionists.</p>
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
         </div>
     </main>
 </div>
@@ -632,11 +330,11 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
     </div>
 </div>
 
-<!-- VIEW FULL REASON / DETAILS MODAL -->
+<!-- VIEW FULL REASON MODAL -->
 <div class="modal" id="reasonModal">
     <div class="confirm-modal-box">
         <div class="confirm-icon-frame confirm-icon-info"><i class="fa-solid fa-circle-info"></i></div>
-        <h3 id="reasonModalTitle">Full Details</h3>
+        <h3 id="reasonModalTitle">Full Reason</h3>
         <p id="reasonModalText"></p>
         <div class="confirm-modal-actions">
             <button type="button" class="confirm-btn-action confirm-btn-primary" onclick="closeReasonModal()">Close</button>
@@ -644,53 +342,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
     </div>
 </div>
 
-<!-- DOCUMENTS MODAL VIEWER -->
-<div class="modal" id="reactivationDocsModal">
-    <div class="confirm-modal-box" style="max-width: 550px;">
-        <div class="confirm-icon-frame confirm-icon-info"><i class="fa-solid fa-folder-open"></i></div>
-        <h3 id="reactivModalTitle">Attached Documents</h3>
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-            <div id="reactivDocGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;"></div>
-            <div id="reactivNoDocText" style="display: none; color: #94a3b8; font-size: 13px; text-align: center; padding: 20px;">No documents found</div>
-        </div>
-        <div class="confirm-modal-actions">
-            <button type="button" class="confirm-btn-action confirm-btn-primary" onclick="closeReactivationDocsModal()">Close</button>
-        </div>
-    </div>
-</div>
-
 <script>
-function openConfirmModal(actionType, requestId, nutritionistName) {
-    const modal = document.getElementById('actionConfirmModal');
-    const iconFrame = document.getElementById('confirmIconFrame');
-    const icon = document.getElementById('confirmIcon');
-    const title = document.getElementById('confirmTitle');
-    const desc = document.getElementById('confirmDesc');
-    const actionBtn = document.getElementById('confirmActionBtn');
-
-    iconFrame.className = "confirm-icon-frame";
-    actionBtn.className = "confirm-btn-action";
-
-    if (actionType === 'approve') {
-        iconFrame.classList.add('confirm-icon-approve');
-        icon.className = "fa-solid fa-shield-check";
-        title.textContent = "Reactivate Nutritionist";
-        desc.innerHTML = `Are you sure you want to approve and reactivate <strong>${nutritionistName}</strong>'s account? An SMS notification will be automatically sent.`;
-        actionBtn.textContent = "Yes, Reactivate";
-        actionBtn.classList.add('confirm-btn-success');
-    } else if (actionType === 'reject') {
-        iconFrame.classList.add('confirm-icon-reject');
-        icon.className = "fa-solid fa-triangle-exclamation";
-        title.textContent = "Reject Request";
-        desc.innerHTML = `Are you sure you want to reject the reactivation request for <strong>${nutritionistName}</strong>?`;
-        actionBtn.textContent = "Yes, Reject";
-        actionBtn.classList.add('confirm-btn-danger');
-    }
-
-    actionBtn.href = `manage_reports.php?reactivate_id=${requestId}&action=${actionType}`;
-    modal.classList.add('active');
-}
-
 function openStatusConfirmModal(actionType, requestId, nutritionistName, requestedStatus) {
     const modal = document.getElementById('actionConfirmModal');
     const iconFrame = document.getElementById('confirmIconFrame');
@@ -720,54 +372,6 @@ function openStatusConfirmModal(actionType, requestId, nutritionistName, request
 
     actionBtn.href = `manage_reports.php?status_req_id=${requestId}&action=${actionType}`;
     modal.classList.add('active');
-}
-
-function openReactivationDocsModal(docList, expertName) {
-    const modal = document.getElementById('reactivationDocsModal');
-    const title = document.getElementById('reactivModalTitle');
-    const gridContainer = document.getElementById('reactivDocGridContainer');
-    const noDocText = document.getElementById('reactivNoDocText');
-
-    title.textContent = "Documents - " + expertName;
-    gridContainer.innerHTML = '';
-
-    if (docList && docList.length > 0) {
-        noDocText.style.display = 'none';
-        docList.forEach(function(doc, index) {
-            let fileUrl = doc.trim();
-            if (fileUrl.indexOf('http') !== 0) {
-                fileUrl = 'https://mbsjtesmrowfilvxcaqb.supabase.co/storage/v1/object/public/nutritionist-files/' + fileUrl;
-            }
-
-            const ext = fileUrl.split('.').pop().toLowerCase();
-            const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-            
-            const itemBox = document.createElement('div');
-            itemBox.style.cssText = 'border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; text-align: center; padding: 8px; cursor: pointer; transition: .2s;';
-            
-            if (ext === 'pdf') {
-                itemBox.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; background:#f1f5f9; color:#dc2626; height:75px; font-size:28px; border-radius:6px;"><i class="fa-solid fa-file-pdf"></i></div><div style="font-size:11px; color:#475569; margin-top:5px; font-weight:600;">PDF File ${index + 1}</div>`;
-            } else if (imageExts.includes(ext)) {
-                itemBox.innerHTML = `<img src="${encodeURI(fileUrl)}" alt="Doc" style="width:100%; height:75px; object-fit:cover; border-radius:6px;" onerror="this.src='https://via.placeholder.com/120x75?text=Image';"><div style="font-size:11px; color:#475569; margin-top:5px; font-weight:600;">Image ${index + 1}</div>`;
-            } else {
-                itemBox.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; background:#f1f5f9; color:#2563eb; height:75px; font-size:28px; border-radius:6px;"><i class="fa-solid fa-file-lines"></i></div><div style="font-size:11px; color:#475569; margin-top:5px; font-weight:600;">Document ${index + 1}</div>`;
-            }
-
-            itemBox.onclick = function() {
-                window.open(fileUrl, '_blank');
-            };
-
-            gridContainer.appendChild(itemBox);
-        });
-    } else {
-        noDocText.style.display = 'block';
-    }
-
-    modal.classList.add('active');
-}
-
-function closeReactivationDocsModal() {
-    document.getElementById('reactivationDocsModal').classList.remove('active');
 }
 
 function openLogoutModal() {
@@ -806,10 +410,8 @@ function closeReasonModal() {
 window.addEventListener('click', function(e) {
     const confirmModal = document.getElementById('actionConfirmModal');
     const reasonModal = document.getElementById('reasonModal');
-    const reactivModal = document.getElementById('reactivationDocsModal');
     if (e.target === confirmModal) closeConfirmModal();
     if (e.target === reasonModal) closeReasonModal();
-    if (e.target === reactivModal) closeReactivationDocsModal();
 });
 </script>
 
