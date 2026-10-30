@@ -118,7 +118,7 @@ if (isset($_GET['status_req_id']) && isset($_GET['action'])) {
 $reports = [];
 try {
     $sql = "
-        SELECT r.id, r.category, r.reason, r.status, r.created_at,
+        SELECT r.id, r.category, r.reason, r.status, r.created_at, r.attachment,
                u.fullname AS user_name, u.email AS user_email,
                n.id AS nutritionist_id, n.fullname AS nutritionist_name, n.email AS nutritionist_email, n.status AS nutritionist_status
         FROM nutritionist_reports r
@@ -168,7 +168,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #f4f7ff 0%, #eef3ff 50%, #f8fafc 100%); color: #172033; min-height: 100vh; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #f4f7ff 0%, #eef3ff 50%, #f8fafc 100%); color: #172033; min-height: 100vh; scroll-behavior: smooth; }
         a { text-decoration: none; }
         button { font-family: inherit; }
 
@@ -196,20 +196,30 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
 
         .main-content { flex: 1; min-width: 0; margin-left: 255px; }
         .page { width: 100%; padding: 32px 40px 50px; }
-        .top-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
+        .top-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
         .title-area { display: flex; align-items: center; gap: 15px; }
         .title-icon { width: 58px; height: 58px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #dc2626, #991b1b); color: white; font-size: 23px; box-shadow: 0 10px 25px rgba(220,38,38,.25); }
         .title-area h1 { font-size: 28px; font-weight: 800; color: #111827; margin-bottom: 4px; }
         .title-area p { color: #64748b; font-size: 13px; }
+
+        /* QUICK JUMP BUTTONS / TABS NAVIGATION STYLES */
+        .quick-nav-bar {
+            display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; background: #ffffff; padding: 14px 18px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(15,23,42,.03);
+        }
+        .quick-nav-btn {
+            display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .2s; text-decoration: none;
+        }
+        .quick-nav-btn:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; transform: translateY(-1px); }
+        .quick-nav-btn span.badge-count { background: #e2e8f0; color: #1e293b; padding: 2px 7px; border-radius: 99px; font-size: 11px; font-weight: 800; }
         
-        /* BINAGONG SPACING AT DESIGN PARA MAS MALINIS ANG SEPARASYON NG MGA TABLES */
         .main-card { 
             background: white; 
             border-radius: 20px; 
             border: 1px solid #e5e7eb; 
             box-shadow: 0 10px 35px rgba(15,23,42,.05); 
             overflow: hidden; 
-            margin-bottom: 35px; /* Dinagdagan ang agwat para mas magkakahiwalay sila */
+            margin-bottom: 35px;
+            scroll-margin-top: 25px; /* Para sakto ang pwesto kapag kinlik ang jump button */
         }
         .toolbar { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eef2f7; background: #ffffff; }
         .toolbar-title h2 { font-size: 17px; font-weight: 800; color: #111827; display: flex; align-items: center; gap: 10px; }
@@ -306,8 +316,24 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                 </div>
             </header>
 
+            <!-- QUICK JUMP NAVIGATION BAR (MAY MGA TOTAL REPORTS KASAMA) -->
+            <div class="quick-nav-bar">
+                <a href="#section-status-requests" class="quick-nav-btn">
+                    <i class="fa-solid fa-clock-rotate-left" style="color:#2563eb;"></i> Availability Requests 
+                    <span class="badge-count"><?= count($status_requests) ?></span>
+                </a>
+                <a href="#section-reactivations" class="quick-nav-btn">
+                    <i class="fa-solid fa-user-shield" style="color:#16a34a;"></i> Reactivation Appeals 
+                    <span class="badge-count"><?= count($reactivations) ?></span>
+                </a>
+                <a href="#section-violations" class="quick-nav-btn">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Violations & Complaints 
+                    <span class="badge-count"><?= count($reports) ?></span>
+                </a>
+            </div>
+
             <!-- SECTION 0: AVAILABILITY STATUS REQUESTS -->
-            <section class="main-card">
+            <section id="section-status-requests" class="main-card">
                 <div class="toolbar">
                     <div class="toolbar-title">
                         <h2><i class="fa-solid fa-clock-rotate-left" style="color:#2563eb; font-size:15px;"></i> Nutritionist Availability Status Requests</h2>
@@ -400,7 +426,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
             </section>
 
             <!-- SECTION 1: REACTIVATION REQUESTS -->
-            <section class="main-card">
+            <section id="section-reactivations" class="main-card">
                 <div class="toolbar">
                     <div class="toolbar-title">
                         <h2><i class="fa-solid fa-user-shield" style="color:#16a34a; font-size:15px;"></i> Nutritionist Reactivation Appeals</h2>
@@ -487,8 +513,8 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                 </div>
             </section>
 
-            <!-- SECTION 2: VIOLATION REPORTS -->
-            <section class="main-card">
+            <!-- SECTION 2: VIOLATION REPORTS (MAY VIEW FILE NA RIN NGAYON) -->
+            <section id="section-violations" class="main-card">
                 <div class="toolbar">
                     <div class="toolbar-title">
                         <h2><i class="fa-solid fa-triangle-exclamation" style="color:#dc2626; font-size:15px;"></i> Submitted Violations & Complaints</h2>
@@ -503,6 +529,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                 <th>Reported Expert</th>
                                 <th>Category / Violation</th>
                                 <th>Reason / Details</th>
+                                <th>Attachment</th>
                                 <th>Date</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -526,7 +553,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                             </div>
                                         </td>
                                         <td><span style="font-weight: 700; color: #b91c1c;"><?= htmlspecialchars($rep['category']) ?></span></td>
-                                        <td style="max-width: 250px;">
+                                        <td style="max-width: 220px;">
                                             <div style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 13px; color: #1e293b;">
                                                 <?= htmlspecialchars($rep['reason']) ?>
                                             </div>
@@ -534,6 +561,22 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                                 <button type="button" style="background: none; border: none; color: #2563eb; font-size: 11px; font-weight: 700; cursor: pointer; padding: 0; margin-top: 4px;" onclick="openReasonModal('Violation Details (' + <?= htmlspecialchars(json_encode($rep['category']), ENT_QUOTES) ?> + ')', <?= htmlspecialchars(json_encode($rep['reason']), ENT_QUOTES) ?>)">
                                                     View Full Details &rarr;
                                                 </button>
+                                            <?php endif; ?>
+                                        </td>
+                                        <!-- IDINAGDAG ANG VIEW FILE ATTRIBUTE PARA SA VIOLATIONS -->
+                                        <td>
+                                            <?php if (!empty($rep['attachment'])): ?>
+                                                <?php 
+                                                    $repAttachments = json_decode($rep['attachment'], true);
+                                                    if (!is_array($repAttachments)) {
+                                                        $repAttachments = [$rep['attachment']];
+                                                    }
+                                                ?>
+                                                <button type="button" class="btn-action-link btn-view" onclick='openReactivationDocsModal(<?= json_encode($repAttachments) ?>, "Violation Report #<?= $rep['id'] ?>")'>
+                                                    <i class="fa-solid fa-folder-open"></i> View Files (<?= count($repAttachments) ?>)
+                                                </button>
+                                            <?php else: ?>
+                                                <span style="font-size: 11px; color: #94a3b8; font-style: italic;">No attachment</span>
                                             <?php endif; ?>
                                         </td>
                                         <td><?= date('M d, Y g:i a', strtotime($rep['created_at'])) ?></td>
@@ -561,7 +604,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="7" class="empty-state">
+                                    <td colspan="8" class="empty-state">
                                         <div class="empty-icon"><i class="fa-solid fa-circle-check"></i></div>
                                         <h3 style="color:#475569; margin-bottom:5px;">No Reports Found</h3>
                                         <p style="font-size:13px;">There are currently no active complaints or reports against nutritionists.</p>
@@ -601,11 +644,11 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
     </div>
 </div>
 
-<!-- REACTIVATION DOCUMENTS MODAL VIEWER -->
+<!-- DOCUMENTS MODAL VIEWER -->
 <div class="modal" id="reactivationDocsModal">
     <div class="confirm-modal-box" style="max-width: 550px;">
         <div class="confirm-icon-frame confirm-icon-info"><i class="fa-solid fa-folder-open"></i></div>
-        <h3 id="reactivModalTitle">Reactivation Documents</h3>
+        <h3 id="reactivModalTitle">Attached Documents</h3>
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
             <div id="reactivDocGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;"></div>
             <div id="reactivNoDocText" style="display: none; color: #94a3b8; font-size: 13px; text-align: center; padding: 20px;">No documents found</div>
