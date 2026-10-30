@@ -9,6 +9,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 
 $reviews = [];
 try {
+    // Sinusubukan munang kunin kasama ang review column
     $sql = "
         SELECT r.id, r.rating, r.review, r.created_at,
                u.fullname AS user_name, u.email AS user_email,
@@ -20,7 +21,28 @@ try {
     ";
     $stmt = $conn->query($sql);
     $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {}
+} catch (PDOException $e) {
+    // Fallback kung sakaling wala pa ang review column sa database table
+    try {
+        $sql = "
+            SELECT r.id, r.rating, r.created_at,
+                   u.fullname AS user_name, u.email AS user_email,
+                   n.fullname AS nutritionist_name, n.email AS nutritionist_email
+            FROM nutritionist_reviews r
+            JOIN users u ON r.user_id = u.id
+            JOIN nutritionist n ON r.nutritionist_id = n.id
+            ORDER BY r.created_at DESC
+        ";
+        $stmt = $conn->query($sql);
+        $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($reviews as &$rev) {
+            $rev['review'] = 'No comment provided';
+        }
+        unset($rev);
+    } catch (PDOException $ex) {
+        $reviews = [];
+    }
+}
 
 $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
 ?>
@@ -129,7 +151,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                 <td><strong><?= htmlspecialchars($rev['nutritionist_name']) ?></strong><br><span style="font-size:11px; color:#64748b;"><?= htmlspecialchars($rev['nutritionist_email']) ?></span></td>
                                 <td>
                                     <div class="star-rating">
-                                        <?php 
+                                        <?> 
                                             $rating = (int)$rev['rating'];
                                             for ($i = 1; $i <= 5; $i++) {
                                                 if ($i <= $rating) {
@@ -142,7 +164,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
                                         <span style="font-weight: 700; color: #1e293b; margin-left: 5px;">(<?= $rating ?>/5)</span>
                                     </div>
                                 </td>
-                                <td><?= htmlspecialchars($rev['review'] ?? '') ?></td>
+                                <td><?= htmlspecialchars($rev['review'] ?? 'No comment provided') ?></td>
                                 <td><?= date('M d, Y g:i a', strtotime($rev['created_at'])) ?></td>
                             </tr>
                         <?php endforeach; ?>
