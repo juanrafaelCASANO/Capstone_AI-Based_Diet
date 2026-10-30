@@ -19,6 +19,23 @@ if (!$nutri) {
     exit;
 }
 
+// Kunin ang badge counts para sa sidebar
+$unread_count = 0;
+$pending_appointments_count = 0;
+try {
+    $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
+    $count_stmt->execute([$nutri_id]);
+    if ($row = $count_stmt->fetch()) {
+        $unread_count = (int)$row['total'];
+    }
+
+    $app_count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM appointments WHERE nutritionist_id = ? AND status = 'pending'");
+    $app_count_stmt->execute([$nutri_id]);
+    if ($app_row = $app_count_stmt->fetch()) {
+        $pending_appointments_count = (int)$app_row['total'];
+    }
+} catch (Exception $e) {}
+
 $inbox_sql = "
     WITH conversations AS (
         SELECT 
@@ -102,9 +119,11 @@ a { color: inherit; text-decoration: none; }
 
 .nav-label { padding: 0 12px 8px; color: #80e0d0; text-transform: uppercase; font-size: 10px; font-weight: 800; letter-spacing: .11em; flex-shrink: 0; }
 .nav { display: grid; gap: 6px; flex-shrink: 0; }
-.nav a { display: flex; align-items: center; gap: 12px; padding: 13px 12px; border-radius: 12px; color: #e6fffa; font-size: 14px; font-weight: 650; font-family: 'Plus Jakarta Sans', sans-serif; }
+.nav a { display: flex; align-items: center; gap: 12px; padding: 13px 12px; border-radius: 12px; color: #e6fffa; font-size: 14px; font-weight: 650; font-family: 'Plus Jakarta Sans', sans-serif; transition: background .2s, transform .2s; }
+.nav a:hover { background: rgba(255,255,255,.09); transform: translateX(2px); }
 .nav a.active { background: rgba(255,255,255,.14); color: #fff; }
 .nav-icon { width: 24px; text-align: center; font-size: 17px; }
+.nav-badge { margin-left: auto; background: var(--danger); color: #fff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
 
 .sidebar-bottom { margin-top: auto; border-top: 1px solid rgba(255,255,255,.1); padding-top: 16px; flex-shrink: 0; }
 .sidebar-bottom a.logout {
@@ -177,38 +196,38 @@ a { color: inherit; text-decoration: none; }
 
 <div class="app">
   <!-- SIDEBAR NAVIGATION -->
-    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-      <div class="brand">
-        <div class="brand-icon">🩺</div>
-        <div>
-          <strong>NutriPanel</strong>
-          <span>Nutritionist portal</span>
-        </div>
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <div class="brand">
+      <div class="brand-icon">🩺</div>
+      <div>
+        <strong>NutriPanel</strong>
+        <span>Nutritionist portal</span>
       </div>
+    </div>
 
-      <div class="nav-label">Menu</div>
-      <nav class="nav">
-        <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
-        <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
-        <a href="appointments.php">
-          <span class="nav-icon">📅</span>Appointments
-          <?php if(isset($pending_appointments_count) && $pending_appointments_count > 0): ?>
-            <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
-          <?php endif; ?>
-        </a>
-        <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
-        <a href="inbox.php">
-          <span class="nav-icon">📥</span>Inbox
-          <?php if(isset($unread_count) && $unread_count > 0): ?>
-            <span class="nav-badge"><?php echo $unread_count; ?></span>
-          <?php endif; ?>
-        </a>
-        <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
-      </nav>
-      <div class="sidebar-bottom">
-        <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
-      </div>
-    </aside>
+    <div class="nav-label">Menu</div>
+    <nav class="nav">
+      <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
+      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+      <a href="appointments.php">
+        <span class="nav-icon">📅</span>Appointments
+        <?php if(isset($pending_appointments_count) && $pending_appointments_count > 0): ?>
+          <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
+        <?php endif; ?>
+      </a>
+      <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
+      <a href="inbox.php" class="active">
+        <span class="nav-icon">📥</span>Inbox
+        <?php if(isset($unread_count) && $unread_count > 0): ?>
+          <span class="nav-badge"><?php echo $unread_count; ?></span>
+        <?php endif; ?>
+      </a>
+      <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
+    </div>
+  </aside>
 
   <main class="main">
     <header class="topbar">
@@ -276,6 +295,7 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 function showLogoutModal() {
   document.getElementById('logoutModal').classList.add('active');
@@ -290,8 +310,7 @@ document.getElementById('logoutModal').addEventListener('click', function(e) {
     closeLogoutModal();
   }
 });
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
+
 // Background Heartbeat para sa Dashboard at Inbox
 setInterval(function() {
     $.post('update_activity.php', function(response) {

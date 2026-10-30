@@ -61,8 +61,9 @@ try {
     $action_error = "Error fetching appointments: " . $e->getMessage();
 }
 
-// Get unread count for sidebar badge
+// Get unread count and pending appointments count for sidebar badges
 $unread_count = 0;
+$pending_appointments_count = 0;
 try {
     $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
     $count_stmt->execute([$nutritionist_id]);
@@ -70,8 +71,15 @@ try {
     if ($row) {
         $unread_count = (int)$row['total'];
     }
+
+    $app_count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM appointments WHERE nutritionist_id = ? AND status = 'pending'");
+    $app_count_stmt->execute([$nutritionist_id]);
+    if ($app_row = $app_count_stmt->fetch()) {
+        $pending_appointments_count = (int)$app_row['total'];
+    }
 } catch (Exception $e) {
     $unread_count = 0;
+    $pending_appointments_count = 0;
 }
 
 function getInitials($name) {
@@ -298,38 +306,38 @@ a{color:inherit;text-decoration:none}
 
 <div class="app">
   <!-- SIDEBAR NAVIGATION -->
-    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-      <div class="brand">
-        <div class="brand-icon">🩺</div>
-        <div>
-          <strong>NutriPanel</strong>
-          <span>Nutritionist portal</span>
-        </div>
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <div class="brand">
+      <div class="brand-icon">🩺</div>
+      <div>
+        <strong>NutriPanel</strong>
+        <span>Nutritionist portal</span>
       </div>
+    </div>
 
-      <div class="nav-label">Menu</div>
-      <nav class="nav">
-        <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
-        <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
-        <a href="appointments.php">
-          <span class="nav-icon">📅</span>Appointments
-          <?php if(isset($pending_appointments_count) && $pending_appointments_count > 0): ?>
-            <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
-          <?php endif; ?>
-        </a>
-        <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
-        <a href="inbox.php">
-          <span class="nav-icon">📥</span>Inbox
-          <?php if(isset($unread_count) && $unread_count > 0): ?>
-            <span class="nav-badge"><?php echo $unread_count; ?></span>
-          <?php endif; ?>
-        </a>
-        <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
-      </nav>
-      <div class="sidebar-bottom">
-        <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
-      </div>
-    </aside>
+    <div class="nav-label">Menu</div>
+    <nav class="nav">
+      <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
+      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+      <a href="appointments.php" class="active">
+        <span class="nav-icon">📅</span>Appointments
+        <?php if(isset($pending_appointments_count) && $pending_appointments_count > 0): ?>
+          <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
+        <?php endif; ?>
+      </a>
+      <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
+      <a href="inbox.php">
+        <span class="nav-icon">📥</span>Inbox
+        <?php if(isset($unread_count) && $unread_count > 0): ?>
+          <span class="nav-badge"><?php echo $unread_count; ?></span>
+        <?php endif; ?>
+      </a>
+      <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
+    </div>
+  </aside>
 
   <main class="main">
     <header class="topbar">

@@ -7,29 +7,53 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-$nutri_id = $_SESSION['user_id'];$message = "";
+$nutri_id = $_SESSION['user_id'];
+$message = "";
 
-if (isset($_POST['add_meal'])) {$title = trim($_POST['title'] ?? '');$description = trim($_POST['description'] ?? '');$goal = $_POST['goal'] ?? 'Balanced';$calories = (int)($_POST['calories'] ?? 0);$photo_path = "";
+// Kunin ang badge counts para sa sidebar
+$unread_count = 0;
+$pending_appointments_count = 0;
+try {
+    $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM messages WHERE receiver_id = ? AND status = 0");
+    $count_stmt->execute([$nutri_id]);
+    if ($row = $count_stmt->fetch()) {
+        $unread_count = (int)$row['total'];
+    }
+
+    $app_count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM appointments WHERE nutritionist_id = ? AND status = 'pending'");
+    $app_count_stmt->execute([$nutri_id]);
+    if ($app_row = $app_count_stmt->fetch()) {
+        $pending_appointments_count = (int)$app_row['total'];
+    }
+} catch (Exception $e) {}
+
+if (isset($_POST['add_meal'])) {
+    $title = trim($_POST['title'] ?? '');
+    $description = trim($_POST['description'] ?? '');
+    $goal = $_POST['goal'] ?? 'Balanced';
+    $calories = (int)($_POST['calories'] ?? 0);
+    $photo_path = "";
     
-    if (!empty($_FILES['photo']['name'])) {$target_dir = "../uploads/meals/";
+    if (!empty($_FILES['photo']['name'])) {
+        $target_dir = "../uploads/meals/";
         if (!is_dir($target_dir)) {
             mkdir($target_dir, 0777, true);
         }
         
         $file_name = time() . "_" . basename($_FILES["photo"]["name"]);
-        $target_file = $target_dir .$file_name;
+        $target_file = $target_dir . $file_name;
         
         if (move_uploaded_file($_FILES["photo"]["tmp_name"], $target_file)) {
             $photo_path = "uploads/meals/" . $file_name;
         }
     }
 
-    $id_stmt =$conn->query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM meal_plans");
-    $next_id =$id_stmt->fetchColumn();
+    $id_stmt = $conn->query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM meal_plans");
+    $next_id = $id_stmt->fetchColumn();
 
-    $stmt =$conn->prepare("INSERT INTO meal_plans (id, title, description, goal, calories, photo) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO meal_plans (id, title, description, goal, calories, photo) VALUES (?, ?, ?, ?, ?, ?)");
     
-    if ($stmt->execute([$next_id,$title, $description,$goal, $calories,$photo_path])) {
+    if ($stmt->execute([$next_id, $title, $description, $goal, $calories, $photo_path])) {
         header("Location: dashboard.php?msg=added");
         exit();
     } else {
@@ -56,6 +80,7 @@ if (isset($_POST['add_meal'])) {$title = trim($_POST['title'] ?? '');$descriptio
             --text: #112d25;
             --border: #dbece5;
             --radius: 18px;
+            --danger: #dc2626;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); color: var(--text); overflow: hidden; }
@@ -76,6 +101,7 @@ if (isset($_POST['add_meal'])) {$title = trim($_POST['title'] ?? '');$descriptio
         .nav a { display: flex; align-items: center; gap: 12px; text-decoration: none; padding: 13px 12px; border-radius: 12px; color: #e6fffa; font-size: 14px; font-weight: 650; font-family: 'Plus Jakarta Sans', sans-serif; }
         .nav a.active { background: rgba(255,255,255,.14); color: #fff; }
         .nav-icon { width: 24px; text-align: center; font-size: 17px; }
+        .nav-badge { margin-left: auto; background: var(--danger); color: #fff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
 
         .sidebar-bottom { margin-top: auto; border-top: 1px solid rgba(255,255,255,.1); padding-top: 16px; flex-shrink: 0; }
         .sidebar-bottom a.logout {
@@ -174,38 +200,38 @@ if (isset($_POST['add_meal'])) {$title = trim($_POST['title'] ?? '');$descriptio
 
 <div class="app">
   <!-- SIDEBAR NAVIGATION -->
-    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-      <div class="brand">
-        <div class="brand-icon">🩺</div>
-        <div>
-          <strong>NutriPanel</strong>
-          <span>Nutritionist portal</span>
-        </div>
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <div class="brand">
+      <div class="brand-icon">🩺</div>
+      <div>
+        <strong>NutriPanel</strong>
+        <span>Nutritionist portal</span>
       </div>
+    </div>
 
-      <div class="nav-label">Menu</div>
-      <nav class="nav">
-        <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
-        <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
-        <a href="appointments.php">
-          <span class="nav-icon">📅</span>Appointments
-          <?php if(isset($pending_appointments_count) && $pending_appointments_count > 0): ?>
-            <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
-          <?php endif; ?>
-        </a>
-        <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
-        <a href="inbox.php">
-          <span class="nav-icon">📥</span>Inbox
-          <?php if(isset($unread_count) && $unread_count > 0): ?>
-            <span class="nav-badge"><?php echo $unread_count; ?></span>
-          <?php endif; ?>
-        </a>
-        <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
-      </nav>
-      <div class="sidebar-bottom">
-        <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
-      </div>
-    </aside>
+    <div class="nav-label">Menu</div>
+    <nav class="nav">
+      <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
+      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+      <a href="appointments.php">
+        <span class="nav-icon">📅</span>Appointments
+        <?php if(isset($pending_appointments_count) && $pending_appointments_count > 0): ?>
+          <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
+        <?php endif; ?>
+      </a>
+      <a href="add_meal.php" class="active"><span class="nav-icon">🍲</span>Add Meal</a>
+      <a href="inbox.php">
+        <span class="nav-icon">📥</span>Inbox
+        <?php if(isset($unread_count) && $unread_count > 0): ?>
+          <span class="nav-badge"><?php echo $unread_count; ?></span>
+        <?php endif; ?>
+      </a>
+      <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
+    </div>
+  </aside>
 
   <main class="main">
     <h1 class="page-title">Add Meal Plan</h1>

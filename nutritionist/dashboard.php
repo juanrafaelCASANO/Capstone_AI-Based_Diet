@@ -375,7 +375,7 @@ a{color:inherit}
 
       <div class="nav-label">Menu</div>
       <nav class="nav">
-        <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
+        <a href="dashboard.php" class="active"><span class="nav-icon">⌂</span>Dashboard</a>
         <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
         <a href="appointments.php">
           <span class="nav-icon">📅</span>Appointments
