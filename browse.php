@@ -558,7 +558,7 @@ function getInitials($name) {
                 <div class="experience">
                     <?= (int)$row['experience'] ?> years experience
                 </div>
-                <a href="nutritionist_profile.php?id=<?= $row['id'] ?>" class="btn">View Profile</a>
+                <a href="auth/login.php" class="btn">Consult Expert <span>→</span></a>
             </article>
         <?php 
             endforeach; 

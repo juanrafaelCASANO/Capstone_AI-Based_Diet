@@ -813,7 +813,7 @@ function getInitials($name) {
                                     <div>
                                         <span class="expert-meta"><?= (int)$row['experience'] ?> Years Experience</span>
                                     </div>
-                                    <a href="auth/login.php" class="btn-primary">View Profile <span>→</span></a>
+                                    <a href="auth/login.php" class="btn-primary">Consult Expert <span>→</span></a>
                                 </article>
                             <?php endforeach; ?>
                         <?php else: ?>
