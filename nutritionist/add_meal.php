@@ -173,31 +173,39 @@ if (isset($_POST['add_meal'])) {$title = trim($_POST['title'] ?? '');$descriptio
 <body>
 
 <div class="app">
-  <aside class="sidebar">
-    <div class="brand"><div class="brand-icon">🩺</div><div><strong>NutriPanel</strong><span>Nutritionist portal</span></div></div>
-    <div class="nav-label">Menu</div>
-    <nav class="nav">
-      <a class="active" href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
-      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
-      <a href="appointments.php">
-        <span class="nav-icon">📅</span>Appointments
-        <?php if($pending_appointments_count > 0): ?>
-          <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
-        <?php endif; ?>
-      </a>
-      <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
-      <a href="inbox.php">
-        <span class="nav-icon">📥</span>Inbox
-        <?php if($unread_count > 0): ?>
-          <span class="nav-badge"><?php echo $unread_count; ?></span>
-        <?php endif; ?>
-      </a>
-      <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
-    </nav>
-    <div class="sidebar-bottom">
-      <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
-    </div>
-  </aside>
+  <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <div class="brand">
+        <div class="brand-icon">🩺</div>
+        <div>
+          <strong>NutriPanel</strong>
+          <span>Nutritionist portal</span>
+        </div>
+      </div>
+
+      <div class="nav-label">Menu</div>
+      <nav class="nav">
+        <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
+        <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+        <a href="appointments.php">
+          <span class="nav-icon">📅</span>Appointments
+          <?php if(isset($pending_appointments_count) && $pending_appointments_count > 0): ?>
+            <span class="nav-badge"><?php echo $pending_appointments_count; ?></span>
+          <?php endif; ?>
+        </a>
+        <a href="add_meal.php"><span class="nav-icon">🍲</span>Add Meal</a>
+        <a href="inbox.php">
+          <span class="nav-icon">📥</span>Inbox
+          <?php if(isset($unread_count) && $unread_count > 0): ?>
+            <span class="nav-badge"><?php echo $unread_count; ?></span>
+          <?php endif; ?>
+        </a>
+        <a href="profile.php"><span class="nav-icon">👤</span>My Profile</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <a class="logout" href="javascript:void(0);" onclick="showLogoutModal();"><span class="nav-icon">↪</span>Logout</a>
+      </div>
+    </aside>
 
   <main class="main">
     <h1 class="page-title">Add Meal Plan</h1>
