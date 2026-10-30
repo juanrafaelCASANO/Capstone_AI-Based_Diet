@@ -59,11 +59,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment_subm
             $booking_error = "You cannot book an appointment in the past. Please select a valid future date and time.";
         } else {
             try {
-                $stmt = $conn->prepare("
-                    INSERT INTO appointments (user_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
-                    VALUES (?, ?, ?, ?, ?, 'pending')
-                ");
-                $stmt->execute([$user_id, $nutri_id_target, $app_date, $app_time, $notes]);
+                // Subukan munang gumamit ng user_id, kung magka-error ay susubukan ang client_id
+                try {
+                    $stmt = $conn->prepare("
+                        INSERT INTO appointments (user_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
+                        VALUES (?, ?, ?, ?, ?, 'pending')
+                    ");
+                    $stmt->execute([$user_id, $nutri_id_target, $app_date, $app_time, $notes]);
+                } catch (Exception $ex) {
+                    $stmt = $conn->prepare("
+                        INSERT INTO appointments (client_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
+                        VALUES (?, ?, ?, ?, ?, 'pending')
+                    ");
+                    $stmt->execute([$user_id, $nutri_id_target, $app_date, $app_time, $notes]);
+                }
                 $booking_success = "Appointment request sent successfully! Waiting for nutritionist confirmation.";
             } catch (Exception $e) {
                 $booking_error = "Failed to book appointment: " . $e->getMessage();
@@ -98,27 +107,48 @@ try {
     $unread_count = 0;
 }
 
-// Kunin ang mga appointments ng user kasama ang kung may review na ba ito (IBINALIK AT ITINAMA)
+// Kunin ang mga appointments ng user (sumusubok sa user_id o client_id)
 $user_appointments = [];
 try {
-    $user_app_stmt = $conn->prepare("
-        SELECT 
-            a.id, 
-            a.nutritionist_id,
-            a.appointment_date, 
-            a.appointment_time, 
-            a.status, 
-            a.notes, 
-            a.created_at,
-            n.fullname AS nutritionist_name,
-            (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.appointment_id = a.id AND r.user_id = ?) AS has_reviewed
-        FROM appointments a
-        JOIN nutritionist n ON a.nutritionist_id = n.id
-        WHERE a.user_id = ?
-        ORDER BY a.appointment_date DESC, a.appointment_time DESC
-    ");
-    $user_app_stmt->execute([$user_id, $user_id]);
-    $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $user_app_stmt = $conn->prepare("
+            SELECT 
+                a.id, 
+                a.nutritionist_id,
+                a.appointment_date, 
+                a.appointment_time, 
+                a.status, 
+                a.notes, 
+                a.created_at,
+                n.fullname AS nutritionist_name,
+                (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.appointment_id = a.id AND r.user_id = ?) AS has_reviewed
+            FROM appointments a
+            JOIN nutritionist n ON a.nutritionist_id = n.id
+            WHERE a.user_id = ?
+            ORDER BY a.appointment_date DESC, a.appointment_time DESC
+        ");
+        $user_app_stmt->execute([$user_id, $user_id]);
+        $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $ex) {
+        $user_app_stmt = $conn->prepare("
+            SELECT 
+                a.id, 
+                a.nutritionist_id,
+                a.appointment_date, 
+                a.appointment_time, 
+                a.status, 
+                a.notes, 
+                a.created_at,
+                n.fullname AS nutritionist_name,
+                (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.appointment_id = a.id AND r.user_id = ?) AS has_reviewed
+            FROM appointments a
+            JOIN nutritionist n ON a.nutritionist_id = n.id
+            WHERE a.client_id = ?
+            ORDER BY a.appointment_date DESC, a.appointment_time DESC
+        ");
+        $user_app_stmt->execute([$user_id, $user_id]);
+        $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     $user_appointments = [];
 }
