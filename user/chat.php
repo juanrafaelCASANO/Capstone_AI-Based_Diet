@@ -18,7 +18,7 @@ if ($nutritionist_id <= 0) {
 $report_msg = "";
 $report_error = "";
 
-// Handle Report Submission (May kasama nang file attachment gamit ang absolute path)
+// Handle Report Submission (Gamit ang absolute path para maiwasan ang No such file or directory error)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     $category = trim($_POST['category'] ?? '');
     $reason = trim($_POST['reason'] ?? '');
@@ -26,10 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
 
     if (isset($_FILES['attachments']) && !empty($_FILES['attachments']['name'][0])) {
         $file_count = count($_FILES['attachments']['name']);
-        $upload_dir = __DIR__ . '/../uploads/reports/';
         
-        if (!file_exists($upload_dir)) {
-            @mkdir($upload_dir, 0777, true);
+        // Gamitin ang dirname(__DIR__) para tumukoy sa /var/www/html/uploads/reports/
+        $reports_upload_dir = dirname(__DIR__) . '/uploads/reports/';
+        
+        if (!file_exists($reports_upload_dir)) {
+            @mkdir($reports_upload_dir, 0777, true);
         }
 
         for ($i = 0; $i < $file_count; $i++) {
@@ -41,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                 $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'webp'];
                 if (in_array($file_ext, $allowed_extensions)) {
                     $new_filename = 'report_' . time() . '_' . mt_rand(1000, 9999) . '.' . $file_ext;
-                    $destination = $upload_dir . $new_filename;
+                    $destination = $reports_upload_dir . $new_filename;
                     
                     if (move_uploaded_file($file_tmp, $destination)) {
                         $uploaded_files[] = $new_filename;
@@ -141,7 +143,7 @@ try {
     $unread_count = 0;
 }
 
-// SMART RIVE PATH RESOLVER (Awtomatikong hinahanap kung nasaan ang kabi.riv)
+// SMART RIVE PATH RESOLVER
 $possible_riv_paths = [
     '../assets/rive/uploads/kabi.riv',
     '../assets/uploads/kabi.riv',
@@ -150,7 +152,7 @@ $possible_riv_paths = [
     'assets/rive/uploads/kabi.riv',
     'uploads/kabi.riv'
 ];
-$resolved_riv_path = '../assets/rive/uploads/kabi.riv'; // default fallback
+$resolved_riv_path = '../assets/rive/uploads/kabi.riv';
 foreach ($possible_riv_paths as $path) {
     if (file_exists(__DIR__ . '/' . $path)) {
         $resolved_riv_path = $path;
