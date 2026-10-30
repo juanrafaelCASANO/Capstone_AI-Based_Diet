@@ -59,19 +59,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment_subm
             $booking_error = "You cannot book an appointment in the past. Please select a valid future date and time.";
         } else {
             try {
-                try {
-                    $stmt = $conn->prepare("
-                        INSERT INTO appointments (user_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
-                        VALUES (?, ?, ?, ?, ?, 'pending')
-                    ");
-                    $stmt->execute([$user_id, $nutri_id_target, $app_date, $app_time, $notes]);
-                } catch (Exception $ex) {
-                    $stmt = $conn->prepare("
-                        INSERT INTO appointments (client_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
-                        VALUES (?, ?, ?, ?, ?, 'pending')
-                    ");
-                    $stmt->execute([$user_id, $nutri_id_target, $app_date, $app_time, $notes]);
-                }
+                $stmt = $conn->prepare("
+                    INSERT INTO appointments (user_id, nutritionist_id, appointment_date, appointment_time, notes, status) 
+                    VALUES (?, ?, ?, ?, ?, 'pending')
+                ");
+                $stmt->execute([$user_id, $nutri_id_target, $app_date, $app_time, $notes]);
                 $booking_success = "Appointment request sent successfully! Waiting for nutritionist confirmation.";
             } catch (Exception $e) {
                 $booking_error = "Failed to book appointment: " . $e->getMessage();
@@ -106,7 +98,7 @@ try {
     $unread_count = 0;
 }
 
-// Kunin ang mga appointments ng user (Sumusubok sa iba't ibang posibleng kolum at table name)
+// Kunin ang mga appointments ng user gamit lamang ang tamang user_id column
 $user_appointments = [];
 $debug_error = "";
 try {
@@ -123,34 +115,14 @@ try {
             (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.appointment_id = a.id AND r.user_id = ?) AS has_reviewed
         FROM appointments a
         LEFT JOIN nutritionist n ON a.nutritionist_id = n.id
-        WHERE a.user_id = ? OR a.client_id = ?
+        WHERE a.user_id = ?
         ORDER BY a.appointment_date DESC, a.appointment_time DESC
     ");
-    $user_app_stmt->execute([$user_id, $user_id, $user_id]);
+    $user_app_stmt->execute([$user_id, $user_id]);
     $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    try {
-        $user_app_stmt = $conn->prepare("
-            SELECT 
-                a.id, 
-                a.nutritionist_id,
-                a.appointment_date, 
-                a.appointment_time, 
-                a.status, 
-                a.notes, 
-                a.created_at,
-                'Nutritionist' AS nutritionist_name,
-                0 AS has_reviewed
-            FROM appointments a
-            WHERE a.user_id = ? OR a.client_id = ?
-            ORDER BY a.appointment_date DESC, a.appointment_time DESC
-        ");
-        $user_app_stmt->execute([$user_id, $user_id]);
-        $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $ex) {
-        $debug_error = $ex->getMessage();
-        $user_appointments = [];
-    }
+    $debug_error = $e->getMessage();
+    $user_appointments = [];
 }
 
 // Query to get the user's latest conversations with different nutritionists
