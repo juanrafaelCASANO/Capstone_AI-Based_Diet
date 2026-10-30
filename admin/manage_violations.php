@@ -103,7 +103,7 @@ $adminName = $_SESSION['fullname'] ?? $_SESSION['name'] ?? 'Administrator';
             <a href="manage_reports.php" class="sidebar-link sidebar-sublink"><i class="fa-solid fa-clock-rotate-left"></i><span>Availability Requests</span></a>
             <a href="manage_reactivations.php" class="sidebar-link sidebar-sublink"><i class="fa-solid fa-user-shield"></i><span>Reactivation Appeals</span></a>
             <a href="manage_violations.php" class="sidebar-link sidebar-sublink active"><i class="fa-solid fa-triangle-exclamation"></i><span>Violations & Reports</span></a>
-
+            <a href="manage_reviews.php" class="sidebar-link sidebar-sublink"><i class="fa-solid fa-star"></i><span>Reviews & Ratings</span></a>
             <a href="activity_logs.php" class="sidebar-link"><i class="fa-solid fa-clock-rotate-left"></i><span>Activity Logs</span></a>
         </nav>
 
