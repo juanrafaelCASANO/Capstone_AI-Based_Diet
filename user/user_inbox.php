@@ -98,7 +98,7 @@ try {
     $unread_count = 0;
 }
 
-// Kunin ang mga appointments ng user kasama ang kung may review na ba ito
+// Kunin ang mga appointments ng user kasama ang kung may review na ba ito (IBINALIK AT ITINAMA)
 $user_appointments = [];
 try {
     $user_app_stmt = $conn->prepare("
@@ -343,6 +343,7 @@ a{color:inherit;text-decoration:none}
 .action-btn-mini.chat { background: var(--green); color: #fff; }
 .action-btn-mini.book { background: var(--navy); color: #fff; }
 
+/* MODAL STYLES */
 .rating-modal-overlay, .appointment-modal-overlay, .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(15, 32, 25, 0.55); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -350,10 +351,18 @@ a{color:inherit;text-decoration:none}
 }
 .rating-modal-overlay.active, .appointment-modal-overlay.active, .logout-modal-overlay.active { opacity: 1; visibility: visible; }
 .rating-modal-card, .appointment-modal-card, .logout-modal-card {
-  background: #ffffff; width: 100%; max-width: 400px; border-radius: 24px; padding: 30px; text-align: center;
-  box-shadow: 0 25px 60px rgba(10, 30, 20, 0.22); transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  background: #ffffff; width: 100%; max-width: 380px; border-radius: 20px; padding: 28px 24px; text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); transform: scale(0.85); transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 .rating-modal-overlay.active .rating-modal-card, .appointment-modal-overlay.active .appointment-modal-card, .logout-modal-overlay.active .logout-modal-card { transform: scale(1); }
+.logout-modal-icon {
+  width: 56px; height: 56px; background: #fff3f1; color: #b42318; font-size: 26px;
+  border-radius: 50%; display: grid; place-items: center; margin: 0 auto 16px;
+}
+.logout-modal-card h3 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text); }
+.logout-modal-card p { margin: 0 0 24px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.logout-modal-actions { display: flex; gap: 12px; }
+
 .star-rating-container { display: flex; justify-content: center; gap: 8px; font-size: 28px; color: #cbd5e1; cursor: pointer; margin: 16px 0; }
 .star-rating-container i.selected, .star-rating-container i:hover, .star-rating-container i:hover ~ i { color: #f59e0b; }
 
@@ -370,8 +379,12 @@ a{color:inherit;text-decoration:none}
 }
 .modal-input-wrap textarea { resize: vertical; min-height: 95px; }
 .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
-.btn-modal-cancel { flex: 1; height: 46px; background: var(--cream); color: var(--text); border: 1px solid var(--border); border-radius: 12px; font-weight: 700; cursor: pointer; }
-.btn-modal-submit { flex: 1.3; height: 46px; background: var(--green); color: #fff; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; }
+.btn-modal-cancel { flex: 1; height: 44px; background: var(--cream); color: var(--text); border: 1px solid var(--border); border-radius: 12px; font-weight: 650; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+.btn-modal-cancel:hover { background: var(--green-soft); }
+.btn-modal-submit, .btn-modal-logout { flex: 1; height: 44px; background: #b42318; color: #ffffff; border: none; border-radius: 12px; font-weight: 650; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; transition: background 0.2s, transform 0.2s; }
+.btn-modal-submit { background: var(--green); }
+.btn-modal-submit:hover { background: #2e714e; }
+.btn-modal-logout:hover { background: #901c12; }
 
 .alert-banner { padding: 12px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
 .alert-banner.success { background: #e6fffa; color: #0f766e; border: 1px solid #b2f5ea; }
@@ -391,7 +404,7 @@ a{color:inherit;text-decoration:none}
     <nav class="nav">
       <a href="dashboard.php"><span class="nav-icon">⌂</span>Dashboard</a>
       <a href="generate_weekly.php"><span class="nav-icon">▦</span>Weekly Meal Plan</a>
-      <a href="leaderboard_nutritionist.php"><span class="nav-icon">🏆</span>Leaderboard</a>
+      <a href="leaderboard.php"><span class="nav-icon">🏆</span>Leaderboard</a>
       <a href="user_inbox.php" class="active">
         <span class="nav-icon">📥</span>Inbox & Bookings
         <?php if($unread_count > 0): ?>
