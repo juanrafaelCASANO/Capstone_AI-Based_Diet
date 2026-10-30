@@ -9,11 +9,12 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Handle Review & Rating Submission with text feedback
+// Handle Review & Rating Submission with appointment_id tracking
 $review_success = "";
 $review_error = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review_rating'])) {
     $nutritionist_id_target = (int)($_POST['nutritionist_id'] ?? 0);
+    $appointment_id_target = (int)($_POST['appointment_id'] ?? 0);
     $rating_val = (int)($_POST['rating'] ?? 0);
     $review_text = trim($_POST['review_text'] ?? '');
 
@@ -22,10 +23,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review_rating'
     } else {
         try {
             $rev_stmt = $conn->prepare("
-                INSERT INTO nutritionist_reviews (user_id, nutritionist_id, rating, review) 
-                VALUES (?, ?, ?, ?)
+                INSERT INTO nutritionist_reviews (user_id, nutritionist_id, appointment_id, rating, review) 
+                VALUES (?, ?, ?, ?, ?)
             ");
-            $rev_stmt->execute([$user_id, $nutritionist_id_target, $rating_val, $review_text]);
+            $rev_stmt->execute([$user_id, $nutritionist_id_target, $appointment_id_target, $rating_val, $review_text]);
             $review_success = "Thank you! Your rating and review have been submitted successfully.";
         } catch (Exception $e) {
             $review_error = "Failed to submit review: " . $e->getMessage();
@@ -91,7 +92,7 @@ try {
     $unread_count = 0;
 }
 
-// Kunin ang mga appointments ng user kasama ang check kung nakapag-rate na siya sa nutritionist na ito
+// Kunin ang mga appointments ng user kasama ang check per appointment_id
 $user_appointments = [];
 $debug_error = "";
 try {
@@ -105,17 +106,38 @@ try {
             a.notes, 
             a.created_at,
             COALESCE(n.fullname, 'Nutritionist') AS nutritionist_name,
-            (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.user_id = ? AND r.nutritionist_id = a.nutritionist_id) AS has_reviewed
+            (SELECT COUNT(*) FROM nutritionist_reviews r WHERE r.appointment_id = a.id) AS has_reviewed
         FROM appointments a
         LEFT JOIN nutritionist n ON a.nutritionist_id = n.id
         WHERE a.user_id = ?
         ORDER BY a.appointment_date DESC, a.appointment_time DESC
     ");
-    $user_app_stmt->execute([$user_id, $user_id]);
+    $user_app_stmt->execute([$user_id]);
     $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    $debug_error = $e->getMessage();
-    $user_appointments = [];
+    // Fallback kung sakaling wala pang appointment_id column sa database table
+    try {
+        $user_app_stmt = $conn->prepare("
+            SELECT 
+                a.id, 
+                a.nutritionist_id,
+                a.appointment_date, 
+                a.appointment_time, 
+                a.status, 
+                a.notes, 
+                a.created_at,
+                COALESCE(n.fullname, 'Nutritionist') AS nutritionist_name,
+                0 AS has_reviewed
+            FROM appointments a
+            LEFT JOIN nutritionist n ON a.nutritionist_id = n.id
+            WHERE a.user_id = ?
+            ORDER BY a.appointment_date DESC, a.appointment_time DESC
+        ");
+        $user_app_stmt->execute([$user_id]);
+        $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $ex) {
+        $user_appointments = [];
+    }
 }
 
 // Query to get the user's latest conversations with different nutritionists
@@ -534,7 +556,7 @@ a{color:inherit;text-decoration:none}
                 <?php if ($app['has_reviewed'] > 0): ?>
                   <div class="btn-already-rated"><i class="fa-solid fa-check" style="color:var(--green);"></i> Already Rated</div>
                 <?php else: ?>
-                  <button type="button" class="btn-rate-review" onclick="openRatingModal(<?php echo $app['nutritionist_id']; ?>, '<?php echo htmlspecialchars($app['nutritionist_name'], ENT_QUOTES); ?>')">
+                  <button type="button" class="btn-rate-review" onclick="openRatingModal(<?php echo $app['nutritionist_id']; ?>, <?php echo $app['id']; ?>, '<?php echo htmlspecialchars($app['nutritionist_name'], ENT_QUOTES); ?>')">
                     <i class="fa-solid fa-star"></i> Rate & Review Session
                   </button>
                 <?php endif; ?>
@@ -560,6 +582,7 @@ a{color:inherit;text-decoration:none}
     
     <form method="POST">
       <input type="hidden" name="nutritionist_id" id="ratingNutriId">
+      <input type="hidden" name="appointment_id" id="ratingAppointmentId">
       <input type="hidden" name="rating" id="ratingValue" value="5">
 
       <div class="star-rating-container" id="starContainer">
@@ -636,8 +659,9 @@ function switchTab(tabName, btn) {
     btn.classList.add('active');
 }
 
-function openRatingModal(nutriId, nutriName) {
+function openRatingModal(nutriId, appointmentId, nutriName) {
     document.getElementById('ratingNutriId').value = nutriId;
+    document.getElementById('ratingAppointmentId').value = appointmentId;
     document.getElementById('ratingNutriName').textContent = nutriName;
     setRating(5);
     document.getElementById('ratingModal').classList.add('active');
@@ -663,9 +687,7 @@ function openBookModal(nutriId, nutriName) {
     document.getElementById('modalNutriId').value = nutriId;
     document.getElementById('modalNutriName').textContent = nutriName;
     
-    // Set default date to today and check min time constraints immediately
     const dateInput = document.getElementById('appointmentDate');
-    const timeInput = document.getElementById('appointmentTime');
     const todayStr = new Date().toISOString().split('T')[0];
     dateInput.value = todayStr;
     
