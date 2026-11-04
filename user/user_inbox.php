@@ -185,9 +185,9 @@ $inbox_stmt = $conn->prepare($inbox_sql);
 $inbox_stmt->execute(['user_id' => $user_id]);
 $conversations = $inbox_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get all active nutritionists with lat/lng
+// Get all active nutritionists with lat/lng & address
 $nutri_list_sql = "
-    SELECT n.id, n.fullname, n.profile_pic, n.certification, n.latitude, n.longitude, n.status AS account_status, n.availability_status, n.last_active_at, p.specialty AS specialization 
+    SELECT n.id, n.fullname, n.profile_pic, n.certification, n.latitude, n.longitude, n.address, n.status AS account_status, n.availability_status, n.last_active_at, p.specialty AS specialization 
     FROM nutritionist n
     LEFT JOIN nutritionists_profile p ON n.fullname = p.name
     WHERE n.status = 'active' OR n.status = 'approved' OR n.status IS NULL
@@ -230,6 +230,8 @@ usort($all_nutritionists, function($a, $b) {
 <title>AI-Based Diet & Nutritional Planner - Inbox & Bookings</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
 
 <style>
 :root{
@@ -357,24 +359,33 @@ a{color:inherit;text-decoration:none}
 .nutri-info-text { min-width: 0; flex: 1; }
 .nutri-info-text strong { display: block; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .license-sub { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.distance-badge { font-size: 10px; font-weight: 700; background: #e2f0e9; color: #08734a; padding: 2px 6px; border-radius: 6px; display: inline-block; margin-top: 3px; }
+
+/* CLICKABLE DISTANCE BADGE */
+.distance-badge { 
+  font-size: 10px; font-weight: 700; background: #e2f0e9; color: #08734a; padding: 2px 6px; 
+  border-radius: 6px; display: inline-block; margin-top: 3px; cursor: pointer; transition: background 0.2s; 
+  border: none;
+}
+.distance-badge:hover { background: #cce7d9; }
+
 .nutri-actions-mini { display: flex; gap: 6px; flex-shrink: 0; }
 .action-btn-mini { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; text-decoration: none; cursor: pointer; border: none; }
 .action-btn-mini.chat { background: var(--green); color: #fff; }
 .action-btn-mini.book { background: var(--navy); color: #fff; }
 
 /* MODAL STYLES */
-.rating-modal-overlay, .appointment-modal-overlay, .logout-modal-overlay {
+.rating-modal-overlay, .appointment-modal-overlay, .logout-modal-overlay, .map-modal-overlay {
   position: fixed; inset: 0; background: rgba(15, 32, 25, 0.55); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
   opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease; padding: 16px;
 }
-.rating-modal-overlay.active, .appointment-modal-overlay.active, .logout-modal-overlay.active { opacity: 1; visibility: visible; }
-.rating-modal-card, .appointment-modal-card, .logout-modal-card {
+.rating-modal-overlay.active, .appointment-modal-overlay.active, .logout-modal-overlay.active, .map-modal-overlay.active { opacity: 1; visibility: visible; }
+.rating-modal-card, .appointment-modal-card, .logout-modal-card, .map-modal-card {
   background: #ffffff; width: 100%; max-width: 380px; border-radius: 20px; padding: 28px 24px; text-align: center;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); transform: scale(0.85); transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.rating-modal-overlay.active .rating-modal-card, .appointment-modal-overlay.active .appointment-modal-card, .logout-modal-overlay.active .logout-modal-card { transform: scale(1); }
+.map-modal-card { max-width: 600px !important; text-align: left; }
+.rating-modal-overlay.active .rating-modal-card, .appointment-modal-overlay.active .appointment-modal-card, .logout-modal-overlay.active .logout-modal-card, .map-modal-overlay.active .map-modal-card { transform: scale(1); }
 .logout-modal-icon {
   width: 56px; height: 56px; background: #fff3f1; color: #b42318; font-size: 26px;
   border-radius: 50%; display: grid; place-items: center; margin: 0 auto 16px;
@@ -405,6 +416,14 @@ a{color:inherit;text-decoration:none}
 .btn-modal-submit { background: var(--green); }
 .btn-modal-submit:hover { background: #2e714e; }
 .btn-modal-logout:hover { background: #901c12; }
+
+#user-inbox-map-container {
+  width: 100%;
+  height: 340px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  margin-top: 10px;
+}
 
 .alert-banner { padding: 12px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
 .alert-banner.success { background: #e6fffa; color: #0f766e; border: 1px solid #b2f5ea; }
@@ -543,7 +562,12 @@ a{color:inherit;text-decoration:none}
                     <strong><?php echo htmlspecialchars($nutri['fullname']); ?></strong>
                     <span class="license-sub"><?php echo htmlspecialchars($nutri['specialization'] ?? 'Nutritionist'); ?></span>
                     <?php if ($nutri['distance'] < 999999): ?>
-                      <span class="distance-badge"><i class="fa-solid fa-location-dot"></i> <?php echo number_format($nutri['distance'], 1); ?> km away</span>
+                      <?php 
+                        $dist_label = ($nutri['distance'] < 1) ? round($nutri['distance'] * 1000) . " m away" : round($nutri['distance'], 1) . " km away";
+                      ?>
+                      <button type="button" class="distance-badge" onclick="openMapModal(<?php echo floatval($nutri['latitude']); ?>, <?php echo floatval($nutri['longitude']); ?>, '<?php echo htmlspecialchars($nutri['fullname'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($nutri['address'] ?? 'Not specified', ENT_QUOTES); ?>')">
+                        <i class="fa-solid fa-location-dot"></i> <?php echo $dist_label; ?>
+                      </button>
                     <?php endif; ?>
                   </div>
                 </div>
@@ -597,6 +621,18 @@ a{color:inherit;text-decoration:none}
       </div>
     </div>
   </main>
+</div>
+
+<!-- MAP MODAL POPUP -->
+<div id="mapModal" class="map-modal-overlay">
+  <div class="map-modal-card">
+    <div class="modal-header-flex">
+      <div class="modal-title-wrap"><h3 id="mapModalNutriName">Nutritionist Location</h3></div>
+      <button type="button" class="modal-close-btn" onclick="closeMapModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-subtitle" id="mapModalNutriAddress" style="margin-bottom: 12px;"><i class="fa-solid fa-location-dot" style="color:var(--green);"></i> Address</div>
+    <div id="user-inbox-map-container"></div>
+  </div>
 </div>
 
 <!-- RATING & REVIEW MODAL -->
@@ -679,7 +715,42 @@ a{color:inherit;text-decoration:none}
   </div>
 </div>
 
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <script>
+let inboxMap = null;
+let inboxMarker = null;
+
+function openMapModal(lat, lng, name, address) {
+    document.getElementById('mapModalNutriName').textContent = name + "'s Location";
+    document.getElementById('mapModalNutriAddress').innerHTML = `<i class="fa-solid fa-location-dot" style="color:var(--green);"></i> <strong>Address:</strong> ${address}`;
+    document.getElementById('mapModal').classList.add('active');
+
+    setTimeout(() => {
+        if (!inboxMap) {
+            inboxMap = L.map('user-inbox-map-container').setView([lat, lng], 15);
+            L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=ZkO2ll8wJho8o1zc1Sug', {
+                maxZoom: 19,
+                attribution: '&copy; MapTiler &copy; OpenStreetMap contributors'
+            }).addTo(inboxMap);
+
+            inboxMarker = L.marker([lat, lng]).addTo(inboxMap)
+                .bindPopup(`<b>${name}</b><br>${address}`)
+                .openPopup();
+        } else {
+            inboxMap.invalidateSize();
+            inboxMap.setView([lat, lng], 15);
+            inboxMarker.setLatLng([lat, lng])
+                .setPopupContent(`<b>${name}</b><br>${address}`)
+                .openPopup();
+        }
+    }, 250);
+}
+
+function closeMapModal() {
+    document.getElementById('mapModal').classList.remove('active');
+}
+
 function switchTab(tabName, btn) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -746,13 +817,16 @@ function showLogoutModal() { document.getElementById('logoutModal').classList.ad
 function closeLogoutModal() { document.getElementById('logoutModal').classList.remove('active'); }
 
 document.getElementById('logoutModal').addEventListener('click', function(e) {
-  if (e.target === this) { closeBookModal(); closeRatingModal(); closeLogoutModal(); }
+  if (e.target === this) { closeBookModal(); closeRatingModal(); closeLogoutModal(); closeMapModal(); }
 });
 document.getElementById('appointmentModal').addEventListener('click', function(e) {
   if (e.target === this) { closeBookModal(); }
 });
 document.getElementById('ratingModal').addEventListener('click', function(e) {
   if (e.target === this) { closeRatingModal(); }
+});
+document.getElementById('mapModal').addEventListener('click', function(e) {
+  if (e.target === this) { closeMapModal(); }
 });
 
 function filterInbox() {
