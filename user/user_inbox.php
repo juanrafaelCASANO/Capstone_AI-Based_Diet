@@ -250,12 +250,12 @@ usort($all_nutritionists, function($a, $b) {
 html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
 body{background:var(--cream);color:var(--text)}
 a{color:inherit;text-decoration:none}
-.app{min-height:100vh;display:flex}
+.app{min-height:100vh;display:flex;position:relative;}
 
 .sidebar{
   width:260px;flex:0 0 260px;min-height:100vh;position:sticky;top:0;align-self:flex-start;
   background:linear-gradient(180deg,var(--navy),var(--navy-2));color:#fff;padding:24px 18px;
-  display:flex;flex-direction:column;z-index:20;
+  display:flex;flex-direction:column;transition:transform .25s ease;z-index:20;
 }
 .brand{display:flex;align-items:center;gap:12px;padding:6px 10px 28px}
 .brand-icon{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:rgba(255,255,255,.12);font-size:23px}
@@ -277,6 +277,10 @@ a{color:inherit;text-decoration:none}
 
 .main{min-width:0;flex:1;padding:26px clamp(15px,4vw,48px) 40px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+.menu-btn{
+  display:none;border:1px solid var(--border);background:#fff;
+  width:44px;height:44px;border-radius:12px;cursor:pointer;color:var(--text);
+}
 .eyebrow{font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.1em}
 .topbar h1{font-size:clamp(25px,3vw,34px);line-height:1.15;margin:5px 0 0;letter-spacing:-.7px}
 
@@ -342,7 +346,6 @@ a{color:inherit;text-decoration:none}
   border-radius: 10px; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: default;
 }
 
-/* RECOMMENDED NUTRITIONISTS SIDEBAR CARD WITH DISTANCE */
 .available-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); position: sticky; top: 26px; }
 .available-card h3 { font-size: 16px; margin: 0 0 4px; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .nutri-sidebar-list { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 200px); overflow-y: auto; padding-right: 2px; }
@@ -407,12 +410,35 @@ a{color:inherit;text-decoration:none}
 .alert-banner.success { background: #e6fffa; color: #0f766e; border: 1px solid #b2f5ea; }
 .alert-banner.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 .empty-box { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; background: #fff; border-radius: 16px; border: 1px solid var(--border); }
+
+.overlay { display: none; }
+
+@media(max-width:900px){
+  .inbox-layout { grid-template-columns: 1fr; }
+}
+@media(max-width:720px){
+  .app{display:block}
+  .sidebar{
+    position:fixed;left:0;top:0;bottom:0;min-height:100vh;
+    transform:translateX(-105%);box-shadow:20px 0 40px rgba(0,0,0,.16);
+  }
+  .sidebar.open{transform:translateX(0)}
+  .overlay{
+    position:fixed;inset:0;background:rgba(12,28,22,.42);z-index:15;
+  }
+  .overlay.show{display:block}
+  .main{padding:17px 15px 35px}
+  .menu-btn{display:grid;place-items:center}
+  .topbar{align-items:center;margin-bottom:20px}
+}
 </style>
 </head>
 <body>
 
 <div class="app">
-  <aside class="sidebar">
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
     <div class="brand">
       <div class="brand-icon">🥗</div>
       <div><strong>AI Diet Planner</strong><span>Personal nutrition assistant</span></div>
@@ -437,9 +463,12 @@ a{color:inherit;text-decoration:none}
 
   <main class="main">
     <header class="topbar">
-      <div>
-        <div class="eyebrow">Communications & Schedule</div>
-        <h1>Consultation Hub</h1>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="menu-btn" id="menuBtn" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <div>
+          <div class="eyebrow">Communications & Schedule</div>
+          <h1>Consultation Hub</h1>
+        </div>
       </div>
     </header>
 
@@ -717,7 +746,7 @@ function showLogoutModal() { document.getElementById('logoutModal').classList.ad
 function closeLogoutModal() { document.getElementById('logoutModal').classList.remove('active'); }
 
 document.getElementById('logoutModal').addEventListener('click', function(e) {
-  if (e.target === this) { closeLogoutModal(); }
+  if (e.target === this) { closeBookModal(); closeRatingModal(); closeLogoutModal(); }
 });
 document.getElementById('appointmentModal').addEventListener('click', function(e) {
   if (e.target === this) { closeBookModal(); }
@@ -738,6 +767,42 @@ function filterInbox() {
         }
     });
 }
+
+// MOBILE SIDEBAR TOGGLE & MINIMIZE SCRIPT (Katulad ng sa Dashboard)
+(function(){
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('overlay');
+  const menuBtn = document.getElementById('menuBtn');
+
+  function setMenu(open){
+    sidebar.classList.toggle('open', open);
+    overlay.classList.toggle('show', open);
+    menuBtn.setAttribute('aria-expanded', String(open));
+    overlay.setAttribute('aria-hidden', String(!open));
+  }
+
+  if(menuBtn) {
+    menuBtn.addEventListener('click', function(){
+      setMenu(!sidebar.classList.contains('open'));
+    });
+  }
+
+  if(overlay) {
+    overlay.addEventListener('click', function(){ setMenu(false); });
+  }
+
+  if(sidebar) {
+    sidebar.querySelectorAll('a').forEach(function(link){
+      link.addEventListener('click', function(){
+        if(window.innerWidth <= 720) setMenu(false);
+      });
+    });
+  }
+
+  window.addEventListener('resize', function(){
+    if(window.innerWidth > 720) setMenu(false);
+  });
+})();
 </script>
 </body>
 </html>
