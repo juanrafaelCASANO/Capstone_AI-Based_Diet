@@ -1013,14 +1013,27 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 
 <!-- SOCIAL MEDIA SHARE MODAL -->
 <div id="socialShareModal" class="logout-modal-overlay">
-  <div class="logout-modal-card" style="max-width: 420px;">
+  <div class="logout-modal-card" style="max-width: 440px;">
     <div class="logout-modal-icon" style="background: #f3e8ff; color: #8b5cf6;">🌐</div>
     <h3>Share to Social Media</h3>
-    <p>Copy the link or share your AI Diet Planner experience directly!</p>
+    <p>Piliin kung alin ang nais mong ibahagi:</p>
     
-    <div style="display:flex; gap:8px; margin-bottom:18px;">
-      <input type="text" id="shareLinkInput" readonly style="width:100%; min-height:42px; padding:0 12px; border:1px solid var(--border); border-radius:10px; background:#f9fafb; font-size:12px; color:var(--muted);" value="">
-      <button type="button" onclick="copyShareLink()" class="btn-modal-ok" style="min-width: 90px; height: 42px; font-size: 13px;">Copy Link</button>
+    <!-- Choice 1: System / Landing Page Link -->
+    <div style="text-align: left; margin-bottom: 12px;">
+      <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; display: block;">1. Main System Link</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="systemLinkInput" readonly style="width:100%; min-height:38px; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:#f9fafb; font-size:11.5px; color:var(--muted);" value="">
+        <button type="button" onclick="copyLink('systemLinkInput')" class="btn-modal-ok" style="min-width: 75px; height: 38px; font-size: 12px;">Copy</button>
+      </div>
+    </div>
+
+    <!-- Choice 2: Weekly Meal Plan Result Link -->
+    <div style="text-align: left; margin-bottom: 18px;">
+      <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; display: block;">2. Weekly Meal Plan Result Link</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="mealPlanLinkInput" readonly style="width:100%; min-height:38px; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:#f9fafb; font-size:11.5px; color:var(--muted);" value="">
+        <button type="button" onclick="copyLink('mealPlanLinkInput')" class="btn-modal-ok" style="min-width: 75px; height: 38px; font-size: 12px;">Copy</button>
+      </div>
     </div>
 
     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
@@ -1114,21 +1127,30 @@ function closeShareModal() {
 }
 
 function openSocialShareModal() {
-  // Kunin ang base URL nang tinatanggal ang kasalukuyang filename at 'user/' folder kung kinakailangan
-  const baseUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/user/')) + '/index.php';
-  // O kung gusto mo ay ang mismong main domain lang:
-  // const baseUrl = window.location.origin + '/index.php';
-  
-  document.getElementById('shareLinkInput').value = baseUrl;
+  // Link 1: Main System / Landing Page URL (Halimbawa ay ang index.php sa root)
+  const systemUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/user/')) + '/index.php';
+  document.getElementById('systemLinkInput').value = systemUrl;
+
+  // Link 2: Current Generated Meal Plan Page URL
+  const mealPlanUrl = window.location.href;
+  document.getElementById('mealPlanLinkInput').value = mealPlanUrl;
   
   const text = encodeURIComponent("Check out my custom AI-generated weekly meal plan on AI Diet Planner!");
-  const url = encodeURIComponent(baseUrl);
+  const url = encodeURIComponent(mealPlanUrl);
 
   document.getElementById('shareFacebook').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
   document.getElementById('shareTwitter').href = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
   document.getElementById('shareWhatsapp').href = `https://api.whatsapp.com/send?text=${text}%20${url}`;
 
   showModal('socialShareModal');
+}
+
+function copyLink(elementId) {
+  const input = document.getElementById(elementId);
+  input.select();
+  input.setSelectionRange(0, 99999);
+  navigator.clipboard.writeText(input.value);
+  alert('Link successfully copied to clipboard!');
 }
 
 function closeSocialShareModal() {
