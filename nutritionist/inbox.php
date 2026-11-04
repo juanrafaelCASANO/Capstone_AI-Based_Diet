@@ -46,6 +46,7 @@ $inbox_sql = "
             message,
             created_at,
             sender_id,
+            sender_type,
             ROW_NUMBER() OVER(
                 PARTITION BY CASE WHEN sender_id = :nutri_id THEN receiver_id ELSE sender_id END 
                 ORDER BY created_at DESC
@@ -65,6 +66,7 @@ $inbox_sql = "
         c.message AS last_message,
         c.created_at AS last_message_time,
         c.sender_id AS last_sender_id,
+        c.sender_type AS last_sender_type,
         COALESCE(uc.unread_count, 0) AS unread_count
     FROM conversations c
     JOIN users u ON u.id = c.client_id
@@ -247,8 +249,17 @@ a { color: inherit; text-decoration: none; }
               <div class="details">
                 <strong><?php echo htmlspecialchars($chat['client_name']); ?></strong>
                 <p>
-                  <?php if ($chat['last_sender_id'] == $nutri_id): ?>
+                  <?php 
+                    $is_you = ($chat['last_sender_type'] === 'nutritionist');
+                    if (empty($chat['last_sender_type'])) {
+                        $is_you = ($chat['last_sender_id'] == $nutri_id && strpos($chat['last_message'], 'Kabi') === false);
+                    }
+                  
+                    if ($is_you): 
+                  ?>
                     <span style="color:var(--teal);">You: </span>
+                  <?php elseif ($chat['last_sender_type'] === 'ai' || strpos($chat['last_message'], 'Kabi') !== false): ?>
+                    <span style="color:var(--muted);">🤖 Kabi: </span>
                   <?php endif; ?>
                   
                   <?php 
