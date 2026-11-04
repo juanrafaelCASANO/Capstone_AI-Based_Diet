@@ -6,8 +6,8 @@ if (!isset($_SESSION['user_id'])) {
     exit('Unauthorized access');
 }
 
-$user_id = intval($_POST['user_id'] ?? $_SESSION['user_id']);
-$nutri_id = intval($_POST['nutritionist_id'] ?? 0);
+$user_id = intval($_SESSION['user_id']);
+$nutri_id = intval($_POST['nutritionist_id'] ?? ($_POST['user_id'] ?? 0));
 
 if (!$user_id || !$nutri_id) {
     exit();
@@ -23,29 +23,34 @@ $stmt = $conn->prepare($query);
 $stmt->execute([$user_id, $nutri_id, $nutri_id, $user_id]);
 
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    // Piliting ilagay sa kaliwa (nutritionist-msg) kung ang mensahe ay galing kay AI Assistant
-    $is_ai = (strpos($row['message'], 'Kabi') !== false || strpos($row['message'], '🐮') !== false);
-
-    if ($is_ai) {
-        $class = 'nutritionist-msg';
-    } else {
-        $class = ($row['sender_id'] == $user_id) ? 'user-msg' : 'nutritionist-msg';
-    }
+    $sender = (int)$row['sender_id'];
+    
+    // Suriin kung ang nagpadala ay ang mismong user/client na naka-log in
+    $is_user = ($sender === $user_id);
+    $formatted_time = date('g:i A', strtotime($row['created_at']));
     
     $raw_message = htmlspecialchars_decode($row['message'], ENT_QUOTES);
-
-    // KUNG ANG USER ANG NAGBASA NG CHAT: Alisin ang "Edit Plan" button sa HTML card para hindi niya ito makita o ma-edit
-    if ($row['sender_id'] == $user_id && !$is_ai) {
-        // Tinatanggal ang link patungo sa nutritionist_edit_plan.php para sa panig ng client
+    if ($is_user) {
         $raw_message = preg_replace('/<a\s+href="nutritionist_edit_plan\.php[^>]*>.*?<\/a>/i', '', $raw_message);
     }
-
     $message_content = nl2br($raw_message);
-    $time_formatted = date('g:i A', strtotime($row['created_at']));
 
-    echo '<div class="message ' . $class . '">';
-    echo $message_content;
-    echo '<div style="font-size:10px; opacity:0.75; text-align:right; margin-top:4px;">' . $time_formatted . '</div>';
-    echo '</div>';
+    if ($is_user) {
+        // KANAN: Sariling mensahe ng User[cite: 27]
+        echo '<div style="display: flex; width: 100%; justify-content: flex-end; margin-bottom: 8px;">';
+        echo '  <div style="background: #0d9488; color: #ffffff; padding: 12px 16px; border-radius: 18px; border-bottom-right-radius: 4px; max-width: 70%; word-break: break-word;">';
+        echo '    <div style="font-size: 14px; line-height: 1.5;">' . $message_content . '</div>';
+        echo '    <div style="font-size: 10px; opacity: 0.8; margin-top: 4px; text-align: right;">' . $formatted_time . '</div>';
+        echo '  </div>';
+        echo '</div>';
+    } else {
+        // KALIWA: Mensahe mula sa Nutritionist o Kabi (AI)[cite: 27]
+        echo '<div style="display: flex; width: 100%; justify-content: flex-start; margin-bottom: 8px;">';
+        echo '  <div style="background: #ffffff; color: #112d25; padding: 12px 16px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 70%; word-break: break-word; border: 1px solid #dbece5;">';
+        echo '    <div style="font-size: 14px; line-height: 1.5;">' . $message_content . '</div>';
+        echo '    <div style="font-size: 10px; color: #5c736c; margin-top: 4px; text-align: right;">' . $formatted_time . '</div>';
+        echo '  </div>';
+        echo '</div>';
+    }
 }
 ?>
