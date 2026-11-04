@@ -13,7 +13,7 @@ if (!$user_id || !$nutri_id) {
     exit();
 }
 
-$query = "SELECT sender_id, receiver_id, message, created_at 
+$query = "SELECT sender_id, receiver_id, message, sender_type, created_at 
           FROM messages 
           WHERE (sender_id = ? AND receiver_id = ?) 
              OR (sender_id = ? AND receiver_id = ?) 
@@ -23,10 +23,14 @@ $stmt = $conn->prepare($query);
 $stmt->execute([$user_id, $nutri_id, $nutri_id, $user_id]);
 
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $sender = (int)$row['sender_id'];
+    // Ngayon ay ginagamit na natin ang sender_type
+    $is_user = ($row['sender_type'] === 'user');
     
-    // Suriin kung ang nagpadala ay ang mismong user/client na naka-log in
-    $is_user = ($sender === $user_id);
+    // Fallback para sa mga lumang messages na may NULL sender_type
+    if (empty($row['sender_type'])) {
+        $is_user = ($row['sender_id'] == $user_id && strpos($row['message'], 'Kabi') === false && strpos($row['message'], 'AI Assistant') === false);
+    }
+
     $formatted_time = date('g:i A', strtotime($row['created_at']));
     
     $raw_message = htmlspecialchars_decode($row['message'], ENT_QUOTES);
@@ -36,7 +40,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $message_content = nl2br($raw_message);
 
     if ($is_user) {
-        // KANAN: Sariling mensahe ng User[cite: 27]
+        // KANAN: Sariling mensahe ng User (Teal)
         echo '<div style="display: flex; width: 100%; justify-content: flex-end; margin-bottom: 8px;">';
         echo '  <div style="background: #0d9488; color: #ffffff; padding: 12px 16px; border-radius: 18px; border-bottom-right-radius: 4px; max-width: 70%; word-break: break-word;">';
         echo '    <div style="font-size: 14px; line-height: 1.5;">' . $message_content . '</div>';
@@ -44,7 +48,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         echo '  </div>';
         echo '</div>';
     } else {
-        // KALIWA: Mensahe mula sa Nutritionist o Kabi (AI)[cite: 27]
+        // KALIWA: Mensahe ng Nutritionist o AI (White)
         echo '<div style="display: flex; width: 100%; justify-content: flex-start; margin-bottom: 8px;">';
         echo '  <div style="background: #ffffff; color: #112d25; padding: 12px 16px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 70%; word-break: break-word; border: 1px solid #dbece5;">';
         echo '    <div style="font-size: 14px; line-height: 1.5;">' . $message_content . '</div>';

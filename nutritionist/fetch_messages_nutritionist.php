@@ -13,7 +13,7 @@ if (!$user_id || !$nutri_id) {
     exit('Missing IDs');
 }
 
-$query = "SELECT sender_id, receiver_id, message, created_at 
+$query = "SELECT sender_id, receiver_id, message, sender_type, created_at 
           FROM messages 
           WHERE (sender_id = ? AND receiver_id = ?) 
              OR (sender_id = ? AND receiver_id = ?) 
@@ -23,24 +23,27 @@ $stmt = $conn->prepare($query);
 $stmt->execute([$nutri_id, $user_id, $user_id, $nutri_id]);
 
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $sender = (int)$row['sender_id'];
-    $is_nutritionist = ($sender === $nutri_id);
+    // Gamitin ang sender_type. Kung NULL pa yung sa luma, gagamitin ang fallback.
+    $is_nutritionist = ($row['sender_type'] === 'nutritionist');
+    
+    if (empty($row['sender_type'])) {
+        $is_nutritionist = ($row['sender_id'] == $nutri_id && strpos($row['message'], 'Kabi') === false);
+    }
+
     $formatted_time = date('g:i A', strtotime($row['created_at']));
 
     if ($is_nutritionist) {
-        // Mensahe mula kay Nutritionist (Kanan / Teal bubble)
-        echo '<div class="msg-wrapper nutritionist-row">';
-        echo '  <div class="message nutritionist-bubble" style="background: #0d9488 !important; color: #ffffff !important;">';
+        echo '<div class="msg-wrapper nutritionist-row" style="display: flex; width: 100%; justify-content: flex-end; margin-bottom: 8px;">';
+        echo '  <div class="message nutritionist-bubble" style="background: #0d9488 !important; color: #ffffff !important; padding: 12px 16px; border-radius: 18px; border-bottom-right-radius: 4px; max-width: 70%; word-break: break-word;">';
         echo '    <div style="font-size: 14px; line-height: 1.5;">' . htmlspecialchars_decode($row['message'], ENT_QUOTES) . '</div>';
-        echo '    <div class="msg-meta" style="color: rgba(255,255,255,0.8);">' . $formatted_time . '</div>';
+        echo '    <div class="msg-meta" style="font-size: 10px; opacity: 0.8; margin-top: 4px; text-align: right; color: rgba(255,255,255,0.8);">' . $formatted_time . '</div>';
         echo '  </div>';
         echo '</div>';
     } else {
-        // Mensahe mula kay Client/User (Kaliwa / Gray bubble)
-        echo '<div class="msg-wrapper user-row">';
-        echo '  <div class="message user-bubble" style="background: #e9e9eb !important; color: #112d25 !important; border: 1px solid #dbece5;">';
+        echo '<div class="msg-wrapper user-row" style="display: flex; width: 100%; justify-content: flex-start; margin-bottom: 8px;">';
+        echo '  <div class="message user-bubble" style="background: #e9e9eb !important; color: #112d25 !important; padding: 12px 16px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 70%; word-break: break-word; border: 1px solid #dbece5;">';
         echo '    <div style="font-size: 14px; line-height: 1.5;">' . htmlspecialchars_decode($row['message'], ENT_QUOTES) . '</div>';
-        echo '    <div class="msg-meta" style="color: #5c736c;">' . $formatted_time . '</div>';
+        echo '    <div class="msg-meta" style="font-size: 10px; margin-top: 4px; text-align: right; color: #5c736c;">' . $formatted_time . '</div>';
         echo '  </div>';
         echo '</div>';
     }
