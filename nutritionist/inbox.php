@@ -239,7 +239,7 @@ a { color: inherit; text-decoration: none; }
     <div class="inbox-list">
       <?php if (count($conversations) > 0): ?>
         <?php foreach ($conversations as $chat): ?>
-          <a href="chat.php?user_id=<?php echo $chat['client_id']; ?>" class="inbox-card">
+          <a href="chat_reply.php?user_id=<?php echo $chat['client_id']; ?>" class="inbox-card">
             <div class="client-info">
               <div class="avatar">
                 <?php echo htmlspecialchars(strtoupper(substr($chat['client_name'], 0, 1))); ?>
