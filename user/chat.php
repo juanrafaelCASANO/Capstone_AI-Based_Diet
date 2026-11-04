@@ -102,9 +102,9 @@ try {
     }
 } catch (Exception $e) {}
 
-// Get specific nutritionist information including availability status and last_active_at
+// Get specific nutritionist information including availability status, last_active_at, and coordinates
 $nutri_stmt = $conn->prepare("
-    SELECT n.id, n.fullname, n.email, n.profile_pic, 
+    SELECT n.id, n.fullname, n.email, n.profile_pic, n.address, 
            n.experience, n.latitude, n.longitude, n.availability_status, n.last_active_at,
            p.specialty AS specialization 
     FROM nutritionist n
@@ -158,22 +158,6 @@ try {
 } catch (Exception $e) {
     $unread_count = 0;
 }
-
-$possible_riv_paths = [
-    '../assets/rive/uploads/kabi.riv',
-    '../assets/uploads/kabi.riv',
-    '../uploads/kabi.riv',
-    '../../assets/rive/uploads/kabi.riv',
-    'assets/rive/uploads/kabi.riv',
-    'uploads/kabi.riv'
-];
-$resolved_riv_path = '../assets/rive/uploads/kabi.riv';
-foreach ($possible_riv_paths as $path) {
-    if (file_exists(__DIR__ . '/' . $path)) {
-        $resolved_riv_path = $path;
-        break;
-    }
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -183,6 +167,8 @@ foreach ($possible_riv_paths as $path) {
 <title>AI-Based Diet & Nutritional Planner - Nutritionist Chat</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
 
 <style>
 :root{
@@ -307,7 +293,7 @@ button{cursor:pointer}
 }
 .info-card h2{font-size:16px;margin:0 0 4px;font-weight:700}
 
-.back-inbox-btn, .report-nutri-btn {
+.back-inbox-btn, .report-nutri-btn, .view-location-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -329,11 +315,19 @@ button{cursor:pointer}
 }
 .back-inbox-btn:hover { background: #d4f2e1; transform: translateY(-1px); }
 
+.view-location-btn {
+  background: #f0fdf4;
+  color: #08734a;
+  border: 1px solid #bbf7d0;
+  margin-top: 4px;
+}
+.view-location-btn:hover { background: #dcfce7; transform: translateY(-1px); }
+
 .report-nutri-btn {
   background: #fef2f2;
   color: #dc2626;
   border: 1px solid #fecaca;
-  margin-top: 6px;
+  margin-top: 2px;
 }
 .report-nutri-btn:hover { background: #fee2e2; transform: translateY(-1px); }
 
@@ -368,23 +362,6 @@ button{cursor:pointer}
 .detail-item{background:#f8faf8;border:1px solid var(--border);padding:8px 10px;border-radius:10px}
 .detail-item span{display:block;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase}
 .detail-item strong{display:block;font-size:12px;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-.chat-mascot-box {
-  background: #f9fbfa;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
-  text-align: center;
-}
-.chat-mascot-container {
-  width: 130px;
-  height: 130px;
-  margin: 0 auto;
-}
-.chat-mascot-container canvas {
-  width: 100%;
-  height: 100%;
-}
 
 .chat-body{
   flex:1;min-height:0;padding:18px;overflow-y:auto;background:#f2f6f3;
@@ -458,6 +435,17 @@ button{cursor:pointer}
 
 .alert-box-success { background: #dcfce7; color: #15803d; padding: 12px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; font-weight: 600; }
 .alert-box-error { background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; font-weight: 600; }
+
+/* MAP MODAL STYLING */
+.map-modal-box {
+  max-width: 650px !important;
+}
+#nutritionist-map-container {
+  width: 100%;
+  height: 350px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+}
 
 .overlay{display:none}
 
@@ -617,12 +605,10 @@ button{cursor:pointer}
           </div>
         </div>
 
-        <div class="chat-mascot-box">
-          <div class="chat-mascot-container">
-            <canvas id="kabiChatCanvas" width="130" height="130"></canvas>
-          </div>
-          <span style="font-size: 11px; color: var(--muted); display: block; margin-top: 4px; font-weight: 600;">Kabi • AI Companion</span>
-        </div>
+        <!-- PALIT MULA KABI AI COMPANION PATUNGONG VIEW LOCATION BUTTON -->
+        <button type="button" class="view-location-btn" onclick="openMapModal()">
+          <i class="fa-solid fa-map-location-dot"></i> View Location
+        </button>
 
         <button type="button" class="report-nutri-btn" onclick="openReportModal()">
           <i class="fa-solid fa-triangle-exclamation"></i> Report Nutritionist
@@ -630,6 +616,20 @@ button{cursor:pointer}
       </aside>
     </section>
   </main>
+</div>
+
+<!-- MAP MODAL -->
+<div id="mapModal" class="modal-overlay">
+  <div class="modal-card map-modal-box">
+    <div class="modal-header">
+      <h3>Nutritionist Location</h3>
+      <button type="button" class="close-modal-btn" onclick="closeMapModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="margin-bottom: 12px; font-size: 13px; color: var(--muted);">
+      <i class="fa-solid fa-location-dot" style="color: var(--green);"></i> <strong>Address:</strong> <?php echo htmlspecialchars($nutri['address'] ?? 'Location not specified'); ?>
+    </div>
+    <div id="nutritionist-map-container"></div>
+  </div>
 </div>
 
 <!-- REPORT MODAL -->
@@ -688,48 +688,38 @@ button{cursor:pointer}
   </div>
 </div>
 
-<script src="https://unpkg.com/@rive-app/canvas@latest"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <script>
-let kabiRive = null;
-let typingInput = null;
-let sendTrigger = null;
+let nutriMap = null;
+let nutriMarker = null;
+const nutriLat = <?php echo floatval($nutri['latitude'] ?? 14.3498); ?>;
+const nutriLng = <?php echo floatval($nutri['longitude'] ?? 121.0794); ?>;
+const nutriName = "<?php echo addslashes($nutri['fullname']); ?>";
 
-window.addEventListener('DOMContentLoaded', () => {
-  try {
-    kabiRive = new rive.Rive({
-      src: "<?php echo $resolved_riv_path; ?>",
-      canvas: document.getElementById("kabiChatCanvas"),
-      autoplay: true,
-      onLoad: () => {
-        kabiRive.resizeDrawingSurfaceToCanvas();
-        try {
-          const inputs = kabiRive.stateMachineInputs(kabiRive.activeStateMachineName);
-          if (inputs) {
-            typingInput = inputs.find(i => i.name === 'isTyping' || i.name === 'Typing' || i.name === 'isLooking');
-            sendTrigger = inputs.find(i => i.name === 'send' || i.name === 'Trigger' || i.name === 'success');
-          }
-        } catch (e) {}
-      }
-    });
-  } catch (err) {}
-});
+function openMapModal() {
+  document.getElementById('mapModal').classList.add('active');
+  setTimeout(() => {
+    if (!nutriMap) {
+      nutriMap = L.map('nutritionist-map-container').setView([nutriLat, nutriLng], 15);
+      L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=ZkO2ll8wJho8o1zc1Sug', {
+        maxZoom: 19,
+        attribution: '&copy; MapTiler &copy; OpenStreetMap contributors'
+      }).addTo(nutriMap);
 
-$('#message').on('input', function() {
-  if (typingInput) {
-    typingInput.value = $(this).val().trim().length > 0;
-  }
-});
-
-function triggerKabiReaction() {
-  if (sendTrigger) {
-    if (sendTrigger.type === 'trigger') {
-      sendTrigger.fire();
+      nutriMarker = L.marker([nutriLat, nutriLng]).addTo(nutriMap)
+        .bindPopup(`<b>${nutriName}</b><br>Nutritionist Location`)
+        .openPopup();
     } else {
-      sendTrigger.value = true;
-      setTimeout(() => { sendTrigger.value = false; }, 800);
+      nutriMap.invalidateSize();
+      nutriMap.setView([nutriLat, nutriLng], 15);
     }
-  }
+  }, 250);
+}
+
+function closeMapModal() {
+  document.getElementById('mapModal').classList.remove('active');
 }
 
 function showLogoutModal() {
@@ -766,6 +756,12 @@ document.getElementById('reportModal').addEventListener('click', function(e) {
   }
 });
 
+document.getElementById('mapModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeMapModal();
+  }
+});
+
 let user_id = <?php echo $user_id; ?>;
 let nutritionist_id = <?php echo $nutritionist_id; ?>;
 
@@ -798,11 +794,6 @@ function sendMessage() {
 
   if(msg.trim() !== '' && nutritionist_id){
     send.prop('disabled', true).text('Sending…');
-
-    triggerKabiReaction();
-    if (typingInput) {
-      typingInput.value = false;
-    }
 
     $.post('send_message.php', {
       user_id: user_id, 
