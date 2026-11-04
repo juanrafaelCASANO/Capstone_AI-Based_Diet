@@ -1114,11 +1114,15 @@ function closeShareModal() {
 }
 
 function openSocialShareModal() {
-  const currentUrl = window.location.origin + window.location.pathname.replace('generate_weekly.php', 'index.php');
-  document.getElementById('shareLinkInput').value = currentUrl;
+  // Kunin ang base URL nang tinatanggal ang kasalukuyang filename at 'user/' folder kung kinakailangan
+  const baseUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/user/')) + '/index.php';
+  // O kung gusto mo ay ang mismong main domain lang:
+  // const baseUrl = window.location.origin + '/index.php';
+  
+  document.getElementById('shareLinkInput').value = baseUrl;
   
   const text = encodeURIComponent("Check out my custom AI-generated weekly meal plan on AI Diet Planner!");
-  const url = encodeURIComponent(currentUrl);
+  const url = encodeURIComponent(baseUrl);
 
   document.getElementById('shareFacebook').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
   document.getElementById('shareTwitter').href = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
