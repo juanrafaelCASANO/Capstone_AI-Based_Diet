@@ -554,7 +554,7 @@ a{color:inherit}
     </div>
     <p class="toast-body">
       <b><?php echo htmlspecialchars($latest_message['sender_name'] ?? 'User'); ?>:</b> 
-      <?php echo htmlspecialchars($latest_message['message'] ?? 'Needs your assistance regarding their meal plan.'); ?>
+      <?php echo htmlspecialchars(strip_tags($latest_message['message'] ?? 'Needs your assistance regarding their meal plan.')); ?>
     </p>
     <div class="toast-footer">
       <a href="inbox.php" class="toast-btn toast-btn-primary">View in Inbox →</a>
