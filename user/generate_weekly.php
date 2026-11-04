@@ -417,8 +417,7 @@ if (!is_array($mealProgress)) {
     $mealProgress = [];
 }
 
-// INAYOS ANG QUERY DITO PARA KUNIN LAHAT NG NUTRITIONIST NA APPROVED, ACTIVE, O NULL STATUS
-$nutri_list_stmt = $conn->query("SELECT id, fullname FROM nutritionist WHERE status = 'approved' OR status = 'active' OR status IS NULL");
+$nutri_list_stmt = $conn->query("SELECT id, fullname FROM nutritionist");
 $all_nutritionists = $nutri_list_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $unread_count = 0;
@@ -497,8 +496,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Diet Planner · Weekly Meal Plan</title>
+
+<!-- Open Graph Meta Tags para sa Social Media Preview (Logo & System Name) -->
+<meta property="og:title" content="AI-Based Diet & Nutritional Planner" />
+<meta property="og:description" content="Personal nutrition assistant and custom meal planner." />
+<meta property="og:image" content="https://capstone-ai-based-diet.onrender.com/assets/images/logo.png" />
+<meta property="og:url" content="https://capstone-ai-based-diet.onrender.com/" />
+<meta property="og:type" content="website" />
+
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+<!-- html2canvas library para sa pag-download ng meal plan bilang image -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
 <style>
 :root{
   --navy:#173b32;
@@ -519,7 +529,7 @@ body{margin:0;background:var(--cream);color:var(--text);font-family:Inter,ui-san
 a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .app{min-height:100vh;display:flex;position:relative;}
 
-/* SIDEBAR STYLES MATCHING DASHBOARD */
+/* SIDEBAR STYLES */
 .sidebar{
   width:260px;
   flex:0 0 260px;
@@ -580,7 +590,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 }
 .sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
 
-/* LOGOUT & NOTIFICATION MODAL STYLES */
+/* MODALS */
 .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -618,7 +628,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 }
 .btn-modal-ok:hover { background: #2e714e; transform: translateY(-1px); }
 
-/* MAIN CONTENT LAYOUT */
+/* MAIN CONTENT */
 .main{flex:1;padding:26px clamp(18px,4vw,48px) 48px; min-width:0;}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
 .menu-btn{display:none;border:1px solid var(--border);background:#fff;width:44px;height:44px;border-radius:12px;cursor:pointer;color:var(--text)}
@@ -640,7 +650,6 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .field label{display:block;font-size:13px;font-weight:750;margin:0 0 8px}
 .field input, .field select{width:100%;min-height:48px;padding:0 14px;border:1px solid var(--border);border-radius:12px;background:#f4f8f5;color:var(--muted);outline:none;font-size:16px;}
 .field input:disabled { cursor:not-allowed; }
-
 .field select.active-select { background:#fff; cursor:pointer; color:var(--text); border-color:var(--green); box-shadow: 0 4px 10px rgba(59,143,99,0.1); }
 
 .actions{display:flex;gap:10px;margin-top:24px; flex-wrap:wrap;}
@@ -649,6 +658,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .btn-secondary{background:#fff;color:var(--navy);border-color:var(--border)}
 .btn-share { background: #0c6bba; color: #fff; box-shadow: 0 8px 18px rgba(12,107,186,.18); }
 .btn-social { background: #8b5cf6; color: #fff; box-shadow: 0 8px 18px rgba(139,92,246,.18); }
+.btn-download { background: #0284c7; color: #fff; box-shadow: 0 8px 18px rgba(2,132,199,.18); }
 
 .result-layout { display: flex; gap: 24px; align-items: flex-start; }
 .plan-col { flex: 1; min-width: 0; display: grid; gap: 18px; }
@@ -692,61 +702,18 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .meal-checkbox-wrapper { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--green); cursor: pointer; }
 .meal-checkbox-wrapper input { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
 
-/* KABI LOADING OVERLAY STYLES */
+/* KABI LOADING OVERLAY */
 .kabi-loading-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(23, 59, 50, 0.92);
-  backdrop-filter: blur(12px);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 99999;
-  flex-direction: column;
-  gap: 22px;
-  color: #fff;
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  position: fixed; inset: 0; background: rgba(23, 59, 50, 0.92); backdrop-filter: blur(12px);
+  display: none; align-items: center; justify-content: center; z-index: 99999;
+  flex-direction: column; gap: 22px; color: #fff; opacity: 0; transition: opacity 0.3s ease;
 }
-.kabi-loading-overlay.active {
-  display: flex;
-  opacity: 1;
-}
-.kabi-spinner-box {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.kabi-ring {
-  position: absolute;
-  inset: 0;
-  border: 4px solid rgba(255, 255, 255, 0.15);
-  border-top: 4px solid #3b8f63;
-  border-radius: 50%;
-  animation: kabiSpin 1.2s linear infinite;
-}
-.kabi-logo-center {
-  width: 84px;
-  height: 84px;
-  background: #ffffff;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 40px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  animation: kabiPulse 1.5s ease-in-out infinite;
-}
-@keyframes kabiSpin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-@keyframes kabiPulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
-}
+.kabi-loading-overlay.active { display: flex; opacity: 1; }
+.kabi-spinner-box { position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; }
+.kabi-ring { position: absolute; inset: 0; border: 4px solid rgba(255, 255, 255, 0.15); border-top: 4px solid #3b8f63; border-radius: 50%; animation: kabiSpin 1.2s linear infinite; }
+.kabi-logo-center { width: 84px; height: 84px; background: #ffffff; border-radius: 50%; display: grid; place-items: center; font-size: 40px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); animation: kabiPulse 1.5s ease-in-out infinite; }
+@keyframes kabiSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes kabiPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 
 /* MODALS */
 .modal-overlay {position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;opacity: 0; visibility: hidden; transition: 0.25s;}
@@ -768,9 +735,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
     transform:translateX(-105%);box-shadow:20px 0 40px rgba(0,0,0,.16);
   } 
   .sidebar.open{transform:translateX(0)} 
-  .overlay{
-    position:fixed;inset:0;background:rgba(12,28,22,.42);z-index:15;
-  }
+  .overlay{position:fixed;inset:0;background:rgba(12,28,22,.42);z-index:15;}
   .overlay.show{display:block}
   .main{padding:17px 15px 35px} 
   .menu-btn{display:grid;place-items:center} 
@@ -889,7 +854,8 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
       <input type="hidden" id="sys_diet" value="<?php echo htmlspecialchars($userDietType); ?>">
       <input type="hidden" id="sys_allergies" value="<?php echo htmlspecialchars($userAllergies); ?>">
 
-      <div class="result-layout">
+      <!-- Nakabalot ang result layout sa id na ito para ma-capture ng html2canvas pag nag-download -->
+      <div class="result-layout" id="printableMealPlan">
         <div class="plan-col">
           <div class="summary">
             <div>
@@ -951,7 +917,8 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
               <button type="submit" class="btn btn-primary">↻ Create New Plan</button>
             </form>
             <button type="button" class="btn btn-share" onclick="openShareModal()">📤 Share Meal Plan to Nutritionist</button>
-            <button type="button" class="btn btn-social" onclick="openSocialShareModal()">🌐 Share Site / Plan Link</button>
+            <button type="button" class="btn btn-social" onclick="openSocialShareModal()">🌐 Share System Link</button>
+            <button type="button" class="btn btn-download" onclick="downloadMealPlanAsImage()">📥 Download Meal Plan Image</button>
           </div>
         </div>
 
@@ -999,7 +966,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
             <option value="<?php echo $n['id']; ?>"><?php echo htmlspecialchars($n['fullname']); ?></option>
           <?php endforeach; ?>
         <?php else: ?>
-          <option value="">No approved nutritionists available</option>
+          <option value="">No nutritionists available in database</option>
         <?php endif; ?>
       </select>
     </div>
@@ -1013,27 +980,14 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 
 <!-- SOCIAL MEDIA SHARE MODAL -->
 <div id="socialShareModal" class="logout-modal-overlay">
-  <div class="logout-modal-card" style="max-width: 440px;">
+  <div class="logout-modal-card" style="max-width: 420px;">
     <div class="logout-modal-icon" style="background: #f3e8ff; color: #8b5cf6;">🌐</div>
-    <h3>Share to Social Media</h3>
-    <p>Piliin kung alin ang nais mong ibahagi:</p>
+    <h3>Share System Link</h3>
+    <p>Copy the system link or share your AI Diet Planner experience directly!</p>
     
-    <!-- Choice 1: System / Landing Page Link -->
-    <div style="text-align: left; margin-bottom: 12px;">
-      <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; display: block;">1. Main System Link</label>
-      <div style="display:flex; gap:8px;">
-        <input type="text" id="systemLinkInput" readonly style="width:100%; min-height:38px; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:#f9fafb; font-size:11.5px; color:var(--muted);" value="">
-        <button type="button" onclick="copyLink('systemLinkInput')" class="btn-modal-ok" style="min-width: 75px; height: 38px; font-size: 12px;">Copy</button>
-      </div>
-    </div>
-
-    <!-- Choice 2: Weekly Meal Plan Result Link -->
-    <div style="text-align: left; margin-bottom: 18px;">
-      <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; display: block;">2. Weekly Meal Plan Result Link</label>
-      <div style="display:flex; gap:8px;">
-        <input type="text" id="mealPlanLinkInput" readonly style="width:100%; min-height:38px; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:#f9fafb; font-size:11.5px; color:var(--muted);" value="">
-        <button type="button" onclick="copyLink('mealPlanLinkInput')" class="btn-modal-ok" style="min-width: 75px; height: 38px; font-size: 12px;">Copy</button>
-      </div>
+    <div style="display:flex; gap:8px; margin-bottom:18px;">
+      <input type="text" id="shareLinkInput" readonly style="width:100%; min-height:42px; padding:0 12px; border:1px solid var(--border); border-radius:10px; background:#f9fafb; font-size:12px; color:var(--muted);" value="">
+      <button type="button" onclick="copyShareLink()" class="btn-modal-ok" style="min-width: 90px; height: 42px; font-size: 13px;">Copy Link</button>
     </div>
 
     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
@@ -1127,30 +1081,18 @@ function closeShareModal() {
 }
 
 function openSocialShareModal() {
-  // Link 1: Main System / Landing Page URL (Halimbawa ay ang index.php sa root)
+  // Itinuturo sa main system URL / index.php para magamit ang Open Graph logo preview
   const systemUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/user/')) + '/index.php';
-  document.getElementById('systemLinkInput').value = systemUrl;
-
-  // Link 2: Current Generated Meal Plan Page URL
-  const mealPlanUrl = window.location.href;
-  document.getElementById('mealPlanLinkInput').value = mealPlanUrl;
+  document.getElementById('shareLinkInput').value = systemUrl;
   
   const text = encodeURIComponent("Check out my custom AI-generated weekly meal plan on AI Diet Planner!");
-  const url = encodeURIComponent(mealPlanUrl);
+  const url = encodeURIComponent(systemUrl);
 
   document.getElementById('shareFacebook').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
   document.getElementById('shareTwitter').href = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
   document.getElementById('shareWhatsapp').href = `https://api.whatsapp.com/send?text=${text}%20${url}`;
 
   showModal('socialShareModal');
-}
-
-function copyLink(elementId) {
-  const input = document.getElementById(elementId);
-  input.select();
-  input.setSelectionRange(0, 99999);
-  navigator.clipboard.writeText(input.value);
-  alert('Link successfully copied to clipboard!');
 }
 
 function closeSocialShareModal() {
@@ -1162,7 +1104,22 @@ function copyShareLink() {
   input.select();
   input.setSelectionRange(0, 99999);
   navigator.clipboard.writeText(input.value);
-  alert('Link successfully copied to clipboard!');
+  alert('System link successfully copied to clipboard!');
+}
+
+function downloadMealPlanAsImage() {
+  const element = document.getElementById('printableMealPlan');
+  alert('Hinahanda ang iyong meal plan para ma-download bilang image. Sandali lamang...');
+
+  html2canvas(element, { scale: 2, useCORS: true }).then(canvas => {
+    const link = document.createElement('a');
+    link.download = 'My_AI_Weekly_Meal_Plan.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }).catch(err => {
+    console.error(err);
+    alert('Nagkaroon ng problema sa paggawa ng image.');
+  });
 }
 
 function closeSuccessModal() {
