@@ -9,16 +9,31 @@ header("Pragma: no-cache");
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
+// [BAGONG IDAGDAG] Profanity Filter Function para palitan ng asterisks ang mga mura
+function filterBadWords($text) {
+    // Maaari kang magdagdag ng iba pang salita sa listahang ito
+    $bawal_na_salita = ['gago', 'puta', 'ulol', 'tanga', 'bobo', 'pakshet', 'gaga']; 
+    
+    foreach ($bawal_na_salita as $salita) {
+        $replacement = str_repeat('*', mb_strlen($salita));
+        $text = str_ireplace($salita, $replacement, $text);
+    }
+    return $text;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
     $sender_id = intval($_SESSION['user_id']); // Ang ID mo bilang Client
     $receiver_id = intval($_POST['nutritionist_id'] ?? ($_POST['receiver_id'] ?? 0)); // Ang ID ng Nutritionist
-    $message = trim($_POST['message'] ?? '');
+    
+    // [INAYOS] Dito natin sinala ang mensahe gamit ang filter function bago i-save o gamitin
+    $raw_message = trim($_POST['message'] ?? '');
+    $message = filterBadWords($raw_message);
 
     if (!empty($message) && $sender_id > 0 && $receiver_id > 0) {
         try {
             $conn->beginTransaction();
 
-            // 1. I-save muna ang tunay na mensahe na ikaw ang nag-send (Mapupunta sa kanan)[cite: 15]
+            // 1. I-save muna ang na-filter na mensahe na ikaw ang nag-send (Mapupunta sa kanan)[cite: 15]
             $stmt = $conn->prepare("
                 INSERT INTO messages (sender_id, receiver_id, message, created_at) 
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -76,9 +91,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
 
                 // Buuin ang system prompt batay sa kung na-notify na ba siya ngayong araw o hindi pa[cite: 15]
                 if (!$alreadyGreetedToday) {
-                    $systemPrompt = 'You are a smart AI Nutritionist Assistant named Kabi for an AI Diet Planner. Because this is the first message from the user today, your response MUST start by briefly letting them know that their assigned nutritionist is currently offline or unavailable, and you are temporarily assisting them. Then provide helpful nutritional advice in simple, conversational English.';
+                    $systemPrompt = 'You are a smart AI Nutritionist Assistant named Kabi for an AI Diet Planner. Because this is the first message from the user today, your response MUST start by briefly letting them know that their assigned nutritionist is currently offline or unavailable, and you are temporarily assisting them. Then provide helpful nutritional advice in simple, conversational English. Keep your focus strictly on food, health, and nutrition.';
                 } else {
-                    $systemPrompt = 'You are a smart AI Nutritionist Assistant named Kabi for an AI Diet Planner. Provide helpful nutritional advice to the user in simple, conversational English. Do not mention the nutritionist availability notice anymore since it was already mentioned earlier today.';
+                    $systemPrompt = 'You are a smart AI Nutritionist Assistant named Kabi for an AI Diet Planner. Provide helpful nutritional advice to the user in simple, conversational English. Do not mention the nutritionist availability notice anymore since it was already mentioned earlier today. Always steer the conversation back to health and nutrition if the user asks about unrelated topics.';
                 }
 
                 // Tawagin ang OpenAI API[cite: 15]
@@ -87,8 +102,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
                 $data = [
                     'model' => 'gpt-4o-mini',
                     'messages' => [
-                        ['role' => 'system', 'content' => $systemPrompt],
-                        ['role' => 'user', 'content' => $message]
+                        ["role" => "system", "content" => $systemPrompt],
+                        ["role" => "user", "content" => $message]
                     ],
                     'max_tokens' => 300
                 ];
