@@ -791,7 +791,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
       <div class="kabi-logo-center">🥗</div>
     </div>
     <div style="text-align: center; max-width: 360px; padding: 0 15px;">
-      <h3 style="margin: 0 0 6px; font-size: 21px; font-weight: 700; letter-spacing: -0.5px;">Kabi is prearing a meal plan...</h3>
+      <h3 style="margin: 0 0 6px; font-size: 21px; font-weight: 700; letter-spacing: -0.5px;">Kabi is preparing a meal plan...</h3>
       <p style="margin: 0 0 14px; font-size: 13px; color: #b8d2c8; line-height: 1.5;">Please bear with us, building your custom nutrition strategy and delicious options!</p>
       <div id="kabiCountdown" style="font-size: 13px; font-weight: 700; color: #9be4b8; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 6px 16px; border-radius: 99px; display: inline-block;">
         Tinatayang natitira: ~12 segundo
