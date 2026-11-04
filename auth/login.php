@@ -93,9 +93,9 @@ if (isset($_POST['verify_otp'])) {
                 $_SESSION['fullname'] = $fullname;
                 $_SESSION['role']     = $role;
 
-                // IDAGDAG ITO: I-update ang huling aktibidad kung nutritionist ang nag-login
+                // INAYOS: Awtomatikong ginagawang online at ina-update ang huling aktibidad ng nutritionist
                 if ($role === 'nutritionist') {
-                    $update_active = $conn->prepare("UPDATE nutritionist SET last_active_at = NOW() WHERE id = ?");
+                    $update_active = $conn->prepare("UPDATE nutritionist SET availability_status = 'online', last_active_at = NOW() WHERE id = ?");
                     $update_active->execute([$user_id]);
                 }
 
@@ -197,9 +197,9 @@ if (isset($_POST['login'])) {
                 $_SESSION['fullname'] = $user_data['fullname'];
                 $_SESSION['role']     = $role;
 
-                // IDAGDAG RIN ITO DITO para sa mga nag-login gamit ang trusted cookie
+                // INAYOS: Awtomatikong ginagawang online para sa trusted cookie login
                 if ($role === 'nutritionist') {
-                    $update_active = $conn->prepare("UPDATE nutritionist SET last_active_at = NOW() WHERE id = ?");
+                    $update_active = $conn->prepare("UPDATE nutritionist SET availability_status = 'online', last_active_at = NOW() WHERE id = ?");
                     $update_active->execute([$user_id]);
                 }
 
@@ -632,7 +632,7 @@ $remaining_seconds = $is_otp_stage ? max(0, $_SESSION['temp_auth']['otp_expiry']
                     <i class="fa-solid fa-circle-exclamation"></i>
                     <div>
                         <strong><?php echo htmlspecialchars($err['title']); ?></strong>
-                        <?php echo $err['desc']; // Ginamit nang walang htmlspecialchars para gumana ang HTML link sa loob ?>
+                        <?php echo $err['desc']; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
