@@ -417,8 +417,8 @@ if (!is_array($mealProgress)) {
     $mealProgress = [];
 }
 
-// SINIGURO NATIN DITO NA KUKUNIN LAHAT NG NUTRITIONIST NA NASA TABLE ANUMAN ANG STATUS O KAHIT WALANG STATUS
-$nutri_list_stmt = $conn->query("SELECT id, fullname FROM nutritionist");
+// INAYOS ANG QUERY DITO PARA KUNIN LAHAT NG NUTRITIONIST NA APPROVED, ACTIVE, O NULL STATUS
+$nutri_list_stmt = $conn->query("SELECT id, fullname FROM nutritionist WHERE status = 'approved' OR status = 'active' OR status IS NULL");
 $all_nutritionists = $nutri_list_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $unread_count = 0;
@@ -519,7 +519,7 @@ body{margin:0;background:var(--cream);color:var(--text);font-family:Inter,ui-san
 a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .app{min-height:100vh;display:flex;position:relative;}
 
-/* SIDEBAR STYLES */
+/* SIDEBAR STYLES MATCHING DASHBOARD */
 .sidebar{
   width:260px;
   flex:0 0 260px;
@@ -580,7 +580,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 }
 .sidebar-bottom a.logout:hover{background:rgba(220,53,69,.2);transform:translateX(2px)}
 
-/* MODALS */
+/* LOGOUT & NOTIFICATION MODAL STYLES */
 .logout-modal-overlay {
   position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
@@ -618,7 +618,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 }
 .btn-modal-ok:hover { background: #2e714e; transform: translateY(-1px); }
 
-/* MAIN CONTENT */
+/* MAIN CONTENT LAYOUT */
 .main{flex:1;padding:26px clamp(18px,4vw,48px) 48px; min-width:0;}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
 .menu-btn{display:none;border:1px solid var(--border);background:#fff;width:44px;height:44px;border-radius:12px;cursor:pointer;color:var(--text)}
@@ -640,6 +640,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .field label{display:block;font-size:13px;font-weight:750;margin:0 0 8px}
 .field input, .field select{width:100%;min-height:48px;padding:0 14px;border:1px solid var(--border);border-radius:12px;background:#f4f8f5;color:var(--muted);outline:none;font-size:16px;}
 .field input:disabled { cursor:not-allowed; }
+
 .field select.active-select { background:#fff; cursor:pointer; color:var(--text); border-color:var(--green); box-shadow: 0 4px 10px rgba(59,143,99,0.1); }
 
 .actions{display:flex;gap:10px;margin-top:24px; flex-wrap:wrap;}
@@ -691,18 +692,61 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .meal-checkbox-wrapper { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--green); cursor: pointer; }
 .meal-checkbox-wrapper input { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
 
-/* KABI LOADING OVERLAY */
+/* KABI LOADING OVERLAY STYLES */
 .kabi-loading-overlay {
-  position: fixed; inset: 0; background: rgba(23, 59, 50, 0.92); backdrop-filter: blur(12px);
-  display: none; align-items: center; justify-content: center; z-index: 99999;
-  flex-direction: column; gap: 22px; color: #fff; opacity: 0; transition: opacity 0.3s ease;
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 59, 50, 0.92);
+  backdrop-filter: blur(12px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  flex-direction: column;
+  gap: 22px;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
-.kabi-loading-overlay.active { display: flex; opacity: 1; }
-.kabi-spinner-box { position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; }
-.kabi-ring { position: absolute; inset: 0; border: 4px solid rgba(255, 255, 255, 0.15); border-top: 4px solid #3b8f63; border-radius: 50%; animation: kabiSpin 1.2s linear infinite; }
-.kabi-logo-center { width: 84px; height: 84px; background: #ffffff; border-radius: 50%; display: grid; place-items: center; font-size: 40px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); animation: kabiPulse 1.5s ease-in-out infinite; }
-@keyframes kabiSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-@keyframes kabiPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.kabi-loading-overlay.active {
+  display: flex;
+  opacity: 1;
+}
+.kabi-spinner-box {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kabi-ring {
+  position: absolute;
+  inset: 0;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top: 4px solid #3b8f63;
+  border-radius: 50%;
+  animation: kabiSpin 1.2s linear infinite;
+}
+.kabi-logo-center {
+  width: 84px;
+  height: 84px;
+  background: #ffffff;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 40px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  animation: kabiPulse 1.5s ease-in-out infinite;
+}
+@keyframes kabiSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes kabiPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
 
 /* MODALS */
 .modal-overlay {position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;opacity: 0; visibility: hidden; transition: 0.25s;}
@@ -724,7 +768,9 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
     transform:translateX(-105%);box-shadow:20px 0 40px rgba(0,0,0,.16);
   } 
   .sidebar.open{transform:translateX(0)} 
-  .overlay{position:fixed;inset:0;background:rgba(12,28,22,.42);z-index:15;}
+  .overlay{
+    position:fixed;inset:0;background:rgba(12,28,22,.42);z-index:15;
+  }
   .overlay.show{display:block}
   .main{padding:17px 15px 35px} 
   .menu-btn{display:grid;place-items:center} 
@@ -953,7 +999,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
             <option value="<?php echo $n['id']; ?>"><?php echo htmlspecialchars($n['fullname']); ?></option>
           <?php endforeach; ?>
         <?php else: ?>
-          <option value="">No nutritionists available in database</option>
+          <option value="">No approved nutritionists available</option>
         <?php endif; ?>
       </select>
     </div>
