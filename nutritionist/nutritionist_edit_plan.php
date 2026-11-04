@@ -29,12 +29,8 @@ $mealPlan = json_decode($client['meal_plan'], true);
 
 // OpenAI Function para sa AI-powered macros computation
 function getAIMacrosForMeal($mealName) {
-    // Kukuha muna sa environment variable ng server (tulad ng Vercel), 
-    // kapag wala, gagamitin ang iyong key para sa local testing
     $apiKey = getenv('OPENAI_API_KEY');
     $apiUrl = "https://api.openai.com/v1/chat/completions";
-    // ... natitirang code ng iyong function ...
-}
 
     $systemPrompt = "You are a professional Nutritionist AI. Given a meal name, estimate its nutritional values accurately. Return ONLY a valid JSON object with this structure: { \"calories\": number, \"protein\": \"string with unit e.g. 30g\", \"carbs\": \"string with unit e.g. 45g\", \"fats\": \"string with unit e.g. 15g\" }";
     
@@ -127,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_plan'])) {
         $updateStmt = $conn->prepare("UPDATE users SET meal_plan = ? WHERE id = ?");
         $updateStmt->execute([json_encode($mealPlan), $client_id]);
 
-        // 2. Buuin ang HTML Card para isend sa chat (Walang Edit button para sa Client)
+        // 2. Buuin ang HTML Card para isend sa chat
         $cWeight  = $client['weight'] ?? '---';
         $cHeight  = $client['height'] ?? '---';
         $cAge     = $client['age'] ?? '---';
@@ -167,7 +163,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_plan'])) {
             $summaryHtml .= '</div>';
         }
         $summaryHtml .= '</div>';
-        // Inalis ang edit button sa loob ng sent card para hindi makita o magalaw ng client
         $summaryHtml .= '<div style="margin-top: 12px; text-align: right;"><span style="font-size: 10px; color: #6c7b75; font-style: italic;">Updated & Verified by Professional Nutritionist</span></div>';
         $summaryHtml .= '</div>';
 

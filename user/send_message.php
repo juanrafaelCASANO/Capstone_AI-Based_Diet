@@ -37,11 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
                 $avail = $nutriInfo['availability_status'] ?? 'available';
                 $lastActive = $nutriInfo['last_active_at'] ?? null;
                 
-                // Magiging true lang kapag 'available' siya AT nag-update ang activity niya 
-                // sa loob ng huling 3 minuto (180 seconds). Kung lumampas na o offline, magiging false.
-                if ($avail === 'available' && $lastActive) {
+                // Kapag 'available' ang status nila, ituturing na nating ONLINE agad 
+                // para hindi na sumawsaw ang AI habang kausap mo ang nutritionist.
+                if (strtolower($avail) === 'available') {
+                    $isNutritionistOnline = true;
+                } elseif ($lastActive) {
                     $timeDiff = time() - strtotime($lastActive);
-                    if ($timeDiff < 180) { 
+                    // Binigyan din natin ng sapat na allowance (halimbawa ay 10 minuto o 600 seconds) 
+                    // sakaling medyo matagal lang mag-type ang nutritionist.
+                    if ($timeDiff < 600) { 
                         $isNutritionistOnline = true;
                     }
                 }
