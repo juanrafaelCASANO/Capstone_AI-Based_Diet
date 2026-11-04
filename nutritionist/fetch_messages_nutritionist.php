@@ -24,23 +24,24 @@ $stmt->execute([$nutri_id, $user_id, $user_id, $nutri_id]);
 
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $sender = (int)$row['sender_id'];
+    // Kung ang sender ay ang nutritionist, ilagay sa kanan. Kung hindi, sa kaliwa.
     $is_nutritionist = ($sender === $nutri_id);
     $formatted_time = date('g:i A', strtotime($row['created_at']));
 
     if ($is_nutritionist) {
-        // Mensahe mula kay Nutritionist (Dapat ay nasa Kanan / Nutritionist bubble)[cite: 21]
-        echo '<div class="msg-wrapper nutritionist-row" style="display: flex; width: 100%; justify-content: flex-end; margin-bottom: 4px;">';
-        echo '  <div class="message nutritionist-bubble" style="background: #007aff; color: #ffffff; padding: 12px 16px; border-radius: 18px; border-bottom-right-radius: 4px; max-width: 70%; word-break: break-word;">';
+        // Mensahe mula kay Nutritionist (Nasa Kanan)
+        echo '<div style="display: flex; width: 100%; justify-content: flex-end; margin-bottom: 6px;">';
+        echo '  <div style="background: #0d9488; color: #ffffff; padding: 12px 16px; border-radius: 18px; border-bottom-right-radius: 4px; max-width: 70%; word-break: break-word;">';
         echo '    <div style="font-size: 14px; line-height: 1.5;">' . htmlspecialchars_decode($row['message'], ENT_QUOTES) . '</div>';
-        echo '    <div class="msg-meta" style="font-size: 10px; opacity: 0.75; margin-top: 4px; text-align: right; color: rgba(255,255,255,0.8);">' . $formatted_time . '</div>';
+        echo '    <div style="font-size: 10px; opacity: 0.8; margin-top: 4px; text-align: right;">' . $formatted_time . '</div>';
         echo '  </div>';
         echo '</div>';
     } else {
-        // Mensahe mula kay Client/User (Dapat ay nasa Kaliwa / User bubble)[cite: 21]
-        echo '<div class="msg-wrapper user-row" style="display: flex; width: 100%; justify-content: flex-start; margin-bottom: 4px;">';
-        echo '  <div class="message user-bubble" style="background: #e9e9eb; color: #000000; padding: 12px 16px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 70%; word-break: break-word;">';
+        // Mensahe mula kay Client/User (Nasa Kaliwa)
+        echo '<div style="display: flex; width: 100%; justify-content: flex-start; margin-bottom: 6px;">';
+        echo '  <div style="background: #e9e9eb; color: #112d25; padding: 12px 16px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 70%; word-break: break-word;">';
         echo '    <div style="font-size: 14px; line-height: 1.5;">' . htmlspecialchars_decode($row['message'], ENT_QUOTES) . '</div>';
-        echo '    <div class="msg-meta" style="font-size: 10px; opacity: 0.75; margin-top: 4px; text-align: right; color: #666;">' . $formatted_time . '</div>';
+        echo '    <div style="font-size: 10px; color: #5c736c; margin-top: 4px; text-align: right;">' . $formatted_time . '</div>';
         echo '  </div>';
         echo '</div>';
     }
