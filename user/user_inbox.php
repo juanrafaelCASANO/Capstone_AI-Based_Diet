@@ -115,7 +115,6 @@ try {
     $user_app_stmt->execute([$user_id]);
     $user_appointments = $user_app_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    // Fallback kung sakaling wala pang appointment_id column sa database table
     try {
         $user_app_stmt = $conn->prepare("
             SELECT 
@@ -487,7 +486,7 @@ a{color:inherit;text-decoration:none}
                     <div class="name-status-row">
                       <strong><?php echo htmlspecialchars($chat['nutritionist_name']); ?></strong>
                     </div>
-                    <p><?php echo htmlspecialchars($chat['last_message']); ?></p>
+                    <p><?php echo htmlspecialchars(strip_tags($chat['last_message'])); ?></p>
                   </div>
                 </div>
               </a>
@@ -726,6 +725,19 @@ document.getElementById('appointmentModal').addEventListener('click', function(e
 document.getElementById('ratingModal').addEventListener('click', function(e) {
   if (e.target === this) { closeRatingModal(); }
 });
+
+function filterInbox() {
+    const query = document.getElementById('inboxSearch').value.toLowerCase();
+    const cards = document.querySelectorAll('#inboxListContainer .inbox-card');
+    cards.forEach(card => {
+        const name = card.getAttribute('data-name');
+        if (name.includes(query)) {
+            card.style.display = 'flex';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
 </script>
 </body>
 </html>
