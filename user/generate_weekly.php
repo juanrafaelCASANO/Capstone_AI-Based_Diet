@@ -1109,7 +1109,7 @@ function copyShareLink() {
 
 function downloadMealPlanAsImage() {
   const element = document.getElementById('printableMealPlan');
-  alert('Hinahanda ang iyong meal plan para ma-download bilang image. Sandali lamang...');
+  alert('Preparing your meal plan to be downloaded as an image. Please wait a moment...');
 
   html2canvas(element, { scale: 2, useCORS: true }).then(canvas => {
     const link = document.createElement('a');
@@ -1118,7 +1118,7 @@ function downloadMealPlanAsImage() {
     link.click();
   }).catch(err => {
     console.error(err);
-    alert('Nagkaroon ng problema sa paggawa ng image.');
+    alert('An error occurred while generating the image.');
   });
 }
 
