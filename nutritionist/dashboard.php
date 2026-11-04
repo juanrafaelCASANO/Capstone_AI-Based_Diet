@@ -12,6 +12,14 @@ $nutri_id = $_SESSION['user_id'];
 $success_msg = "";
 $error_msg = "";
 
+// [FIX] Awtomatikong gawing Online ang status at i-update ang last_active_at kapag binuksan ang dashboard
+try {
+    $autoOnlineStmt = $conn->prepare("UPDATE nutritionist SET status = 'Online', last_active_at = NOW() WHERE id = ?");
+    $autoOnlineStmt->execute([$nutri_id]);
+} catch (Exception $e) {
+    // Silent catch sakaling may kaibahan sa column name
+}
+
 // Handle Status Change Request Submission with Supabase Storage File Upload
 if (isset($_POST['request_status_change'])) {
     $requested_status = $_POST['requested_status'] ?? '';
