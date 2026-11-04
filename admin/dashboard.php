@@ -65,11 +65,22 @@ try { $totalUsers = $conn->query("SELECT COUNT(*) FROM users")->fetchColumn(); }
 try { $totalWeeklyPlans = $conn->query("SELECT COUNT(*) FROM weekly_meal_plan")->fetchColumn(); } catch (Exception $e) {}
 try { $totalActivityLogs = $conn->query("SELECT COUNT(*) FROM activity_logs")->fetchColumn(); } catch (Exception $e) {}
 
-// Nutritionist status metrics
-try { $nutri_active = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE status = 'active' AND availability_status = 'available'")->fetchColumn(); } catch (Exception $e) {}
-try { $nutri_on_leave = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE status = 'active' AND availability_status = 'on_leave'")->fetchColumn(); } catch (Exception $e) {}
-try { $nutri_unavailable = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE status = 'active' AND availability_status = 'unavailable'")->fetchColumn(); } catch (Exception $e) {}
-try { $nutri_inactive = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE status != 'active'")->fetchColumn(); } catch (Exception $e) {}
+// Nutritionist status metrics (Naayos na query para masigurong mabibilang nang tama)
+try { 
+    $nutri_active = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE LOWER(status) IN ('active', 'approved') AND LOWER(availability_status) = 'available'")->fetchColumn(); 
+} catch (Exception $e) { $nutri_active = 0; }
+
+try { 
+    $nutri_on_leave = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE LOWER(status) IN ('active', 'approved') AND LOWER(availability_status) IN ('on_leave', 'on-leave')")->fetchColumn(); 
+} catch (Exception $e) { $nutri_on_leave = 0; }
+
+try { 
+    $nutri_unavailable = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE LOWER(status) IN ('active', 'approved') AND LOWER(availability_status) = 'unavailable'")->fetchColumn(); 
+} catch (Exception $e) { $nutri_unavailable = 0; }
+
+try { 
+    $nutri_inactive = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE LOWER(status) NOT IN ('active', 'approved') OR status IS NULL")->fetchColumn(); 
+} catch (Exception $e) { $nutri_inactive = 0; }
 
 // Pending Action Items para sa Dashboard Widget (Pinagsamang Status Requests at Reactivation Requests)
 $pending_status_reqs = [];
