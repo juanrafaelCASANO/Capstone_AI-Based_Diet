@@ -5,7 +5,7 @@ require_once '../config.php';
 $errors = [];
 $success_msg = "";
 
-// TextBee SMS Helper Function
+// TextBee SMS Helper Function (Naayos na ang variable naming para sa API Key)
 function sendTextBeeSMS($phoneNumber, $message) {
     $textbeeKey = getenv('TEXTBEE_API_KEY'); 
     $phoneNumber = trim($phoneNumber);
@@ -21,7 +21,7 @@ function sendTextBeeSMS($phoneNumber, $message) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
-        'x-api-key: ' . $apiKey
+        'x-api-key: ' . $textbeeKey
     ]);
     $response = curl_exec($ch);
     curl_close($ch);
@@ -569,7 +569,7 @@ $remaining_seconds = ($phase === 'verify_code' && isset($_SESSION['reset_expiry'
 
     <?php elseif ($phase === 'success_completed'): ?>
         <!-- ========================================== -->
-        <!-- SUCCESS STATE: UI MATCHED MATCHING CARD    -->
+        <!-- SUCCESS STATE                              -->
         <!-- ========================================== -->
         <div class="card-icon" style="background: var(--success-bg); color: var(--primary-dark);">
             <i class="fa-solid fa-circle-check" style="font-size:32px;"></i>
