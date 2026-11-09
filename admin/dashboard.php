@@ -65,7 +65,7 @@ try { $totalUsers = $conn->query("SELECT COUNT(*) FROM users")->fetchColumn(); }
 try { $totalWeeklyPlans = $conn->query("SELECT COUNT(*) FROM weekly_meal_plan")->fetchColumn(); } catch (Exception $e) {}
 try { $totalActivityLogs = $conn->query("SELECT COUNT(*) FROM activity_logs")->fetchColumn(); } catch (Exception $e) {}
 
-// Nutritionist status metrics (Naayos na query para masigurong mabibilang nang tama)
+// Nutritionist status metrics
 try { 
     $nutri_active = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE LOWER(status) IN ('active', 'approved') AND LOWER(availability_status) = 'available'")->fetchColumn(); 
 } catch (Exception $e) { $nutri_active = 0; }
@@ -82,8 +82,20 @@ try {
     $nutri_inactive = $conn->query("SELECT COUNT(*) FROM nutritionist WHERE LOWER(status) NOT IN ('active', 'approved') OR status IS NULL")->fetchColumn(); 
 } catch (Exception $e) { $nutri_inactive = 0; }
 
-// Pending Action Items para sa Dashboard Widget (Pinagsamang Status Requests at Reactivation Requests)
+// ======================================================
+// PENDING APPROVALS QUEUE (Kasama na ang Newly Registered Nutritionists)
+// ======================================================
 $pending_status_reqs = [];
+
+// 1. Kunin ang mga bagong rehistradong Nutritionist na naghihintay ng pag-apruba (pending / inactive / unapproved)
+try {
+    $reg_stmt = $conn->query("SELECT id, 'new_registration' as req_type, 'New Nutritionist Registration' as subtitle, 'Awaiting account verification and approval' as reason, created_at, fullname FROM nutritionist WHERE LOWER(status) IN ('pending', 'inactive', 'unapproved') OR status IS NULL");
+    if ($reg_stmt) {
+        $pending_status_reqs = array_merge($pending_status_reqs, $reg_stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+} catch (Exception $e) {}
+
+// 2. Kunin ang Nutritionist Status Requests
 try {
     $psr_stmt = $conn->query("SELECT sr.id, 'status_request' as req_type, sr.requested_status as subtitle, sr.reason, sr.created_at, n.fullname FROM nutritionist_status_requests sr JOIN nutritionist n ON sr.nutritionist_id = n.id WHERE sr.status = 'pending'");
     if ($psr_stmt) { 
@@ -91,6 +103,7 @@ try {
     }
 } catch (Exception $e) {}
 
+// 3. Kunin ang Reactivation Requests
 try {
     $pr_stmt = $conn->query("SELECT r.id, 'reactivation_request' as req_type, 'Reactivation Appeal' as subtitle, r.reason, r.created_at, n.fullname FROM reactivation_requests r JOIN nutritionist n ON r.nutritionist_id = n.id WHERE r.status = 'pending'");
     if ($pr_stmt) { 
@@ -99,9 +112,11 @@ try {
 } catch (Exception $e) {}
 
 usort($pending_status_reqs, function($a, $b) {
-    return strtotime($b['created_at']) - strtotime($a['created_at']);
+    $timeA = isset($a['created_at']) ? strtotime($a['created_at']) : 0;
+    $timeB = isset($b['created_at']) ? strtotime($b['created_at']) : 0;
+    return $timeB - $timeA;
 });
-$pending_status_reqs = array_slice($pending_status_reqs, 0, 3);
+$pending_status_reqs = array_slice($pending_status_reqs, 0, 5);
 
 $recent_logs = [];
 try {
@@ -119,6 +134,8 @@ try {
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js para sa Data Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -335,24 +352,51 @@ try {
                 </div>
             </section>
 
+            <!-- DATA ANALYTICS SECTION (Chart.js Integration) -->
+            <div class="dash-card" style="margin-bottom: 25px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <h3 class="section-title">Platform Data Analytics</h3>
+                    <span style="font-size: 11px; font-weight: 700; background: #eff6ff; color: #2563eb; padding: 4px 10px; border-radius: 8px;">Real-time Metrics</span>
+                </div>
+                <p class="section-desc">Visual overview of user registrations, activity, and dietary planning metrics</p>
+                
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: center;">
+                    <div style="height: 280px; position: relative;">
+                        <canvas id="analyticsChart"></canvas>
+                    </div>
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px;">
+                        <h4 style="font-size: 13.5px; font-weight: 800; color: #1e293b; margin-bottom: 12px;"><i class="fa-solid fa-chart-pie" style="color: #2563eb; margin-right: 6px;"></i> Summary Insights</h4>
+                        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 12px; color: #475569;">
+                            <div style="display: flex; justify-content: space-between;"><span>Active Users:</span> <strong><?= number_format($totalUsers) ?></strong></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Nutritionists:</span> <strong><?= number_format($totalNutritionists) ?></strong></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Published Meals:</span> <strong><?= number_format($totalMeals) ?></strong></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Weekly Plans:</span> <strong><?= number_format($totalWeeklyPlans) ?></strong></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- SECTION 1: PENDING APPROVALS QUEUE & RECENT ACTIVITY -->
             <div class="dashboard-grid">
                 <div class="dash-card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
                         <div>
                             <h3>Pending Approvals Queue</h3>
-                            <p style="margin: 0;">Actionable requests awaiting admin review</p>
+                            <p style="margin: 0;">Actionable requests and new registrations awaiting review</p>
                         </div>
-                        <a href="manage_reports.php" style="font-size: 12px; font-weight: 700; color: #2563eb; padding: 6px 12px; background: #eff6ff; border-radius: 8px;">View All</a>
+                        <a href="manage_account.php" style="font-size: 12px; font-weight: 700; color: #2563eb; padding: 6px 12px; background: #eff6ff; border-radius: 8px;">View All</a>
                     </div>
 
                     <?php if (!empty($pending_status_reqs)): ?>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
                             <?php foreach ($pending_status_reqs as $freq): 
+                                $isRegistration = ($freq['req_type'] === 'new_registration');
                                 $isReactivation = ($freq['req_type'] === 'reactivation_request');
-                                $badgeBg = $isReactivation ? '#dcfce7' : '#fef3c7';
-                                $badgeColor = $isReactivation ? '#15803d' : '#d97706';
-                                $badgeText = $isReactivation ? 'Reactivation Appeal' : str_replace('_', ' ', $freq['subtitle']);
+                                
+                                $badgeBg = $isRegistration ? '#eff6ff' : ($isReactivation ? '#dcfce7' : '#fef3c7');
+                                $badgeColor = $isRegistration ? '#2563eb' : ($isReactivation ? '#15803d' : '#d97706');
+                                $badgeText = $isRegistration ? 'New Registration' : ($isReactivation ? 'Reactivation Appeal' : str_replace('_', ' ', $freq['subtitle']));
+                                $actionLink = $isRegistration ? 'manage_account.php' : 'manage_reports.php';
                             ?>
                                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border-radius: 12px; background: #fffbf0; border: 1px solid #fde68a;">
                                     <div style="flex: 1; min-width: 0;">
@@ -362,7 +406,7 @@ try {
                                         </div>
                                         <p style="font-size: 11.5px; color: #64748b; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($freq['reason']) ?></p>
                                     </div>
-                                    <a href="manage_reports.php" style="padding: 6px 12px; background: #d97706; color: white; border-radius: 8px; font-size: 11.5px; font-weight: 700; flex-shrink: 0; text-decoration: none;">Review</a>
+                                    <a href="<?= $actionLink ?>" style="padding: 6px 12px; background: #d97706; color: white; border-radius: 8px; font-size: 11.5px; font-weight: 700; flex-shrink: 0; text-decoration: none;">Review</a>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -370,7 +414,7 @@ try {
                         <div style="padding: 35px 20px; text-align: center; border: 1px dashed #e2e8f0; border-radius: 12px; background: #f8fafc;">
                             <i class="fa-solid fa-circle-check" style="font-size: 24px; color: #16a34a; margin-bottom: 8px; display: block;"></i>
                             <h4 style="font-size: 13.5px; color: #475569; margin-bottom: 2px;">No Pending Approvals</h4>
-                            <p style="font-size: 11.5px; color: #94a3b8; margin: 0;">All nutritionist status and reactivation requests are cleared.</p>
+                            <p style="font-size: 11.5px; color: #94a3b8; margin: 0;">All nutritionist registrations, status changes, and appeals are cleared.</p>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -521,6 +565,57 @@ try {
 </div>
 
 <script>
+// Chart.js Analytics Initialization
+const ctx = document.getElementById('analyticsChart').getContext('2d');
+const analyticsChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: ['Meals', 'Nutritionists', 'Users', 'Weekly Plans', 'Activity Logs'],
+        datasets: [{
+            label: 'System Volume Records',
+            data: [
+                <?= $totalMeals ?>, 
+                <?= $totalNutritionists ?>, 
+                <?= $totalUsers ?>, 
+                <?= $totalWeeklyPlans ?>, 
+                <?= $totalActivityLogs ?>
+            ],
+            backgroundColor: [
+                'rgba(37, 99, 235, 0.8)',
+                'rgba(22, 163, 74, 0.8)',
+                'rgba(234, 88, 12, 0.8)',
+                'rgba(147, 51, 234, 0.8)',
+                'rgba(14, 165, 233, 0.8)'
+            ],
+            borderColor: [
+                'rgb(37, 99, 235)',
+                'rgb(22, 163, 74)',
+                'rgb(234, 88, 12)',
+                'rgb(147, 51, 234)',
+                'rgb(14, 165, 233)'
+            ],
+            borderWidth: 1,
+            borderRadius: 8
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                grid: { color: '#f1f5f9' }
+            },
+            x: {
+                grid: { display: false }
+            }
+        }
+    }
+});
+
 function toggleInboxDropdown() {
     const dropdown = document.getElementById('inboxDropdown');
     const notifBadge = document.getElementById('notifBadge');
