@@ -395,7 +395,7 @@ a{color:inherit;text-decoration:none}
 .logout-modal-actions { display: flex; gap: 12px; }
 
 .star-rating-container { display: flex; justify-content: center; gap: 8px; font-size: 28px; color: #cbd5e1; cursor: pointer; margin: 16px 0; }
-.star-rating-container i.selected, .star-rating-container i:hover, .star-rating-container i:hover ~ i { color: #f59e0b; }
+.star-rating-container i.selected { color: #f59e0b; }
 
 .modal-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .modal-title-wrap h3 { font-size: 22px; font-weight: 800; color: var(--navy); margin: 0; }
@@ -650,11 +650,11 @@ a{color:inherit;text-decoration:none}
       <input type="hidden" name="rating" id="ratingValue" value="5">
 
       <div class="star-rating-container" id="starContainer">
-        <i class="fa-solid fa-star selected" data-value="1" onclick="setRating(1)"></i>
-        <i class="fa-solid fa-star selected" data-value="2" onclick="setRating(2)"></i>
-        <i class="fa-solid fa-star selected" data-value="3" onclick="setRating(3)"></i>
-        <i class="fa-solid fa-star selected" data-value="4" onclick="setRating(4)"></i>
-        <i class="fa-solid fa-star selected" data-value="5" onclick="setRating(5)"></i>
+        <i class="fa-solid fa-star" data-value="1"></i>
+        <i class="fa-solid fa-star" data-value="2"></i>
+        <i class="fa-solid fa-star" data-value="3"></i>
+        <i class="fa-solid fa-star" data-value="4"></i>
+        <i class="fa-solid fa-star" data-value="5"></i>
       </div>
 
       <div class="modal-form-group">
@@ -758,6 +758,8 @@ function switchTab(tabName, btn) {
     btn.classList.add('active');
 }
 
+let currentRating = 5;
+
 function openRatingModal(nutriId, appointmentId, nutriName) {
     document.getElementById('ratingNutriId').value = nutriId;
     document.getElementById('ratingAppointmentId').value = appointmentId;
@@ -771,16 +773,45 @@ function closeRatingModal() {
 }
 
 function setRating(score) {
+    currentRating = score;
     document.getElementById('ratingValue').value = score;
+    highlightStars(score);
+}
+
+function highlightStars(count) {
     const stars = document.querySelectorAll('#starContainer i');
     stars.forEach((star, index) => {
-        if (index < score) {
+        if (index < count) {
             star.classList.add('selected');
         } else {
             star.classList.remove('selected');
         }
     });
 }
+
+// Interactive Star Hover & Click Logic
+document.addEventListener("DOMContentLoaded", function() {
+    const stars = document.querySelectorAll('#starContainer i');
+    
+    stars.forEach((star, index) => {
+        const starVal = index + 1;
+
+        star.addEventListener('mouseenter', () => {
+            highlightStars(starVal);
+        });
+
+        star.addEventListener('click', () => {
+            setRating(starVal);
+        });
+    });
+
+    const starContainer = document.getElementById('starContainer');
+    if (starContainer) {
+        starContainer.addEventListener('mouseleave', () => {
+            highlightStars(currentRating);
+        });
+    }
+});
 
 function openBookModal(nutriId, nutriName) {
     document.getElementById('modalNutriId').value = nutriId;
