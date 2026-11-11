@@ -13,11 +13,12 @@ if (!$user_id || !$nutri_id) {
     exit('Missing IDs');
 }
 
-$query = "SELECT sender_id, receiver_id, message, sender_type, created_at 
+// Idinagdag ang id ASC kasama ng created_at ASC para hindi magkabaligtad ang sunod-sunod
+$query = "SELECT sender_id, receiver_id, message, sender_type, created_at, id 
           FROM messages 
           WHERE (sender_id = ? AND receiver_id = ?) 
              OR (sender_id = ? AND receiver_id = ?) 
-          ORDER BY created_at ASC";
+          ORDER BY created_at ASC, id ASC";
 
 $stmt = $conn->prepare($query);
 $stmt->execute([$nutri_id, $user_id, $user_id, $nutri_id]);
