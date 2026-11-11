@@ -9,7 +9,17 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
 function filterBadWords($text) {
-    $bawal_na_salita = ['gago', 'puta', 'ulol', 'tanga', 'bobo', 'pakshet', 'gaga']; 
+    // Pinalawak na listahan ng mga mura at bad words (Tagalog at English)
+    $bawal_na_salita = [
+        // Tagalog
+        'gago', 'gaga', 'puta', 'pota', 'putangina', 'pucha', 'ulol', 'tanga', 'bobo', 
+        'pakshet', 'punyeta', 'kupal', 'tarantado', 'hayop', 'leche', 'bwisit', 
+        'hinayupak', 'siraulo', 'baliw', 'inamo', 'kinginamo', 'tanginamo', 'inaka', 'walanya', 'walanghiya'[cite: 19]
+        // English
+        'shit', 'fuck', 'bitch', 'asshole', 'bastard', 'damn', 'crap', 'dick', 
+        'pussy', 'slut', 'whore', 'cunt', 'motherfucker', 'dickhead'
+    ]; 
+
     foreach ($bawal_na_salita as $salita) {
         $replacement = str_repeat('*', mb_strlen($salita));
         $text = str_ireplace($salita, $replacement, $text);
