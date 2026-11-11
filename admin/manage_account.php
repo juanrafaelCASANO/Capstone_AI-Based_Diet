@@ -19,7 +19,7 @@ $admin_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? 1;
 // TEXTBEE SMS HELPER FUNCTION
 // ======================================================
 function sendTextBeeSMS($phoneNumber, $message) {
-    $textbeeKey = getenv('TEXTBEE_API_KEY') ?: (defined('TEXTBEE_API_KEY') ? TEXTBEE_API_KEY : 'txb_3fsPevHJvqEIoVVr9cR2QmVxKsB4wRm4');
+    $textbeeKey = getenv('TEXTBEE_API_KEY') ?: (defined('TEXTBEE_API_KEY') ? TEXTBEE_API_KEY : 'txb_BCqb8W62RhTeatVjOvUdAZI2pldYJDaU');
     
     $phoneNumber = trim($phoneNumber);
     if (strpos($phoneNumber, '09') === 0) {
