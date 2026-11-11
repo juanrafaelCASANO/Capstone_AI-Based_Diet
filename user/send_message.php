@@ -14,7 +14,7 @@ function filterBadWords($text) {
         // Tagalog
         'gago', 'gaga', 'puta', 'pota', 'putangina', 'pucha', 'ulol', 'tanga', 'bobo', 
         'pakshet', 'punyeta', 'kupal', 'tarantado', 'hayop', 'leche', 'bwisit', 
-        'hinayupak', 'siraulo', 'baliw', 'inamo', 'kinginamo', 'tanginamo', 'inaka', 'walanya', 'walanghiya'[cite: 19]
+        'hinayupak', 'siraulo', 'baliw', 'inamo', 'kinginamo', 'tanginamo', 'inaka', 'walanya', 'walanghiya',
         // English
         'shit', 'fuck', 'bitch', 'asshole', 'bastard', 'damn', 'crap', 'dick', 
         'pussy', 'slut', 'whore', 'cunt', 'motherfucker', 'dickhead'
