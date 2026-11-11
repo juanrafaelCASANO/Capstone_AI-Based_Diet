@@ -610,9 +610,9 @@ button{cursor:pointer}
           <i class="fa-solid fa-map-location-dot"></i> View Location
         </button>
 
-        <button type="button" class="report-nutri-btn" onclick="openReportModal()">
+     <!-- <button type="button" class="report-nutri-btn" onclick="openReportModal()">
           <i class="fa-solid fa-triangle-exclamation"></i> Report Nutritionist
-        </button>
+        </button> -->
       </aside>
     </section>
   </main>
