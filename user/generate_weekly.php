@@ -117,94 +117,60 @@ class NutriAI {
         return null;
     }
 
-    private function buildDetailedMealDescription($mealName) {
-        $cleanDish = trim(preg_replace('/\([^)]*\)/', '', $mealName));
+    private function extractCoreDishName($mealName) {
+        $beforeParen = preg_replace('/\([^)]*\)/', '', (string)$mealName);
+        $cleaned = preg_replace('/\b[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|serving|servings|pcs?|pieces?)\b/i', '', $beforeParen);
+        $cleaned = preg_replace('/[^\p{L}\p{N}\s\-]/u', ' ', $cleaned);
+        $cleaned = preg_replace('/\s+/', ' ', trim($cleaned));
+
+        return $cleaned !== '' ? $cleaned : trim((string)$mealName);
+    }
+
+    private function buildAccurateImagePrompt($mealName) {
+        $coreDish = $this->extractCoreDishName($mealName);
         $lower = strtolower($mealName);
 
-        $dishMap = [
-            'tapsilog'      => 'Traditional Filipino Tapsilog meal on a plate: thinly sliced savory beef tapa, garlic fried rice, and a sunny-side-up fried egg',
-            'longsilog'     => 'Traditional Filipino Longsilog meal on a plate: sweet-savory Filipino longganisa sausages, garlic fried rice, and a fried egg',
-            'tocilog'       => 'Traditional Filipino Tocilog meal on a plate: sweet-savory cured pork tocino slices, garlic fried rice, and a fried egg',
-            'bangsilog'     => 'Traditional Filipino Bangsilog meal on a plate: pan-fried milkfish bangus, garlic fried rice, and a fried egg',
-            'adobo'         => 'Filipino Adobo dish on a plate: savory meat braised in soy sauce, vinegar, garlic, and bay leaves',
-            'sinigang'      => 'Filipino Sinigang soup in a bowl: tangy tamarind broth with vegetables and meat or shrimp',
-            'sisig'         => 'Filipino Sisig dish on a sizzling plate or bowl: finely chopped savory meat with onions, chili, and calamansi',
-            'pancit'        => 'Filipino Pancit noodle dish on a plate: stir-fried noodles with vegetables, meat, and calamansi on the side',
-            'tinola'        => 'Filipino Tinola soup in a bowl: clear ginger and garlic broth with chicken, green papaya, and malunggay leaves',
-            'kaldereta'     => 'Filipino Kaldereta stew in a bowl: rich tomato-based meat stew with bell peppers, carrots, and potatoes',
-            'bicol express' => 'Filipino Bicol Express dish in a bowl: creamy spicy stew with chili peppers and coconut milk',
-            'bangus'        => 'Grilled or pan-fried Filipino bangus milkfish served with fresh vegetables on a plate'
+        $dishGuides = [
+            'tapsilog'      => 'Filipino Tapsilog meal on a plate with savory beef tapa, garlic fried rice, and a fried egg',
+            'longsilog'     => 'Filipino Longsilog meal on a plate with sweet-savory Filipino longganisa, garlic fried rice, and a fried egg',
+            'tocilog'       => 'Filipino Tocilog meal on a plate with sweet-savory pork tocino, garlic fried rice, and a fried egg',
+            'bangsilog'     => 'Filipino Bangsilog meal on a plate with pan-fried milkfish bangus, garlic fried rice, and a fried egg',
+            'adobo'         => 'Filipino Adobo dish on a plate with braised meat in soy sauce, vinegar, and garlic',
+            'sinigang'      => 'Filipino Sinigang soup in a bowl with sour broth, vegetables, and meat or shrimp',
+            'sisig'         => 'Filipino Sisig dish with chopped savory meat, onions, and calamansi',
+            'pancit'        => 'Filipino Pancit stir-fried noodles with vegetables and meat on a plate',
+            'tinola'        => 'Filipino Tinola soup in a bowl with chicken, green papaya, and leafy greens',
+            'kaldereta'     => 'Filipino Kaldereta stew in a bowl with tomato sauce, vegetables, and meat',
+            'bicol express' => 'Filipino Bicol Express spicy coconut stew in a bowl with chili peppers'
         ];
 
-        foreach ($dishMap as $keyword => $description) {
-            if (strpos($lower, $keyword) !== false) {
-                return $description;
+        foreach ($dishGuides as $key => $desc) {
+            if (strpos($lower, $key) !== false) {
+                return $desc;
             }
         }
 
-        return $cleanDish !== '' ? $cleanDish : $mealName;
+        return $coreDish;
     }
 
-    private function buildDynamicMealDescription($mealName, $mealType = '', $ingredients = []) {
-        $specific = $this->buildDetailedMealDescription($mealName);
-        $cleanDish = trim(preg_replace('/\([^)]*\)/', '', $mealName));
-
-        if ($specific !== $cleanDish && $specific !== $mealName) {
-            return $specific;
-        }
-
-        $baseName = trim(preg_replace('/\([^)]*\)|\b[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|serving|servings)\b/i', '', $mealName));
-        $baseName = preg_replace('/\s+/', ' ', trim($baseName));
-        if ($baseName === '') {
-            $baseName = $cleanDish !== '' ? $cleanDish : $mealName;
-        }
-
-        $cleanIngredients = [];
-        if (is_array($ingredients) && !empty($ingredients)) {
-            foreach (array_slice($ingredients, 0, 3) as $ing) {
-                $item = preg_replace('/\b[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|large|medium|small|cloves?|slices?|pieces?)\b/i', '', (string)$ing);
-                $item = preg_replace('/\s+/', ' ', trim($item));
-                if ($item !== '') {
-                    $cleanIngredients[] = $item;
-                }
-            }
-        }
-
-        $desc = $baseName;
-        if (!empty($cleanIngredients)) {
-            $desc .= " with " . implode(", ", $cleanIngredients);
-        }
-
-        $typeLower = strtolower(trim((string)$mealType));
-        if ($typeLower === 'breakfast') {
-            $desc .= ", served as a fresh breakfast plate";
-        } elseif ($typeLower === 'snack') {
-            $desc .= ", served as a neat snack portion";
-        } elseif ($typeLower === 'lunch' || $typeLower === 'dinner') {
-            $desc .= ", served as a well-portioned main meal";
-        }
-
-        return $desc;
-    }
-
-    public function generateMealImage($mealName, $mealType = '', $ingredients = [], $forceRefresh = false) {
+    public function generateMealImage($mealName, $forceRefresh = false) {
         if (!isset($_SESSION['meal_image_cache']) || !is_array($_SESSION['meal_image_cache'])) {
             $_SESSION['meal_image_cache'] = [];
         }
 
-        $cacheKey = md5(strtolower(trim($mealName)) . '|' . strtolower(trim((string)$mealType)));
+        $cacheKey = md5(strtolower(trim($mealName)));
         if (!$forceRefresh && !empty($_SESSION['meal_image_cache'][$cacheKey])) {
             return ['success' => true, 'data_uri' => $_SESSION['meal_image_cache'][$cacheKey]];
         }
 
         $cleanKey = trim($this->apiKey);
-        $detailedDescription = $this->buildDynamicMealDescription($mealName, $mealType, $ingredients);
+        $dishPrompt = $this->buildAccurateImagePrompt($mealName);
 
         if (!empty($cleanKey)) {
             $apiUrl = "https://api.openai.com/v1/images/generations";
             $payload = [
                 "model" => "dall-e-2",
-                "prompt" => "Realistic overhead food photography of " . $detailedDescription . ". Natural lighting, clean plating, accurate food ingredients, no text, no watermark.",
+                "prompt" => "Realistic food photo of " . $dishPrompt . ", appetizing plating, natural lighting, no text.",
                 "n" => 1,
                 "size" => "512x512"
             ];
@@ -236,7 +202,7 @@ class NutriAI {
             }
         }
 
-        $realPhotoUri = $this->fetchCookedDishPhoto($mealName, $ingredients);
+        $realPhotoUri = $this->fetchCookedDishPhoto($mealName);
         if ($realPhotoUri) {
             $_SESSION['meal_image_cache'][$cacheKey] = $realPhotoUri;
             return ['success' => true, 'data_uri' => $realPhotoUri];
@@ -252,30 +218,21 @@ class NutriAI {
         return ['success' => false, 'data_uri' => ''];
     }
 
-    private function fetchCookedDishPhoto($mealName, $ingredients = []) {
-        $clean = preg_replace('/\([^)]*\)|[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|serving|servings)/i', '', $mealName);
-        $clean = preg_replace('/\s+/', ' ', trim($clean));
-
+    private function fetchCookedDishPhoto($mealName) {
+        $coreDish = $this->extractCoreDishName($mealName);
         $queries = [];
 
-        if (preg_match('/(longsilog|tocilog|bangsilog|tapsilog|adobo|sinigang|pancit|lumpia|tinola|kaldereta|bicol express|menudo|sisig)/i', $clean, $matches)) {
+        if (preg_match('/(longsilog|tocilog|bangsilog|tapsilog|adobo|sinigang|pancit|lumpia|tinola|kaldereta|bicol express|menudo|sisig)/i', $coreDish, $matches)) {
             $queries[] = "Filipino " . $matches[1] . " dish";
         }
 
-        if ($clean !== '') {
-            $queries[] = $clean . " food dish";
+        if ($coreDish !== '') {
+            $queries[] = $coreDish . " dish";
+            $queries[] = $coreDish . " food";
         }
 
-        if (preg_match('/(omelette|egg|pancake|waffle|toast|oatmeal|chicken|pork|beef|fish|salmon|shrimp|tofu|salad|rice|pasta|soup)/i', $clean, $matches)) {
-            $queries[] = $matches[1] . " cooked meal";
-        }
-
-        if (is_array($ingredients) && !empty($ingredients)) {
-            $firstIng = preg_replace('/\b[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|large|medium|small)\b/i', '', (string)$ingredients[0]);
-            $firstIng = preg_replace('/\s+/', ' ', trim($firstIng));
-            if ($firstIng !== '') {
-                $queries[] = $firstIng . " food";
-            }
+        if (preg_match('/(omelette|egg|pancake|waffle|toast|oatmeal|chicken|pork|beef|fish|salmon|shrimp|tofu|salad|rice|pasta|soup)/i', $coreDish, $matches)) {
+            $queries[] = $matches[1] . " dish";
         }
 
         foreach (array_unique($queries) as $searchQuery) {
@@ -295,6 +252,10 @@ class NutriAI {
                 $data = json_decode($res, true);
                 if (!empty($data['query']['pages'])) {
                     foreach ($data['query']['pages'] as $page) {
+                        $titleLower = strtolower($page['title'] ?? '');
+                        if (strpos($titleLower, 'flag of') !== false || strpos($titleLower, 'coat of arms') !== false) {
+                            continue;
+                        }
                         if (!empty($page['thumbnail']['source'])) {
                             $img = $this->urlToBase64($page['thumbnail']['source']);
                             if ($img) return $img;
@@ -343,15 +304,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         if ($_POST['action'] === 'get_food_image') {
             $mealName = $_POST['meal_name'] ?? 'healthy food meal';
-            $mealType = $_POST['meal_type'] ?? '';
             $forceRefresh = filter_var($_POST['force_refresh'] ?? false, FILTER_VALIDATE_BOOLEAN);
-            $ingredients = json_decode($_POST['ingredients'] ?? '[]', true);
-            if (!is_array($ingredients)) {
-                $ingredients = [];
-            }
-
-            $res = $planner->generateMealImage($mealName, $mealType, $ingredients, $forceRefresh);
-
+            $res = $planner->generateMealImage($mealName, $forceRefresh);
+            
             echo json_encode([
                 'success' => !empty($res['data_uri']),
                 'image'   => $res['data_uri'] ?? ''
@@ -1374,8 +1329,6 @@ async function openMealOverview(mealJsonStr, forceRefresh = false) {
       const formData = new FormData();
       formData.append('action', 'get_food_image');
       formData.append('meal_name', meal.name);
-      formData.append('meal_type', meal.type || '');
-      formData.append('ingredients', JSON.stringify(meal.ingredients || []));
       formData.append('force_refresh', forceRefresh ? '1' : '0');
 
       const res = await fetch(window.location.href, { method: 'POST', body: formData });
