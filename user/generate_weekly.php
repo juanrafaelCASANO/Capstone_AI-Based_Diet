@@ -158,11 +158,19 @@ class NutriAI {
             $_SESSION['meal_image_cache'] = [];
         }
 
-        $cacheKey = md5(strtolower(trim($mealName)));
+        $cacheKey = 'v2_' . md5(strtolower(trim($mealName)));
         if (!$forceRefresh && !empty($_SESSION['meal_image_cache'][$cacheKey])) {
             return ['success' => true, 'data_uri' => $_SESSION['meal_image_cache'][$cacheKey]];
         }
 
+        // 1. UNANG PRIORITY: Totoong food photo lookup batay sa pangalan ng meal
+        $realPhotoUri = $this->fetchCookedDishPhoto($mealName);
+        if ($realPhotoUri) {
+            $_SESSION['meal_image_cache'][$cacheKey] = $realPhotoUri;
+            return ['success' => true, 'data_uri' => $realPhotoUri];
+        }
+
+        // 2. IKALAWANG PRIORITY (BACKUP): AI image generation kung walang mahanap na tugmang food photo
         $cleanKey = trim($this->apiKey);
         $dishPrompt = $this->buildAccurateImagePrompt($mealName);
 
@@ -202,12 +210,7 @@ class NutriAI {
             }
         }
 
-        $realPhotoUri = $this->fetchCookedDishPhoto($mealName);
-        if ($realPhotoUri) {
-            $_SESSION['meal_image_cache'][$cacheKey] = $realPhotoUri;
-            return ['success' => true, 'data_uri' => $realPhotoUri];
-        }
-
+        // 3. HULING FALLBACK: Generic healthy meal photo
         $fallbackUrl = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
         $fallbackUri = $this->urlToBase64($fallbackUrl);
         if ($fallbackUri) {
@@ -222,23 +225,37 @@ class NutriAI {
         $coreDish = $this->extractCoreDishName($mealName);
         $queries = [];
 
-        if (preg_match('/(longsilog|tocilog|bangsilog|tapsilog|adobo|sinigang|pancit|lumpia|tinola|kaldereta|bicol express|menudo|sisig)/i', $coreDish, $matches)) {
-            $queries[] = "Filipino " . $matches[1] . " dish";
+        // Specific Filipino dishes
+        if (preg_match('/(longsilog|tocilog|bangsilog|tapsilog|adobo|sinigang|pancit|lumpia|tinola|kaldereta|bicol express|menudo|sisig|champorado|arroz caldo|lugaw|kare-kare|bulalo|pinakbet|laing|lechon|tortang talong)/i', $coreDish, $matches)) {
+            $queries[] = $matches[1];
+            $queries[] = "Filipino " . $matches[1];
         }
 
+        // Exact core dish name
         if ($coreDish !== '') {
+            $queries[] = $coreDish;
             $queries[] = $coreDish . " dish";
-            $queries[] = $coreDish . " food";
         }
 
-        if (preg_match('/(omelette|egg|pancake|waffle|toast|oatmeal|chicken|pork|beef|fish|salmon|shrimp|tofu|salad|rice|pasta|soup)/i', $coreDish, $matches)) {
-            $queries[] = $matches[1] . " dish";
+        // Kung may "with ..." o "and ...", kunin din ang pangunahing ulam bago ang "with" / "and"
+        $mainPart = preg_split('/\b(with|and|in|on|over)\b/i', $coreDish)[0] ?? '';
+        $mainPart = trim($mainPart);
+        if ($mainPart !== '' && strcasecmp($mainPart, $coreDish) !== 0) {
+            $queries[] = $mainPart;
+            $queries[] = $mainPart . " food";
         }
+
+        $stopWords = ['with', 'and', 'the', 'for', 'dish', 'food', 'meal', 'fried', 'grilled', 'steamed', 'boiled', 'baked', 'roasted', 'fresh', 'healthy', 'bowl', 'plate', 'side'];
+        $dishTokens = array_values(array_filter(explode(' ', strtolower($coreDish)), function($w) use ($stopWords) {
+            return strlen($w) >= 3 && !in_array($w, $stopWords, true);
+        }));
+
+        $blockedTitleTerms = ['flag of', 'coat of arms', 'municipality', 'province', 'barangay', 'district', 'election', 'film', 'album', 'song', 'band', 'person', 'politician', 'football', 'basketball', 'river', 'mountain', 'map of'];
 
         foreach (array_unique($queries) as $searchQuery) {
             $wikiUrl = "https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch="
                      . urlencode($searchQuery)
-                     . "&gsrlimit=3&prop=pageimages&pithumbsize=800&format=json";
+                     . "&gsrlimit=5&prop=pageimages|description&pithumbsize=800&format=json";
 
             $ch = curl_init($wikiUrl);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -251,15 +268,48 @@ class NutriAI {
             if ($res) {
                 $data = json_decode($res, true);
                 if (!empty($data['query']['pages'])) {
-                    foreach ($data['query']['pages'] as $page) {
-                        $titleLower = strtolower($page['title'] ?? '');
-                        if (strpos($titleLower, 'flag of') !== false || strpos($titleLower, 'coat of arms') !== false) {
+                    // I-sort ayon sa relevance index ng Wikipedia search
+                    $pages = $data['query']['pages'];
+                    usort($pages, function($a, $b) {
+                        return ($a['index'] ?? 999) <=> ($b['index'] ?? 999);
+                    });
+
+                    foreach ($pages as $page) {
+                        if (empty($page['thumbnail']['source'])) {
                             continue;
                         }
-                        if (!empty($page['thumbnail']['source'])) {
-                            $img = $this->urlToBase64($page['thumbnail']['source']);
-                            if ($img) return $img;
+
+                        $titleLower = strtolower($page['title'] ?? '');
+                        $descLower  = strtolower($page['description'] ?? '');
+                        $combined   = $titleLower . ' ' . $descLower;
+
+                        // I-skip kung halatang hindi pagkain
+                        $isBlocked = false;
+                        foreach ($blockedTitleTerms as $bad) {
+                            if (strpos($combined, $bad) !== false) {
+                                $isBlocked = true;
+                                break;
+                            }
                         }
+                        if ($isBlocked) {
+                            continue;
+                        }
+
+                        // Siguraduhing may kahit isang mahalagang salita mula sa dish name na tumutugma sa page title/description
+                        $matchedToken = empty($dishTokens);
+                        foreach ($dishTokens as $token) {
+                            if (strpos($combined, $token) !== false) {
+                                $matchedToken = true;
+                                break;
+                            }
+                        }
+
+                        if (!$matchedToken) {
+                            continue;
+                        }
+
+                        $img = $this->urlToBase64($page['thumbnail']['source']);
+                        if ($img) return $img;
                     }
                 }
             }
