@@ -117,14 +117,94 @@ class NutriAI {
         return null;
     }
 
-    public function generateMealImage($mealName) {
+    private function buildDetailedMealDescription($mealName) {
+        $cleanDish = trim(preg_replace('/\([^)]*\)/', '', $mealName));
+        $lower = strtolower($mealName);
+
+        $dishMap = [
+            'tapsilog'      => 'Traditional Filipino Tapsilog meal on a plate: thinly sliced savory beef tapa, garlic fried rice, and a sunny-side-up fried egg',
+            'longsilog'     => 'Traditional Filipino Longsilog meal on a plate: sweet-savory Filipino longganisa sausages, garlic fried rice, and a fried egg',
+            'tocilog'       => 'Traditional Filipino Tocilog meal on a plate: sweet-savory cured pork tocino slices, garlic fried rice, and a fried egg',
+            'bangsilog'     => 'Traditional Filipino Bangsilog meal on a plate: pan-fried milkfish bangus, garlic fried rice, and a fried egg',
+            'adobo'         => 'Filipino Adobo dish on a plate: savory meat braised in soy sauce, vinegar, garlic, and bay leaves',
+            'sinigang'      => 'Filipino Sinigang soup in a bowl: tangy tamarind broth with vegetables and meat or shrimp',
+            'sisig'         => 'Filipino Sisig dish on a sizzling plate or bowl: finely chopped savory meat with onions, chili, and calamansi',
+            'pancit'        => 'Filipino Pancit noodle dish on a plate: stir-fried noodles with vegetables, meat, and calamansi on the side',
+            'tinola'        => 'Filipino Tinola soup in a bowl: clear ginger and garlic broth with chicken, green papaya, and malunggay leaves',
+            'kaldereta'     => 'Filipino Kaldereta stew in a bowl: rich tomato-based meat stew with bell peppers, carrots, and potatoes',
+            'bicol express' => 'Filipino Bicol Express dish in a bowl: creamy spicy stew with chili peppers and coconut milk',
+            'bangus'        => 'Grilled or pan-fried Filipino bangus milkfish served with fresh vegetables on a plate'
+        ];
+
+        foreach ($dishMap as $keyword => $description) {
+            if (strpos($lower, $keyword) !== false) {
+                return $description;
+            }
+        }
+
+        return $cleanDish !== '' ? $cleanDish : $mealName;
+    }
+
+    private function buildDynamicMealDescription($mealName, $mealType = '', $ingredients = []) {
+        $specific = $this->buildDetailedMealDescription($mealName);
+        $cleanDish = trim(preg_replace('/\([^)]*\)/', '', $mealName));
+
+        if ($specific !== $cleanDish && $specific !== $mealName) {
+            return $specific;
+        }
+
+        $baseName = trim(preg_replace('/\([^)]*\)|\b[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|serving|servings)\b/i', '', $mealName));
+        $baseName = preg_replace('/\s+/', ' ', trim($baseName));
+        if ($baseName === '') {
+            $baseName = $cleanDish !== '' ? $cleanDish : $mealName;
+        }
+
+        $cleanIngredients = [];
+        if (is_array($ingredients) && !empty($ingredients)) {
+            foreach (array_slice($ingredients, 0, 3) as $ing) {
+                $item = preg_replace('/\b[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|large|medium|small|cloves?|slices?|pieces?)\b/i', '', (string)$ing);
+                $item = preg_replace('/\s+/', ' ', trim($item));
+                if ($item !== '') {
+                    $cleanIngredients[] = $item;
+                }
+            }
+        }
+
+        $desc = $baseName;
+        if (!empty($cleanIngredients)) {
+            $desc .= " with " . implode(", ", $cleanIngredients);
+        }
+
+        $typeLower = strtolower(trim((string)$mealType));
+        if ($typeLower === 'breakfast') {
+            $desc .= ", served as a fresh breakfast plate";
+        } elseif ($typeLower === 'snack') {
+            $desc .= ", served as a neat snack portion";
+        } elseif ($typeLower === 'lunch' || $typeLower === 'dinner') {
+            $desc .= ", served as a well-portioned main meal";
+        }
+
+        return $desc;
+    }
+
+    public function generateMealImage($mealName, $mealType = '', $ingredients = [], $forceRefresh = false) {
+        if (!isset($_SESSION['meal_image_cache']) || !is_array($_SESSION['meal_image_cache'])) {
+            $_SESSION['meal_image_cache'] = [];
+        }
+
+        $cacheKey = md5(strtolower(trim($mealName)) . '|' . strtolower(trim((string)$mealType)));
+        if (!$forceRefresh && !empty($_SESSION['meal_image_cache'][$cacheKey])) {
+            return ['success' => true, 'data_uri' => $_SESSION['meal_image_cache'][$cacheKey]];
+        }
+
         $cleanKey = trim($this->apiKey);
+        $detailedDescription = $this->buildDynamicMealDescription($mealName, $mealType, $ingredients);
 
         if (!empty($cleanKey)) {
             $apiUrl = "https://api.openai.com/v1/images/generations";
             $payload = [
                 "model" => "dall-e-2",
-                "prompt" => "A high-quality studio food photograph of a freshly cooked plated meal: " . $mealName . ", appetizing gourmet presentation, soft lighting.",
+                "prompt" => "Realistic overhead food photography of " . $detailedDescription . ". Natural lighting, clean plating, accurate food ingredients, no text, no watermark.",
                 "n" => 1,
                 "size" => "512x512"
             ];
@@ -137,7 +217,7 @@ class NutriAI {
                 'Authorization: Bearer ' . $cleanKey
             ]);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
             $response = curl_exec($ch);
@@ -148,56 +228,82 @@ class NutriAI {
                 $data = json_decode($response, true);
                 if (!empty($data['data'][0]['url'])) {
                     $dataUri = $this->urlToBase64($data['data'][0]['url']);
-                    if ($dataUri) return ['success' => true, 'data_uri' => $dataUri];
-                }
-            }
-        }
-
-        $realPhotoUri = $this->fetchCookedDishPhoto($mealName);
-        if ($realPhotoUri) {
-            return ['success' => true, 'data_uri' => $realPhotoUri];
-        }
-
-        $fallbackUrl = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
-        return ['success' => true, 'data_uri' => $this->urlToBase64($fallbackUrl)];
-    }
-
-    private function fetchCookedDishPhoto($mealName) {
-        $clean = preg_replace('/\([^)]*\)|[0-9]+g|[0-9]+\s*serving[s]?/i', '', $mealName);
-        $clean = trim($clean);
-
-        if (preg_match('/(longganisa|silog|tapsilog|tocino|adobo|sinigang|pancit|lumpia|tinola|kaldereta|bicol express|menudo|sisig)/i', $clean, $matches)) {
-            $searchQuery = "Filipino " . $matches[1] . " dish";
-        } elseif (preg_match('/(omelette|egg|pancake|waffle|toast|oatmeal)/i', $clean, $matches)) {
-            $searchQuery = $matches[1] . " cooked breakfast plate";
-        } elseif (preg_match('/(chicken|pork|beef|fish|salmon|shrimp|salad|rice|pasta|soup)/i', $clean, $matches)) {
-            $searchQuery = $matches[1] . " cooked meal plate";
-        } else {
-            $searchQuery = $clean . " food dish";
-        }
-
-        $wikiUrl = "https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=" 
-                 . urlencode($searchQuery) 
-                 . "&gsrlimit=3&prop=pageimages&pithumbsize=800&format=json";
-
-        $ch = curl_init($wikiUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-        curl_setopt($ch, CURLOPT_TIMEOUT, 8);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        $res = curl_exec($ch);
-        curl_close($ch);
-
-        if ($res) {
-            $data = json_decode($res, true);
-            if (!empty($data['query']['pages'])) {
-                foreach ($data['query']['pages'] as $page) {
-                    if (!empty($page['thumbnail']['source'])) {
-                        return $this->urlToBase64($page['thumbnail']['source']);
+                    if ($dataUri) {
+                        $_SESSION['meal_image_cache'][$cacheKey] = $dataUri;
+                        return ['success' => true, 'data_uri' => $dataUri];
                     }
                 }
             }
         }
+
+        $realPhotoUri = $this->fetchCookedDishPhoto($mealName, $ingredients);
+        if ($realPhotoUri) {
+            $_SESSION['meal_image_cache'][$cacheKey] = $realPhotoUri;
+            return ['success' => true, 'data_uri' => $realPhotoUri];
+        }
+
+        $fallbackUrl = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+        $fallbackUri = $this->urlToBase64($fallbackUrl);
+        if ($fallbackUri) {
+            $_SESSION['meal_image_cache'][$cacheKey] = $fallbackUri;
+            return ['success' => true, 'data_uri' => $fallbackUri];
+        }
+
+        return ['success' => false, 'data_uri' => ''];
+    }
+
+    private function fetchCookedDishPhoto($mealName, $ingredients = []) {
+        $clean = preg_replace('/\([^)]*\)|[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|serving|servings)/i', '', $mealName);
+        $clean = preg_replace('/\s+/', ' ', trim($clean));
+
+        $queries = [];
+
+        if (preg_match('/(longsilog|tocilog|bangsilog|tapsilog|adobo|sinigang|pancit|lumpia|tinola|kaldereta|bicol express|menudo|sisig)/i', $clean, $matches)) {
+            $queries[] = "Filipino " . $matches[1] . " dish";
+        }
+
+        if ($clean !== '') {
+            $queries[] = $clean . " food dish";
+        }
+
+        if (preg_match('/(omelette|egg|pancake|waffle|toast|oatmeal|chicken|pork|beef|fish|salmon|shrimp|tofu|salad|rice|pasta|soup)/i', $clean, $matches)) {
+            $queries[] = $matches[1] . " cooked meal";
+        }
+
+        if (is_array($ingredients) && !empty($ingredients)) {
+            $firstIng = preg_replace('/\b[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|large|medium|small)\b/i', '', (string)$ingredients[0]);
+            $firstIng = preg_replace('/\s+/', ' ', trim($firstIng));
+            if ($firstIng !== '') {
+                $queries[] = $firstIng . " food";
+            }
+        }
+
+        foreach (array_unique($queries) as $searchQuery) {
+            $wikiUrl = "https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch="
+                     . urlencode($searchQuery)
+                     . "&gsrlimit=3&prop=pageimages&pithumbsize=800&format=json";
+
+            $ch = curl_init($wikiUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+            curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            $res = curl_exec($ch);
+            curl_close($ch);
+
+            if ($res) {
+                $data = json_decode($res, true);
+                if (!empty($data['query']['pages'])) {
+                    foreach ($data['query']['pages'] as $page) {
+                        if (!empty($page['thumbnail']['source'])) {
+                            $img = $this->urlToBase64($page['thumbnail']['source']);
+                            if ($img) return $img;
+                        }
+                    }
+                }
+            }
+        }
+
         return null;
     }
 
@@ -237,11 +343,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         if ($_POST['action'] === 'get_food_image') {
             $mealName = $_POST['meal_name'] ?? 'healthy food meal';
-            $res = $planner->generateMealImage($mealName);
-            
+            $mealType = $_POST['meal_type'] ?? '';
+            $forceRefresh = filter_var($_POST['force_refresh'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $ingredients = json_decode($_POST['ingredients'] ?? '[]', true);
+            if (!is_array($ingredients)) {
+                $ingredients = [];
+            }
+
+            $res = $planner->generateMealImage($mealName, $mealType, $ingredients, $forceRefresh);
+
             echo json_encode([
-                'success' => true,
-                'image'   => $res['data_uri']
+                'success' => !empty($res['data_uri']),
+                'image'   => $res['data_uri'] ?? ''
             ]);
             exit;
         }
@@ -854,7 +967,6 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
       <input type="hidden" id="sys_diet" value="<?php echo htmlspecialchars($userDietType); ?>">
       <input type="hidden" id="sys_allergies" value="<?php echo htmlspecialchars($userAllergies); ?>">
 
-      <!-- Nakabalot ang result layout sa id na ito para ma-capture ng html2canvas pag nag-download -->
       <div class="result-layout" id="printableMealPlan">
         <div class="plan-col">
           <div class="summary">
@@ -1081,7 +1193,6 @@ function closeShareModal() {
 }
 
 function openSocialShareModal() {
-  // Itinuturo sa main system URL / index.php para magamit ang Open Graph logo preview
   const systemUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/user/')) + '/index.php';
   document.getElementById('shareLinkInput').value = systemUrl;
   
@@ -1228,9 +1339,9 @@ async function toggleMealStatus(checkbox, dayIdx, mealIdx, calories) {
   }
 }
 
-async function openMealOverview(mealJsonStr) {
+async function openMealOverview(mealJsonStr, forceRefresh = false) {
   try {
-    const meal = JSON.parse(mealJsonStr);
+    const meal = typeof mealJsonStr === 'string' ? JSON.parse(mealJsonStr) : mealJsonStr;
     document.getElementById('mo_type').textContent = meal.type;
     document.getElementById('mo_name').textContent = meal.name;
     document.getElementById('mo_cal').textContent = meal.calories + ' kcal';
@@ -1240,7 +1351,7 @@ async function openMealOverview(mealJsonStr) {
     
     const ul = document.getElementById('mo_ingredients');
     ul.innerHTML = '';
-    meal.ingredients.forEach(ing => {
+    (meal.ingredients || []).forEach(ing => {
       let li = document.createElement('li');
       li.textContent = ing;
       ul.appendChild(li);
@@ -1263,6 +1374,9 @@ async function openMealOverview(mealJsonStr) {
       const formData = new FormData();
       formData.append('action', 'get_food_image');
       formData.append('meal_name', meal.name);
+      formData.append('meal_type', meal.type || '');
+      formData.append('ingredients', JSON.stringify(meal.ingredients || []));
+      formData.append('force_refresh', forceRefresh ? '1' : '0');
 
       const res = await fetch(window.location.href, { method: 'POST', body: formData });
       const data = await res.json();
