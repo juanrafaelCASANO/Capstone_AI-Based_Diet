@@ -26,6 +26,7 @@ $user_id = $_SESSION['user_id'];
 class NutriAI {
     private $apiKey;
     private $chatApiUrl = "https://api.openai.com/v1/chat/completions";
+    // Inalis ang dall-e-2 configuration
 
     public function __construct() {
         $this->apiKey = getenv('OPENAI_API_KEY');
@@ -126,92 +127,27 @@ class NutriAI {
         return $cleaned !== '' ? $cleaned : trim((string)$mealName);
     }
 
-    private function buildAccurateImagePrompt($mealName) {
-        $coreDish = $this->extractCoreDishName($mealName);
-        $lower = strtolower($mealName);
-
-        $dishGuides = [
-            'tapsilog'      => 'Filipino Tapsilog meal on a plate with savory beef tapa, garlic fried rice, and a fried egg',
-            'longsilog'     => 'Filipino Longsilog meal on a plate with sweet-savory Filipino longganisa, garlic fried rice, and a fried egg',
-            'tocilog'       => 'Filipino Tocilog meal on a plate with sweet-savory pork tocino, garlic fried rice, and a fried egg',
-            'bangsilog'     => 'Filipino Bangsilog meal on a plate with pan-fried milkfish bangus, garlic fried rice, and a fried egg',
-            'adobo'         => 'Filipino Adobo dish on a plate with braised meat in soy sauce, vinegar, and garlic',
-            'sinigang'      => 'Filipino Sinigang soup in a bowl with sour broth, vegetables, and meat or shrimp',
-            'sisig'         => 'Filipino Sisig dish with chopped savory meat, onions, and calamansi',
-            'pancit'        => 'Filipino Pancit stir-fried noodles with vegetables and meat on a plate',
-            'tinola'        => 'Filipino Tinola soup in a bowl with chicken, green papaya, and leafy greens',
-            'kaldereta'     => 'Filipino Kaldereta stew in a bowl with tomato sauce, vegetables, and meat',
-            'bicol express' => 'Filipino Bicol Express spicy coconut stew in a bowl with chili peppers'
-        ];
-
-        foreach ($dishGuides as $key => $desc) {
-            if (strpos($lower, $key) !== false) {
-                return $desc;
-            }
-        }
-
-        return $coreDish;
-    }
-
+    // BAGONG HIGH-ACCURACY IMAGE SYSTEM
     public function generateMealImage($mealName, $forceRefresh = false) {
         if (!isset($_SESSION['meal_image_cache']) || !is_array($_SESSION['meal_image_cache'])) {
             $_SESSION['meal_image_cache'] = [];
         }
 
-        $cacheKey = 'v2_' . md5(strtolower(trim($mealName)));
+        $cacheKey = 'v3_' . md5(strtolower(trim($mealName))); // Pinalitan ang prefix para sa force refresh
         if (!$forceRefresh && !empty($_SESSION['meal_image_cache'][$cacheKey])) {
             return ['success' => true, 'data_uri' => $_SESSION['meal_image_cache'][$cacheKey]];
         }
 
-        // 1. UNANG PRIORITY: Totoong food photo lookup batay sa pangalan ng meal
-        $realPhotoUri = $this->fetchCookedDishPhoto($mealName);
-        if ($realPhotoUri) {
-            $_SESSION['meal_image_cache'][$cacheKey] = $realPhotoUri;
-            return ['success' => true, 'data_uri' => $realPhotoUri];
+        // Gumamit ng high-accuracy Food Image API
+        $imgUri = $this->fetchAccurateFoodImage($mealName);
+        
+        if ($imgUri) {
+            $_SESSION['meal_image_cache'][$cacheKey] = $imgUri;
+            return ['success' => true, 'data_uri' => $imgUri];
         }
 
-        // 2. IKALAWANG PRIORITY (BACKUP): AI image generation kung walang mahanap na tugmang food photo
-        $cleanKey = trim($this->apiKey);
-        $dishPrompt = $this->buildAccurateImagePrompt($mealName);
-
-        if (!empty($cleanKey)) {
-            $apiUrl = "https://api.openai.com/v1/images/generations";
-            $payload = [
-                "model" => "dall-e-2",
-                "prompt" => "Realistic food photo of " . $dishPrompt . ", appetizing plating, natural lighting, no text.",
-                "n" => 1,
-                "size" => "512x512"
-            ];
-
-            $ch = curl_init($apiUrl);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $cleanKey
-            ]);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($httpCode === 200) {
-                $data = json_decode($response, true);
-                if (!empty($data['data'][0]['url'])) {
-                    $dataUri = $this->urlToBase64($data['data'][0]['url']);
-                    if ($dataUri) {
-                        $_SESSION['meal_image_cache'][$cacheKey] = $dataUri;
-                        return ['success' => true, 'data_uri' => $dataUri];
-                    }
-                }
-            }
-        }
-
-        // 3. HULING FALLBACK: Generic healthy meal photo
-        $fallbackUrl = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+        // HULING FALLBACK: Generic healthy meal photo sa puting background
+        $fallbackUrl = 'https://img.spoonacular.com/file/wximages/10147-312x231.png';
         $fallbackUri = $this->urlToBase64($fallbackUrl);
         if ($fallbackUri) {
             $_SESSION['meal_image_cache'][$cacheKey] = $fallbackUri;
@@ -221,95 +157,74 @@ class NutriAI {
         return ['success' => false, 'data_uri' => ''];
     }
 
-    private function fetchCookedDishPhoto($mealName) {
+    private function fetchAccurateFoodImage($mealName) {
         $coreDish = $this->extractCoreDishName($mealName);
-        $queries = [];
+        $lower = strtolower($coreDish);
 
-        // Specific Filipino dishes
-        if (preg_match('/(longsilog|tocilog|bangsilog|tapsilog|adobo|sinigang|pancit|lumpia|tinola|kaldereta|bicol express|menudo|sisig|champorado|arroz caldo|lugaw|kare-kare|bulalo|pinakbet|laing|lechon|tortang talong)/i', $coreDish, $matches)) {
-            $queries[] = $matches[1];
-            $queries[] = "Filipino " . $matches[1];
+        // 1. Definitive/Curated mapping para sa mga kilalang pagkain/Pinoy meals (na may puting background)
+        $definitiveImageMap = [
+            'banana' => 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'apple'  => 'https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'orange' => 'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'egg'    => 'https://images.unsplash.com/photo-1598965675045-45c5e73c59d3?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'yogurt' => 'https://images.unsplash.com/photo-1488477181946-6428a0291775?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'tapsilog'  => 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'adobo'     => 'https://images.unsplash.com/photo-1603100354795-2682d132a015?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'sinigang'  => 'https://images.unsplash.com/photo-1611050832344-7f490336338c?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'pancit'    => 'https://images.unsplash.com/photo-1599117686330-69073933d69b?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'lumpia'    => 'https://images.unsplash.com/photo-1656946119317-672d0d8a2f88?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'sandwich'  => 'https://images.unsplash.com/photo-1528735602780-2552fd46c7ab?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'salad'     => 'https://images.unsplash.com/photo-1540420773420-3366772f4d50?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
+            'oatmeal'   => 'https://images.unsplash.com/photo-1517673400267-0251332c9773?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff'
+        ];
+
+        foreach ($definitiveImageMap as $key => $url) {
+            if (strpos($lower, $key) !== false) {
+                return $this->urlToBase64($url);
+            }
         }
 
-        // Exact core dish name
-        if ($coreDish !== '') {
-            $queries[] = $coreDish;
-            $queries[] = $coreDish . " dish";
-        }
+        // 2. Gamitin ang Spoonacular Food Image API para sa mas mahusay na accuracy at puting background
+        $spoonacularApiUrl = "https://api.spoonacular.com/food/images/search";
+        // Ilagay ang iyong Spoonacular API Key dito
+        $spoonacularApiKey = getenv('SPOONACULAR_API_KEY'); 
 
-        // Kung may "with ..." o "and ...", kunin din ang pangunahing ulam bago ang "with" / "and"
-        $mainPart = preg_split('/\b(with|and|in|on|over)\b/i', $coreDish)[0] ?? '';
-        $mainPart = trim($mainPart);
-        if ($mainPart !== '' && strcasecmp($mainPart, $coreDish) !== 0) {
-            $queries[] = $mainPart;
-            $queries[] = $mainPart . " food";
-        }
-
-        $stopWords = ['with', 'and', 'the', 'for', 'dish', 'food', 'meal', 'fried', 'grilled', 'steamed', 'boiled', 'baked', 'roasted', 'fresh', 'healthy', 'bowl', 'plate', 'side'];
-        $dishTokens = array_values(array_filter(explode(' ', strtolower($coreDish)), function($w) use ($stopWords) {
-            return strlen($w) >= 3 && !in_array($w, $stopWords, true);
-        }));
-
-        $blockedTitleTerms = ['flag of', 'coat of arms', 'municipality', 'province', 'barangay', 'district', 'election', 'film', 'album', 'song', 'band', 'person', 'politician', 'football', 'basketball', 'river', 'mountain', 'map of'];
-
-        foreach (array_unique($queries) as $searchQuery) {
-            $wikiUrl = "https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch="
-                     . urlencode($searchQuery)
-                     . "&gsrlimit=5&prop=pageimages|description&pithumbsize=800&format=json";
-
-            $ch = curl_init($wikiUrl);
+        if ($spoonacularApiKey) {
+            $query = urlencode($coreDish);
+            $ch = curl_init("$spoonacularApiUrl?query=$query&apiKey=$spoonacularApiKey");
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-            curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['x-api-key: ' . $spoonacularApiKey]);
+
             $res = curl_exec($ch);
             curl_close($ch);
 
             if ($res) {
                 $data = json_decode($res, true);
-                if (!empty($data['query']['pages'])) {
-                    // I-sort ayon sa relevance index ng Wikipedia search
-                    $pages = $data['query']['pages'];
-                    usort($pages, function($a, $b) {
-                        return ($a['index'] ?? 999) <=> ($b['index'] ?? 999);
-                    });
-
-                    foreach ($pages as $page) {
-                        if (empty($page['thumbnail']['source'])) {
-                            continue;
-                        }
-
-                        $titleLower = strtolower($page['title'] ?? '');
-                        $descLower  = strtolower($page['description'] ?? '');
-                        $combined   = $titleLower . ' ' . $descLower;
-
-                        // I-skip kung halatang hindi pagkain
-                        $isBlocked = false;
-                        foreach ($blockedTitleTerms as $bad) {
-                            if (strpos($combined, $bad) !== false) {
-                                $isBlocked = true;
-                                break;
+                if (!empty($data['primaryImage'])) {
+                    // Manipulahin ang URL para pilitin ang puting background (bg=ffffff)
+                    $imgUrl = $data['primaryImage'];
+                    if (strpos($imgUrl, '?') !== false) {
+                        $imgUrl .= '&bg=ffffff&crop=edges';
+                    } else {
+                        $imgUrl .= '?bg=ffffff&crop=edges';
+                    }
+                    return $this->urlToBase64($imgUrl);
+                }
+                
+                // Kung walang primary image, subukan ang mga nasa recipe images
+                if (!empty($data['recipes']) && is_array($data['recipes'])) {
+                    foreach($data['recipes'] as $recipe) {
+                        if (!empty($recipe['image'])) {
+                             $imgUrl = $recipe['image'];
+                             if (strpos($imgUrl, '?') !== false) {
+                                $imgUrl .= '&bg=ffffff&crop=edges';
+                            } else {
+                                $imgUrl .= '?bg=ffffff&crop=edges';
                             }
+                            return $this->urlToBase64($imgUrl);
                         }
-                        if ($isBlocked) {
-                            continue;
-                        }
-
-                        // Siguraduhing may kahit isang mahalagang salita mula sa dish name na tumutugma sa page title/description
-                        $matchedToken = empty($dishTokens);
-                        foreach ($dishTokens as $token) {
-                            if (strpos($combined, $token) !== false) {
-                                $matchedToken = true;
-                                break;
-                            }
-                        }
-
-                        if (!$matchedToken) {
-                            continue;
-                        }
-
-                        $img = $this->urlToBase64($page['thumbnail']['source']);
-                        if ($img) return $img;
                     }
                 }
             }
