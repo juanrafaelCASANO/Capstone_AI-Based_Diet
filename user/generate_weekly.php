@@ -21,12 +21,11 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 
 /* =========================================================
-   OPENAI AI CLASS (Meal & Alternatives Generator)
+   OPENAI AI CLASS (Meal, Alternatives & Cooking Instructions)
 ========================================================= */
 class NutriAI {
     private $apiKey;
     private $chatApiUrl = "https://api.openai.com/v1/chat/completions";
-    // Inalis ang dall-e-2 configuration
 
     public function __construct() {
         $this->apiKey = getenv('OPENAI_API_KEY');
@@ -53,10 +52,12 @@ class NutriAI {
         $systemPrompt = "You are a professional Nutritionist AI. Generate a complete {$numDays}-DAY meal plan. Return ONLY a valid JSON object. $allergyContext "
                       . "Structure: { \"summary\": { \"total_avg_calories\": number, \"primary_focus\": string }, "
                       . "\"days\": [ { \"day_number\": number, \"meals\": [ { \"type\": \"Breakfast|Lunch|Dinner|Snack\", \"name\": \"string with specific portion\", "
-                      . "\"calories\": number, \"protein\": \"string\", \"carbs\": \"string\", \"fats\": \"string\", \"ingredients\": [\"string with exact quantity\"] } ] } ] } "
-                      . "CRITICAL: Make sure the 'day_number' in the 'days' array increments sequentially from 1 up to {$numDays} (e.g., 1, 2, 3, etc.), and do NOT repeat day numbers.";
+                      . "\"calories\": number, \"protein\": \"string\", \"carbs\": \"string\", \"fats\": \"string\", "
+                      . "\"ingredients\": [\"string with exact quantity\"], "
+                      . "\"instructions\": [\"Step 1 clear cooking/preparation instruction\", \"Step 2...\"] } ] } ] } "
+                      . "CRITICAL: Make sure the 'day_number' in the 'days' array increments sequentially from 1 up to {$numDays} (e.g., 1, 2, 3, etc.), and do NOT repeat day numbers. Provide clear, practical step-by-step cooking instructions for each meal.";
 
-        $userQuery = "User: {$formData['age']}yo, {$formData['weight']}kg, {$formData['height']}cm. Goal: {$goal}. Diet: {$dietType}. Activity: {$activityLevel}. Allergies: {$allergies}. Generate for exactly {$numDays} days with unique and correct day numbers.";
+        $userQuery = "User: {$formData['age']}yo, {$formData['weight']}kg, {$formData['height']}cm. Goal: {$goal}. Diet: {$dietType}. Activity: {$activityLevel}. Allergies: {$allergies}. Generate for exactly {$numDays} days with unique and correct day numbers and accurate cooking steps.";
 
         $result = $this->fetchFromChat($systemPrompt, $userQuery, $cleanKey);
 
@@ -75,11 +76,48 @@ class NutriAI {
         $allergyContext = (!empty($allergies) && strtolower($allergies) !== 'none') ? "CRITICAL ALLERGIES: $allergies. STRICTLY EXCLUDE THESE." : "";
 
         $systemPrompt = "You are a Nutritionist AI. The user wants to REGENERATE A MEAL and needs 3 DIFFERENT OPTIONS. Return ONLY a valid JSON object. $allergyContext "
-                      . "Structure: { \"alternatives\": [ { \"type\": \"$mealType\", \"name\": \"string with portion\", \"calories\": number, \"protein\": \"string\", \"carbs\": \"string\", \"fats\": \"string\", \"ingredients\": [\"string with quantity\"] } ] }";
+                      . "Structure: { \"alternatives\": [ { \"type\": \"$mealType\", \"name\": \"string with portion\", \"calories\": number, \"protein\": \"string\", \"carbs\": \"string\", \"fats\": \"string\", "
+                      . "\"ingredients\": [\"string with quantity\"], "
+                      . "\"instructions\": [\"Step 1 clear cooking/preparation instruction\", \"Step 2...\"] } ] }";
         
-        $userQuery = "Generate 3 different $mealType alternatives. Target calories: around $targetCalories. Diet type: $diet. Make them delicious and varied.";
+        $userQuery = "Generate 3 different $mealType alternatives. Target calories: around $targetCalories. Diet type: $diet. Make them delicious, varied, and include clear step-by-step cooking instructions for each.";
 
         return $this->fetchFromChat($systemPrompt, $userQuery, $cleanKey);
+    }
+
+    public function generateCookingInstructions($mealName, $ingredients = []) {
+        if (!isset($_SESSION['meal_instruction_cache']) || !is_array($_SESSION['meal_instruction_cache'])) {
+            $_SESSION['meal_instruction_cache'] = [];
+        }
+
+        $cacheKey = md5(strtolower(trim($mealName)) . '|' . json_encode($ingredients));
+        if (!empty($_SESSION['meal_instruction_cache'][$cacheKey])) {
+            return $_SESSION['meal_instruction_cache'][$cacheKey];
+        }
+
+        $cleanKey = trim($this->apiKey);
+        $ingList = !empty($ingredients) ? implode(', ', $ingredients) : 'standard ingredients for this dish';
+
+        if (!empty($cleanKey)) {
+            $systemPrompt = "You are a helpful culinary and nutrition assistant. Provide concise, accurate, step-by-step cooking or preparation instructions for the given meal and its ingredients. Return ONLY a valid JSON object: { \"instructions\": [\"string\", \"string\"] } without numbering prefixes inside the strings.";
+            $userQuery = "Meal: {$mealName}. Ingredients: {$ingList}. Give 4 to 6 clear step-by-step cooking/preparation instructions.";
+
+            $res = $this->fetchFromChat($systemPrompt, $userQuery, $cleanKey, 2, 1);
+            if (!empty($res['instructions']) && is_array($res['instructions'])) {
+                $_SESSION['meal_instruction_cache'][$cacheKey] = $res['instructions'];
+                return $res['instructions'];
+            }
+        }
+
+        // Local fallback kung walang API connection
+        $fallbackSteps = [
+            "Prepare and measure all ingredients: {$ingList}.",
+            "Wash, chop, or marinate the main ingredients as needed for {$mealName}.",
+            "Cook over medium heat using healthy cooking methods (grilling, steaming, boiling, or light pan-searing) until fully cooked.",
+            "Plate the {$mealName} neatly according to your portion size and serve warm."
+        ];
+        $_SESSION['meal_instruction_cache'][$cacheKey] = $fallbackSteps;
+        return $fallbackSteps;
     }
 
     private function fetchFromChat($systemPrompt, $userQuery, $key, $retries = 3, $backoff = 2) {
@@ -117,139 +155,6 @@ class NutriAI {
         }
         return null;
     }
-
-    private function extractCoreDishName($mealName) {
-        $beforeParen = preg_replace('/\([^)]*\)/', '', (string)$mealName);
-        $cleaned = preg_replace('/\b[0-9]+(\.[0-9]+)?\s*(g|kg|ml|oz|cup|cups|tbsp|tsp|serving|servings|pcs?|pieces?)\b/i', '', $beforeParen);
-        $cleaned = preg_replace('/[^\p{L}\p{N}\s\-]/u', ' ', $cleaned);
-        $cleaned = preg_replace('/\s+/', ' ', trim($cleaned));
-
-        return $cleaned !== '' ? $cleaned : trim((string)$mealName);
-    }
-
-    // BAGONG HIGH-ACCURACY IMAGE SYSTEM
-    public function generateMealImage($mealName, $forceRefresh = false) {
-        if (!isset($_SESSION['meal_image_cache']) || !is_array($_SESSION['meal_image_cache'])) {
-            $_SESSION['meal_image_cache'] = [];
-        }
-
-        $cacheKey = 'v3_' . md5(strtolower(trim($mealName))); // Pinalitan ang prefix para sa force refresh
-        if (!$forceRefresh && !empty($_SESSION['meal_image_cache'][$cacheKey])) {
-            return ['success' => true, 'data_uri' => $_SESSION['meal_image_cache'][$cacheKey]];
-        }
-
-        // Gumamit ng high-accuracy Food Image API
-        $imgUri = $this->fetchAccurateFoodImage($mealName);
-        
-        if ($imgUri) {
-            $_SESSION['meal_image_cache'][$cacheKey] = $imgUri;
-            return ['success' => true, 'data_uri' => $imgUri];
-        }
-
-        // HULING FALLBACK: Generic healthy meal photo sa puting background
-        $fallbackUrl = 'https://img.spoonacular.com/file/wximages/10147-312x231.png';
-        $fallbackUri = $this->urlToBase64($fallbackUrl);
-        if ($fallbackUri) {
-            $_SESSION['meal_image_cache'][$cacheKey] = $fallbackUri;
-            return ['success' => true, 'data_uri' => $fallbackUri];
-        }
-
-        return ['success' => false, 'data_uri' => ''];
-    }
-
-    private function fetchAccurateFoodImage($mealName) {
-        $coreDish = $this->extractCoreDishName($mealName);
-        $lower = strtolower($coreDish);
-
-        // 1. Definitive/Curated mapping para sa mga kilalang pagkain/Pinoy meals (na may puting background)
-        $definitiveImageMap = [
-            'banana' => 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'apple'  => 'https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'orange' => 'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'egg'    => 'https://images.unsplash.com/photo-1598965675045-45c5e73c59d3?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'yogurt' => 'https://images.unsplash.com/photo-1488477181946-6428a0291775?q=80&w=400&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'tapsilog'  => 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'adobo'     => 'https://images.unsplash.com/photo-1603100354795-2682d132a015?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'sinigang'  => 'https://images.unsplash.com/photo-1611050832344-7f490336338c?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'pancit'    => 'https://images.unsplash.com/photo-1599117686330-69073933d69b?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'lumpia'    => 'https://images.unsplash.com/photo-1656946119317-672d0d8a2f88?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'sandwich'  => 'https://images.unsplash.com/photo-1528735602780-2552fd46c7ab?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'salad'     => 'https://images.unsplash.com/photo-1540420773420-3366772f4d50?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff',
-            'oatmeal'   => 'https://images.unsplash.com/photo-1517673400267-0251332c9773?q=80&w=600&auto=format&fit=crop&crop=edges&bg=ffffff'
-        ];
-
-        foreach ($definitiveImageMap as $key => $url) {
-            if (strpos($lower, $key) !== false) {
-                return $this->urlToBase64($url);
-            }
-        }
-
-        // 2. Gamitin ang Spoonacular Food Image API para sa mas mahusay na accuracy at puting background
-        $spoonacularApiUrl = "https://api.spoonacular.com/food/images/search";
-        // Ilagay ang iyong Spoonacular API Key dito
-        $spoonacularApiKey = getenv('SPOONACULAR_API_KEY'); 
-
-        if ($spoonacularApiKey) {
-            $query = urlencode($coreDish);
-            $ch = curl_init("$spoonacularApiUrl?query=$query&apiKey=$spoonacularApiKey");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['x-api-key: ' . $spoonacularApiKey]);
-
-            $res = curl_exec($ch);
-            curl_close($ch);
-
-            if ($res) {
-                $data = json_decode($res, true);
-                if (!empty($data['primaryImage'])) {
-                    // Manipulahin ang URL para pilitin ang puting background (bg=ffffff)
-                    $imgUrl = $data['primaryImage'];
-                    if (strpos($imgUrl, '?') !== false) {
-                        $imgUrl .= '&bg=ffffff&crop=edges';
-                    } else {
-                        $imgUrl .= '?bg=ffffff&crop=edges';
-                    }
-                    return $this->urlToBase64($imgUrl);
-                }
-                
-                // Kung walang primary image, subukan ang mga nasa recipe images
-                if (!empty($data['recipes']) && is_array($data['recipes'])) {
-                    foreach($data['recipes'] as $recipe) {
-                        if (!empty($recipe['image'])) {
-                             $imgUrl = $recipe['image'];
-                             if (strpos($imgUrl, '?') !== false) {
-                                $imgUrl .= '&bg=ffffff&crop=edges';
-                            } else {
-                                $imgUrl .= '?bg=ffffff&crop=edges';
-                            }
-                            return $this->urlToBase64($imgUrl);
-                        }
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private function urlToBase64($url) {
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-        $imgData = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode === 200 && $imgData) {
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-            $mime = $finfo->buffer($imgData) ?: 'image/jpeg';
-            return 'data:' . $mime . ';base64,' . base64_encode($imgData);
-        }
-        return null;
-    }
 }
 
 /* =========================================================
@@ -267,14 +172,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit;
         }
 
-        if ($_POST['action'] === 'get_food_image') {
-            $mealName = $_POST['meal_name'] ?? 'healthy food meal';
-            $forceRefresh = filter_var($_POST['force_refresh'] ?? false, FILTER_VALIDATE_BOOLEAN);
-            $res = $planner->generateMealImage($mealName, $forceRefresh);
-            
+        if ($_POST['action'] === 'get_cooking_instructions') {
+            $mealName = $_POST['meal_name'] ?? 'Meal';
+            $ingredients = json_decode($_POST['ingredients'] ?? '[]', true);
+            if (!is_array($ingredients)) $ingredients = [];
+
+            $steps = $planner->generateCookingInstructions($mealName, $ingredients);
             echo json_encode([
-                'success' => !empty($res['data_uri']),
-                'image'   => $res['data_uri'] ?? ''
+                'success' => !empty($steps),
+                'instructions' => $steps
             ]);
             exit;
         }
@@ -283,6 +189,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $dayIndex = (int)$_POST['day_index'];
             $mealIndex = (int)$_POST['meal_index'];
             $newMeal = json_decode($_POST['new_meal'], true);
+
+            // Tiyaking may cooking instructions ang ipapalit na alternative meal
+            if (empty($newMeal['instructions']) || !is_array($newMeal['instructions'])) {
+                $newMeal['instructions'] = $planner->generateCookingInstructions(
+                    $newMeal['name'] ?? 'Meal',
+                    $newMeal['ingredients'] ?? []
+                );
+            }
 
             if (isset($_SESSION['meal_plan'])) {
                 $currentPlan = $_SESSION['meal_plan'];
@@ -716,7 +630,7 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .day-date {font-size:13px; color:var(--muted); font-weight:600;}
 .day-head button{border:1px solid var(--border);background:#fff;border-radius:99px;padding:7px 10px;cursor:pointer;font-size:12px;font-weight:750;}
 .meals{padding:20px 22px}
-.meal{display:grid;grid-template-columns:135px minmax(0,1fr);gap:20px;padding:0 0 22px;margin-bottom:22px;border-bottom:1px solid var(--border); transition: opacity 0.2s;}
+.meal{display:grid;grid-template-columns:155px minmax(0,1fr);gap:20px;padding:0 0 22px;margin-bottom:22px;border-bottom:1px solid var(--border); transition: opacity 0.2s;}
 .meal.completed { opacity: 0.65; }
 .meal.completed .m-name { text-decoration: line-through; color: var(--muted); }
 .meal:last-child{margin:0;padding:0;border:0}
@@ -724,7 +638,11 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 .meal-type{font-size:11px;font-weight:850;text-transform:uppercase;color:var(--green);background:var(--green-soft);padding:6px 9px;border-radius:999px; width: fit-content;}
 .meal-cal{font-size:12px;color:var(--muted);font-weight:650}
 .meal-actions-mini {display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;}
-.btn-mini {background:#fff; border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; color:var(--navy); cursor:pointer;}
+.btn-mini {background:#fff; border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; color:var(--navy); cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:all 0.15s ease;}
+.btn-mini:hover {transform:translateY(-1px);}
+.btn-instruction {color:#2e714e; border-color:#b8dec7; background:#eaf7ef;}
+.btn-instruction i {color:#28a745; font-size:12px;}
+.btn-instruction:hover {background:#dcf2e5; border-color:#8cc8a5;}
 .meal h4{font-size:19px;margin:0 0 12px}
 .macros{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
 .macro{background:#f7faf8;border:1px solid var(--border);border-radius:11px;padding:10px;text-align:center}
@@ -749,15 +667,17 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
 @keyframes kabiPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 
 /* MODALS */
-.modal-overlay {position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;opacity: 0; visibility: hidden; transition: 0.25s;}
+.modal-overlay {position: fixed; inset: 0; background: rgba(23, 59, 50, 0.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 9999;opacity: 0; visibility: hidden; transition: 0.25s;}
 .modal-overlay.active { opacity: 1; visibility: visible; }
-.modal-card {background: #ffffff; width: 90%; max-width: 450px; border-radius: 20px; padding: 28px 24px; position:relative; max-height: 90vh; overflow-y: auto;}
-.modal-close {position:absolute; top:20px; right:20px; background:none; border:none; font-size:24px; cursor:pointer;}
+.modal-card {background: #ffffff; width: 92%; max-width: 500px; border-radius: 22px; padding: 28px 24px; position:relative; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 48px rgba(18, 48, 39, 0.22);}
+.modal-close {position:absolute; top:20px; right:20px; background:#f4f8f5; border:1px solid var(--border); width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-size:20px; color:var(--text); cursor:pointer; transition:background 0.2s;}
+.modal-close:hover {background:var(--green-soft); color:var(--green);}
 
-.img-container { background: #f4f8f5; border-radius: 12px; width: 100%; height: 210px; margin-bottom: 20px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); }
-.img-container img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: none; }
-.img-container.loaded img { display: block; }
-.img-loader { position: absolute; display: flex; flex-direction: column; align-items: center; color: var(--muted); font-size: 12px; gap: 8px; }
+.modal-section-box { background:#f8fbf9; border:1px solid var(--border); border-radius:14px; padding:14px 16px; margin-bottom:16px; }
+.modal-section-title { font-size:13px; font-weight:800; color:var(--navy); margin:0 0 10px; display:flex; align-items:center; gap:7px; text-transform:uppercase; letter-spacing:0.04em; }
+.instruction-steps { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; }
+.instruction-steps li { display:flex; align-items:flex-start; gap:10px; font-size:13.5px; color:var(--text); line-height:1.55; background:#ffffff; border:1px solid var(--border); padding:10px 12px; border-radius:11px; }
+.step-badge { flex-shrink:0; width:24px; height:24px; border-radius:50%; background:var(--green-soft); color:var(--green); font-weight:800; font-size:12px; display:grid; place-items:center; margin-top:1px; }
 
 .overlay{display:none}
 @media(max-width:1100px) { .result-layout { flex-direction: column-reverse; } .alt-col { width: 100%; position: static; } }
@@ -920,8 +840,10 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
                       </label>
 
                       <div class="meal-actions-mini">
-                        <button class="btn-mini" onclick="openMealOverview('<?php echo htmlspecialchars(addslashes(json_encode($meal))); ?>')">👁️ View</button>
-                        <button class="btn-mini" style="color:#0c6bba; border-color:#b6dcf9; background:#e8f4fc;" onclick="fetchAlternatives(this, <?php echo $dayIndex; ?>, <?php echo $mealIndex; ?>, '<?php echo $meal['type']; ?>', <?php echo $meal['calories']; ?>)">🔄 Alts</button>
+                        <button type="button" class="btn-mini btn-instruction" onclick="openMealOverview('<?php echo htmlspecialchars(addslashes(json_encode($meal))); ?>')">
+                          <i class="fa-solid fa-book-open"></i> Instruction
+                        </button>
+                        <button type="button" class="btn-mini" style="color:#0c6bba; border-color:#b6dcf9; background:#e8f4fc;" onclick="fetchAlternatives(this, <?php echo $dayIndex; ?>, <?php echo $mealIndex; ?>, '<?php echo $meal['type']; ?>', <?php echo $meal['calories']; ?>)">🔄 Alts</button>
                       </div>
                     </div>
                     <div>
@@ -1046,27 +968,31 @@ a,button,input,select{font:inherit} a{color:inherit;text-decoration:none}
   </div>
 </div>
 
-<!-- MEAL OVERVIEW MODAL -->
+<!-- MEAL COOKING INSTRUCTION MODAL (NO IMAGE) -->
 <div id="mealOverviewModal" class="modal-overlay">
   <div class="modal-card">
     <button class="modal-close" onclick="closeModal('mealOverviewModal')">&times;</button>
-    <div class="eyebrow" id="mo_type" style="margin-bottom:8px;"></div>
-    <h3 id="mo_name" style="margin-bottom:16px;"></h3>
-    <div class="img-container" id="mo_img_container">
-      <div class="img-loader" id="mo_img_loader">
-        <i class="fa-solid fa-spinner fa-spin" style="font-size:22px; color:var(--green);"></i>
-        <span>Loading food photo...</span>
-      </div>
-      <img id="mo_generated_img" src="" alt="Food Image">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <span class="eyebrow" id="mo_type"></span>
     </div>
-    <div class="macros" style="margin-bottom:16px;">
+    <h3 id="mo_name" style="margin:0 0 18px; font-size:21px; line-height:1.3; padding-right:28px;"></h3>
+    
+    <div class="macros" style="grid-template-columns:repeat(2, minmax(0,1fr)); margin-bottom:18px;">
       <div class="macro"><small>Calories</small><b id="mo_cal"></b></div>
       <div class="macro"><small>Protein</small><b id="mo_pro"></b></div>
       <div class="macro"><small>Carbs</small><b id="mo_car"></b></div>
       <div class="macro"><small>Fats</small><b id="mo_fat"></b></div>
     </div>
-    <h4 style="font-size:14px; margin:0 0 10px;">Ingredients:</h4>
-    <ul id="mo_ingredients" style="font-size:13px; color:var(--muted); padding-left:20px; line-height:1.6; margin:0 0 20px;"></ul>
+
+    <div class="modal-section-box">
+      <h4 class="modal-section-title"><i class="fa-solid fa-basket-shopping" style="color:var(--green);"></i> Ingredients</h4>
+      <ul id="mo_ingredients" style="font-size:13.5px; color:var(--text); padding-left:18px; line-height:1.65; margin:0;"></ul>
+    </div>
+
+    <div class="modal-section-box" style="margin-bottom:4px;">
+      <h4 class="modal-section-title"><i class="fa-solid fa-book-open" style="color:#28a745;"></i> Step-by-Step Cooking Instructions</h4>
+      <ol id="mo_instructions" class="instruction-steps"></ol>
+    </div>
   </div>
 </div>
 
@@ -1259,7 +1185,24 @@ async function toggleMealStatus(checkbox, dayIdx, mealIdx, calories) {
   }
 }
 
-async function openMealOverview(mealJsonStr, forceRefresh = false) {
+function renderInstructionSteps(steps) {
+  const ol = document.getElementById('mo_instructions');
+  ol.innerHTML = '';
+  (steps || []).forEach((stepText, idx) => {
+    const cleanText = String(stepText).replace(/^(step\s*\d+[:.)\-]\s*|\d+[:.)\-]\s*)/i, '');
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="step-badge">${idx + 1}</span><span>${escapeHtml(cleanText)}</span>`;
+    ol.appendChild(li);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function openMealOverview(mealJsonStr) {
   try {
     const meal = typeof mealJsonStr === 'string' ? JSON.parse(mealJsonStr) : mealJsonStr;
     document.getElementById('mo_type').textContent = meal.type;
@@ -1277,49 +1220,39 @@ async function openMealOverview(mealJsonStr, forceRefresh = false) {
       ul.appendChild(li);
     });
 
-    const imgContainer = document.getElementById('mo_img_container');
-    const imgLoader = document.getElementById('mo_img_loader');
-    const generatedImg = document.getElementById('mo_generated_img');
-
-    imgContainer.classList.remove('loaded');
-    imgLoader.style.display = 'flex';
-    generatedImg.onerror = null;
-    generatedImg.onload = null;
-    generatedImg.src = '';
+    const ol = document.getElementById('mo_instructions');
     showModal('mealOverviewModal');
 
-    let imageUrl = '';
+    // Kung naka-save na ang step-by-step instructions sa meal object (galing sa generated plan o alternatives)
+    if (Array.isArray(meal.instructions) && meal.instructions.length > 0) {
+      renderInstructionSteps(meal.instructions);
+      return;
+    }
+
+    // Kung lumang saved plan pa at wala pang instructions array, i-fetch ang accurate cooking steps
+    ol.innerHTML = `<li style="justify-content:center; color:var(--muted);"><i class="fa-solid fa-spinner fa-spin" style="color:var(--green);"></i><span>Loading cooking instructions...</span></li>`;
 
     try {
       const formData = new FormData();
-      formData.append('action', 'get_food_image');
+      formData.append('action', 'get_cooking_instructions');
       formData.append('meal_name', meal.name);
-      formData.append('force_refresh', forceRefresh ? '1' : '0');
+      formData.append('ingredients', JSON.stringify(meal.ingredients || []));
 
       const res = await fetch(window.location.href, { method: 'POST', body: formData });
       const data = await res.json();
-      
-      if (data && data.image) {
-        imageUrl = data.image; 
+
+      if (data && Array.isArray(data.instructions) && data.instructions.length > 0) {
+        meal.instructions = data.instructions;
+        renderInstructionSteps(data.instructions);
+      } else {
+        ol.innerHTML = `<li style="color:var(--muted);">No instructions available for this meal.</li>`;
       }
     } catch (err) {
-      console.warn('Network error fetching image:', err);
+      ol.innerHTML = `<li style="color:var(--danger);">Network error while loading instructions.</li>`;
     }
 
-    generatedImg.onload = function() { 
-      imgContainer.classList.add('loaded'); 
-      imgLoader.style.display = 'none'; 
-    };
-
-    generatedImg.onerror = function() { 
-      imgContainer.classList.add('loaded'); 
-      imgLoader.style.display = 'none'; 
-    };
-
-    generatedImg.src = imageUrl;
-
   } catch(e) { 
-    alert("Error loading meal details."); 
+    alert("Error loading meal instructions."); 
   }
 }
 
@@ -1440,8 +1373,8 @@ async function selectAlternative(mealJsonStr, btnElement) {
       const ingredientsDiv = article.querySelector('.ingredients');
       ingredientsDiv.innerHTML = data.meal.ingredients.map(i => `<span class="ingredient">${i}</span>`).join('');
       
-      const viewBtn = article.querySelector('.meal-actions-mini button:first-child');
-      viewBtn.setAttribute('onclick', `openMealOverview('${JSON.stringify(data.meal).replace(/'/g, "\\'")}')`);
+      const instructionBtn = article.querySelector('.btn-instruction');
+      instructionBtn.setAttribute('onclick', `openMealOverview('${JSON.stringify(data.meal).replace(/'/g, "\\'")}')`);
       
       document.getElementById('altContent').innerHTML = `
         <div class="empty-state" style="border-color:var(--green); background:var(--green-soft);">
